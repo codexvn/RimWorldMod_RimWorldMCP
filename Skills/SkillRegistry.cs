@@ -1,0 +1,115 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace RimWorldMCP.Skills
+{
+    public class SkillRegistry
+    {
+        private readonly Dictionary<string, SkillInfo> _skills = new(StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyList<SkillInfo> Skills => _skills.Values.ToList().AsReadOnly();
+
+        public void LoadFromDirectory(string skillsDir)
+        {
+            _skills.Clear();
+
+            if (!Directory.Exists(skillsDir))
+            {
+                Log($"Skills 目录不存在: {skillsDir}");
+                return;
+            }
+
+            foreach (var file in Directory.GetFiles(skillsDir, "*.md"))
+            {
+                try
+                {
+                    var skill = ParseSkillFile(file);
+                    if (skill != null)
+                    {
+                        _skills[skill.Name] = skill;
+                        Log($"已加载 Skill: {skill.Name}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"加载 Skill 失败 ({file}): {ex.Message}");
+                }
+            }
+
+            Log($"共加载 {_skills.Count} 个 Skill");
+        }
+
+        public SkillInfo? Get(string name)
+        {
+            _skills.TryGetValue(name, out var skill);
+            return skill;
+        }
+
+        public List<SkillInfo> GetAll() => _skills.Values.ToList();
+
+        private static SkillInfo? ParseSkillFile(string filePath)
+        {
+            var text = File.ReadAllText(filePath, System.Text.Encoding.UTF8);
+            var lines = text.Split('\n');
+
+            if (lines.Length < 4 || lines[0].Trim() != "---")
+            {
+                Log($"Skill 文件缺少 frontmatter: {filePath}");
+                return null;
+            }
+
+            string? name = null;
+            string? description = null;
+            int contentStart = -1;
+
+            for (int i = 1; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+
+                if (line == "---")
+                {
+                    contentStart = i + 1;
+                    break;
+                }
+
+                var colonIdx = line.IndexOf(':');
+                if (colonIdx > 0)
+                {
+                    var key = line.Substring(0, colonIdx).Trim().ToLowerInvariant();
+                    var value = line.Substring(colonIdx + 1).Trim();
+                    switch (key)
+                    {
+                        case "name": name = value; break;
+                        case "description": description = value; break;
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(name) || contentStart < 0)
+            {
+                Log($"Skill 文件缺少必要字段: {filePath}");
+                return null;
+            }
+
+            var contentLines = lines.Skip(contentStart)
+                .SkipWhile(l => string.IsNullOrWhiteSpace(l))
+                .ToArray();
+            var content = string.Join("\n", contentLines).Trim();
+
+            return new SkillInfo
+            {
+                Name = name,
+                Description = description ?? name,
+                Content = content,
+                FilePath = filePath
+            };
+        }
+
+        private static void Log(string msg)
+        {
+            Console.Error.WriteLine($"[RimWorldMCP][skills] {DateTime.Now:HH:mm:ss} {msg}");
+        }
+    }
+}
