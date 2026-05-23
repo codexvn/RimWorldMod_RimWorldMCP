@@ -30,12 +30,30 @@ namespace RimWorldMCP.Tools
 
         public List<ToolDefinition> GetDefinitions()
         {
-            return _tools.Values.Select(t => new ToolDefinition
+            return _tools.Values.Select(t =>
             {
-                Name = t.Name,
-                Description = t.Description,
-                InputSchema = t.InputSchema
+                var def = new ToolDefinition
+                {
+                    Name = t.Name,
+                    Description = t.Description,
+                    InputSchema = t.InputSchema,
+                    Annotations = GetAnnotations(t.Name)
+                };
+                return def;
             }).ToList();
+        }
+
+        private static ToolAnnotations? GetAnnotations(string toolName)
+        {
+            if (toolName.StartsWith("get_") || toolName.StartsWith("list_"))
+            {
+                return new ToolAnnotations { ReadOnlyHint = true, DestructiveHint = false };
+            }
+            if (toolName == "schedule_operation")
+            {
+                return new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = true };
+            }
+            return new ToolAnnotations { ReadOnlyHint = false, DestructiveHint = true };
         }
 
         public List<ResourceDefinition> GetResources()

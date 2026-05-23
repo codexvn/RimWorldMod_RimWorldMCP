@@ -14,6 +14,8 @@ namespace RimWorldMCP.Mcp
         };
     }
 
+    // ---- JSON-RPC 2.0 ----
+
     public class JsonRpcRequest
     {
         [JsonPropertyName("jsonrpc")]
@@ -27,6 +29,8 @@ namespace RimWorldMCP.Mcp
 
         [JsonPropertyName("params")]
         public JsonElement? Params { get; set; }
+
+        public bool IsNotification => Id == null || Id.Value.ValueKind == JsonValueKind.Null;
     }
 
     public class JsonRpcResponse
@@ -77,6 +81,26 @@ namespace RimWorldMCP.Mcp
         public string Message { get; set; } = "";
     }
 
+    // ---- MCP Initialize ----
+
+    public class InitializeParams
+    {
+        [JsonPropertyName("protocolVersion")]
+        public string ProtocolVersion { get; set; } = "";
+
+        [JsonPropertyName("clientInfo")]
+        public ClientInfo? ClientInfo { get; set; }
+    }
+
+    public class ClientInfo
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("version")]
+        public string Version { get; set; } = "";
+    }
+
     public class InitializeResult
     {
         [JsonPropertyName("protocolVersion")]
@@ -119,8 +143,10 @@ namespace RimWorldMCP.Mcp
         public string Name { get; set; } = "RimWorld MCP";
 
         [JsonPropertyName("version")]
-        public string Version { get; set; } = "0.1.0";
+        public string Version { get; set; } = "1.0.0";
     }
+
+    // ---- Tool ----
 
     public class ToolDefinition
     {
@@ -132,6 +158,33 @@ namespace RimWorldMCP.Mcp
 
         [JsonPropertyName("inputSchema")]
         public JsonElement InputSchema { get; set; }
+
+        [JsonPropertyName("annotations")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public ToolAnnotations? Annotations { get; set; }
+    }
+
+    public class ToolAnnotations
+    {
+        [JsonPropertyName("title")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("readOnlyHint")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? ReadOnlyHint { get; set; }
+
+        [JsonPropertyName("destructiveHint")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? DestructiveHint { get; set; }
+
+        [JsonPropertyName("idempotentHint")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? IdempotentHint { get; set; }
+
+        [JsonPropertyName("openWorldHint")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? OpenWorldHint { get; set; }
     }
 
     public class ToolCallParams
@@ -161,6 +214,8 @@ namespace RimWorldMCP.Mcp
         [JsonPropertyName("text")]
         public string Text { get; set; } = "";
     }
+
+    // ---- Resource ----
 
     public class ResourceDefinition
     {

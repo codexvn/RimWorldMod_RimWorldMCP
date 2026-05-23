@@ -153,6 +153,8 @@ namespace RimWorldMCP.Transport
             _sessions[sessionId] = session;
             Log($"SSE 客户端连接: {sessionId}");
 
+            // MCP SSE 规范: 第一个事件必须是 endpoint，告知客户端 POST 地址
+            await session.SendEventAsync("endpoint", "/message");
             await session.SendEventAsync("connected", $"{{\"sessionId\":\"{sessionId}\"}}");
 
             try
