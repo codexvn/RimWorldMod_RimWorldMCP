@@ -39,20 +39,30 @@ namespace RimWorldMCP.Transport
 
         public async Task SendAsync(string message)
         {
-            // 优先检查 /mcp 同步响应
+            // 优先检查 /mcp 同步响应，跳过已超时的
             PendingMcpResponse? mcp = null;
             lock (_mcpLock)
             {
-                if (_mcpResponses.Count > 0)
-                    mcp = _mcpResponses.Dequeue();
+                while (_mcpResponses.Count > 0)
+                {
+                    var item = _mcpResponses.Dequeue();
+                    if (!item.Cancelled) { mcp = item; break; }
+                }
             }
             if (mcp != null)
             {
-                var bytes = Encoding.UTF8.GetBytes(message);
-                mcp.Response.ContentType = "application/json";
-                mcp.Response.ContentLength64 = bytes.Length;
-                await mcp.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
-                mcp.Response.Close();
+                try
+                {
+                    var bytes = Encoding.UTF8.GetBytes(message);
+                    mcp.Response.ContentType = "application/json";
+                    mcp.Response.ContentLength64 = bytes.Length;
+                    await mcp.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
+                    mcp.Response.Close();
+                }
+                catch (Exception ex)
+                {
+                    Log($"SendAsync /mcp: {ex.Message}");
+                }
                 mcp.Completion.TrySetResult(true);
                 return;
             }
@@ -237,6 +247,7 @@ namespace RimWorldMCP.Transport
             await Task.WhenAny(pending.Completion.Task, Task.Delay(30000));
             if (!pending.Completion.Task.IsCompleted)
             {
+                pending.Cancelled = true;
                 response.StatusCode = 504;
                 response.Close();
             }
@@ -246,6 +257,7 @@ namespace RimWorldMCP.Transport
         {
             public HttpListenerResponse Response { get; }
             public TaskCompletionSource<bool> Completion { get; } = new();
+            public bool Cancelled { get; set; }
             public PendingMcpResponse(HttpListenerResponse response) => Response = response;
         }
 
