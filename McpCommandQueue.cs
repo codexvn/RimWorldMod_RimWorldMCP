@@ -9,7 +9,6 @@ namespace RimWorldMCP
     {
         public Func<object?> Action { get; set; } = null!;
         public TaskCompletionSource<object?> Completion { get; set; } = new();
-        public CancellationTokenSource Timeout { get; set; } = new(TimeSpan.FromSeconds(5));
     }
 
     public static class McpCommandQueue
@@ -21,19 +20,13 @@ namespace RimWorldMCP
             _queue.Enqueue(command);
         }
 
+        /// <summary>主线程每帧调用。无条件执行所有待处理命令。</summary>
         public static void ProcessPending()
         {
             while (_queue.TryDequeue(out var command))
             {
                 try
                 {
-                    if (command.Timeout.IsCancellationRequested)
-                    {
-                        command.Completion.TrySetException(
-                            new TimeoutException("命令执行超时（5秒内未被主线程处理）"));
-                        continue;
-                    }
-
                     var result = command.Action();
                     command.Completion.TrySetResult(result);
                 }
@@ -41,24 +34,23 @@ namespace RimWorldMCP
                 {
                     command.Completion.TrySetException(ex);
                 }
-                finally
-                {
-                    command.Timeout.Dispose();
-                }
             }
         }
 
         public static int PendingCount => _queue.Count;
 
-        public static async Task<T> DispatchAsync<T>(Func<T> action)
+        /// <summary>调度同步操作到主线程执行，等待结果（超时 30 秒）</summary>
+        public static async Task<T> DispatchAsync<T>(Func<T> action, int timeoutMs = 30000)
         {
-            var command = new McpCommand
-            {
-                Action = () => action()
-            };
+            var command = new McpCommand { Action = () => action() };
             _queue.Enqueue(command);
-            var result = await command.Completion.Task;
-            return (T)result!;
+
+            var timeout = Task.Delay(timeoutMs);
+            var completed = await Task.WhenAny(command.Completion.Task, timeout);
+            if (completed == timeout)
+                throw new TimeoutException("主线程命令执行超时");
+
+            return (T)command.Completion.Task.Result!;
         }
     }
 }
