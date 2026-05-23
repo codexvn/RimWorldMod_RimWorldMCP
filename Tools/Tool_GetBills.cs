@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
 using RimWorld;
+using RimWorldMCP;
 
 namespace RimWorldMCP.Tools
 {
@@ -19,21 +20,21 @@ namespace RimWorldMCP.Tools
             properties = new { workbench_filter = new { type = "string", description = "按工作台类型 defName 或名称过滤" } }
         });
 
-        public Task<ToolResult> ExecuteAsync(JsonElement? args)
+        public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
-            try
-            {
-                var filter = "";
-                if (args != null && args.Value.TryGetProperty("workbench_filter", out var f))
-                    filter = f.GetString() ?? "";
+            var filter = "";
+            if (args != null && args.Value.TryGetProperty("workbench_filter", out var f))
+                filter = f.GetString() ?? "";
 
+            return await McpCommandQueue.DispatchAsync(() =>
+            {
                 var map = Find.CurrentMap;
                 if (map == null)
-                    return Task.FromResult(ToolResult.Error("当前没有可用地图。"));
+                    return ToolResult.Error("当前没有可用地图。");
 
                 var tables = map.listerBuildings.AllBuildingsColonistOfClass<Building_WorkTable>().ToList();
                 if (tables.Count == 0)
-                    return Task.FromResult(ToolResult.Success("当前殖民地没有任何工作台。"));
+                    return ToolResult.Success("当前殖民地没有任何工作台。");
 
                 var sb = new StringBuilder();
                 sb.AppendLine("## 当前工作单");
@@ -115,19 +116,15 @@ namespace RimWorldMCP.Tools
                 if (!hasAnyMatch)
                 {
                     if (!string.IsNullOrEmpty(filter))
-                        return Task.FromResult(ToolResult.Success($"没有匹配过滤条件 \"{filter}\" 的工作单。"));
+                        return ToolResult.Success($"没有匹配过滤条件 \"{filter}\" 的工作单。");
                     else
-                        return Task.FromResult(ToolResult.Success("当前没有工作单。"));
+                        return ToolResult.Success("当前没有工作单。");
                 }
 
                 sb.AppendLine($"**统计**: 共 {totalBills} 个工作单, 分布在工作台。");
 
-                return Task.FromResult(ToolResult.Success(sb.ToString()));
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult(ToolResult.Error($"获取工作单列表失败: {ex.Message}"));
-            }
+                return ToolResult.Success(sb.ToString());
+            });
         }
     }
 }

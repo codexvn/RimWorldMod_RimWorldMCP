@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
 using RimWorld;
+using RimWorldMCP;
 
 namespace RimWorldMCP.Tools
 {
@@ -23,18 +24,18 @@ namespace RimWorldMCP.Tools
             }
         });
 
-        public Task<ToolResult> ExecuteAsync(JsonElement? args)
+        public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
-            try
+            var search = "";
+            var workbenchFilter = "";
+            if (args != null)
             {
-                var search = "";
-                var workbenchFilter = "";
-                if (args != null)
-                {
-                    if (args.Value.TryGetProperty("search", out var s)) search = s.GetString() ?? "";
-                    if (args.Value.TryGetProperty("workbench_type", out var w)) workbenchFilter = w.GetString() ?? "";
-                }
+                if (args.Value.TryGetProperty("search", out var s)) search = s.GetString() ?? "";
+                if (args.Value.TryGetProperty("workbench_type", out var w)) workbenchFilter = w.GetString() ?? "";
+            }
 
+            return await McpCommandQueue.DispatchAsync(() =>
+            {
                 var allRecipes = DefDatabase<RecipeDef>.AllDefs;
                 var filtered = allRecipes.AsEnumerable();
 
@@ -59,7 +60,7 @@ namespace RimWorldMCP.Tools
 
                 var list = filtered.ToList();
                 if (list.Count == 0)
-                    return Task.FromResult(ToolResult.Success("没有匹配的配方。"));
+                    return ToolResult.Success("没有匹配的配方。");
 
                 var sb = new StringBuilder();
                 sb.AppendLine($"## 可用配方 ({list.Count} 个)");
@@ -114,12 +115,8 @@ namespace RimWorldMCP.Tools
                 sb.AppendLine();
                 sb.AppendLine($"**统计**: 共 {list.Count} 个配方匹配当前过滤条件。");
 
-                return Task.FromResult(ToolResult.Success(sb.ToString()));
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult(ToolResult.Error($"获取配方列表失败: {ex.Message}"));
-            }
+                return ToolResult.Success(sb.ToString());
+            });
         }
     }
 }

@@ -49,5 +49,16 @@ namespace RimWorldMCP
         }
 
         public static int PendingCount => _queue.Count;
+
+        public static async Task<T> DispatchAsync<T>(Func<T> action)
+        {
+            var command = new McpCommand
+            {
+                Action = () => action()
+            };
+            _queue.Enqueue(command);
+            var result = await command.Completion.Task;
+            return (T)result!;
+        }
     }
 }

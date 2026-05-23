@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
 using RimWorld;
+using RimWorldMCP;
 
 namespace RimWorldMCP.Tools
 {
@@ -15,13 +16,13 @@ namespace RimWorldMCP.Tools
         public string Description => "获取殖民地防御状态报告：所有殖民者的武器装备、护甲覆盖、征召状态和战斗力评估。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new { type = "object", properties = new { } });
 
-        public Task<ToolResult> ExecuteAsync(JsonElement? args)
+        public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
-            try
+            return await McpCommandQueue.DispatchAsync(() =>
             {
                 var map = Find.CurrentMap;
                 if (map == null)
-                    return Task.FromResult(ToolResult.Error("当前没有可用地图。"));
+                    return ToolResult.Error("当前没有可用地图。");
 
                 var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
                 var sb = new StringBuilder();
@@ -161,12 +162,8 @@ namespace RimWorldMCP.Tools
                         sb.AppendLine($"{i + 1}. {recommendations[i]}");
                 }
 
-                return Task.FromResult(ToolResult.Success(sb.ToString()));
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult(ToolResult.Error($"获取防御状态失败: {ex.Message}"));
-            }
+                return ToolResult.Success(sb.ToString());
+            });
         }
     }
 }

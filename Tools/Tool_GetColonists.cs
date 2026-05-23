@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
 using RimWorld;
+using RimWorldMCP;
 
 namespace RimWorldMCP.Tools
 {
@@ -19,17 +20,17 @@ namespace RimWorldMCP.Tools
             properties = new { colonist_name = new { type = "string", description = "殖民者名称（模糊匹配），不传则返回全部" } }
         });
 
-        public Task<ToolResult> ExecuteAsync(JsonElement? args)
+        public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
-            try
-            {
-                string nameFilter = "";
-                if (args != null && args.Value.TryGetProperty("colonist_name", out var n))
-                    nameFilter = n.GetString() ?? "";
+            string nameFilter = "";
+            if (args != null && args.Value.TryGetProperty("colonist_name", out var n))
+                nameFilter = n.GetString() ?? "";
 
+            return await McpCommandQueue.DispatchAsync(() =>
+            {
                 var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
                 if (colonists == null || colonists.Count == 0)
-                    return Task.FromResult(ToolResult.Success("## 殖民者\n\n暂无自由殖民者。"));
+                    return ToolResult.Success("## 殖民者\n\n暂无自由殖民者。");
 
                 // 按名称过滤
                 IEnumerable<Pawn> filtered = colonists;
@@ -39,7 +40,7 @@ namespace RimWorldMCP.Tools
 
                 var items = filtered.ToList();
                 if (items.Count == 0)
-                    return Task.FromResult(ToolResult.Success("没有匹配的殖民者。"));
+                    return ToolResult.Success("没有匹配的殖民者。");
 
                 var sb = new StringBuilder();
                 sb.AppendLine($"## 殖民者 ({items.Count} 人)");
@@ -81,12 +82,8 @@ namespace RimWorldMCP.Tools
                     sb.AppendLine($"- 工作优先级: {workPriorities}");
                 }
 
-                return Task.FromResult(ToolResult.Success(sb.ToString()));
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult(ToolResult.Error($"get_colonists 执行失败: {ex.Message}"));
-            }
+                return ToolResult.Success(sb.ToString());
+            });
         }
 
         private static string GetMoodLabel(float pct)

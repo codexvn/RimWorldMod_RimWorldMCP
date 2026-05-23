@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
 using RimWorld;
+using RimWorldMCP;
 
 namespace RimWorldMCP.Tools
 {
@@ -23,21 +24,21 @@ namespace RimWorldMCP.Tools
             }
         });
 
-        public Task<ToolResult> ExecuteAsync(JsonElement? args)
+        public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
-            try
+            var filter = "available";
+            var search = "";
+            if (args != null)
             {
-                var filter = "available";
-                var search = "";
-                if (args != null)
-                {
-                    if (args.Value.TryGetProperty("filter", out var f)) filter = f.GetString() ?? "available";
-                    if (args.Value.TryGetProperty("search", out var s)) search = s.GetString() ?? "";
-                }
+                if (args.Value.TryGetProperty("filter", out var f)) filter = f.GetString() ?? "available";
+                if (args.Value.TryGetProperty("search", out var s)) search = s.GetString() ?? "";
+            }
 
+            return await McpCommandQueue.DispatchAsync(() =>
+            {
                 var allProjects = DefDatabase<ResearchProjectDef>.AllDefsListForReading;
                 if (allProjects == null || allProjects.Count == 0)
-                    return Task.FromResult(ToolResult.Success("没有可用的研究项目。"));
+                    return ToolResult.Success("没有可用的研究项目。");
 
                 var filtered = allProjects.AsEnumerable();
 
@@ -63,7 +64,7 @@ namespace RimWorldMCP.Tools
 
                 var list = filtered.ToList();
                 if (list.Count == 0)
-                    return Task.FromResult(ToolResult.Success("没有匹配的研究项目。"));
+                    return ToolResult.Success("没有匹配的研究项目。");
 
                 var sb = new StringBuilder();
                 sb.AppendLine($"## 研究项目 ({list.Count} 个)");
@@ -91,16 +92,12 @@ namespace RimWorldMCP.Tools
                 // 附加快照统计
                 var total = allProjects.Count;
                 var finished = allProjects.Count(p => p.IsFinished);
-                var available = total - finished;
+                var availableCount = total - finished;
                 sb.AppendLine();
-                sb.AppendLine($"**统计**: 总计 {total} 项 | 已完成 {finished} 项 | 未完成 {available} 项");
+                sb.AppendLine($"**统计**: 总计 {total} 项 | 已完成 {finished} 项 | 未完成 {availableCount} 项");
 
-                return Task.FromResult(ToolResult.Success(sb.ToString()));
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult(ToolResult.Error($"获取研究项目失败: {ex.Message}"));
-            }
+                return ToolResult.Success(sb.ToString());
+            });
         }
     }
 }

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Verse;
 using RimWorld;
 using RimWorld.Planet;
+using RimWorldMCP;
 
 namespace RimWorldMCP.Tools
 {
@@ -15,9 +16,9 @@ namespace RimWorldMCP.Tools
         public string Description => "获取 RimWorld 当前游戏的完整状态上下文，包括殖民地概况、资源库存、研究进度、威胁信息、当前工作单等。应在执行任何操作前先调用此工具了解局势。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new { type = "object", properties = new { }, required = Array.Empty<string>() });
 
-        public Task<ToolResult> ExecuteAsync(JsonElement? args)
+        public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
-            try
+            return await McpCommandQueue.DispatchAsync(() =>
             {
                 var sb = new StringBuilder();
 
@@ -182,12 +183,8 @@ namespace RimWorldMCP.Tools
                     catch (Exception) { sb.AppendLine("- 无法读取工作单"); }
                 }
 
-                return Task.FromResult(ToolResult.Success(sb.ToString()));
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult(ToolResult.Error($"get_game_context 执行失败: {ex.Message}"));
-            }
+                return ToolResult.Success(sb.ToString());
+            });
         }
     }
 }
