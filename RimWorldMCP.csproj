@@ -53,4 +53,9 @@
     <Copy SourceFiles="Skills\base-building.md;Skills\colony-management.md;Skills\combat-preparation.md;Skills\equipment-crafting.md;Skills\medical-care.md;Skills\research-management.md" DestinationFolder="$(OutputPath)..\..\Skills" SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- 移除未使用的 Microsoft.Extensions.AI.Abstractions，防止 RimWorld Prepatcher 扫描时报 ValueTuple 程序集缺失 -->
+  <Target Name="RemoveUnusedDeps" AfterTargets="CopySkills">
+    <Delete Files="$(OutputPath)Microsoft.Extensions.AI.Abstractions.dll" />
+  </Target>
+
 </Project>
