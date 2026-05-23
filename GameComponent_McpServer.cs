@@ -14,7 +14,7 @@ namespace RimWorldMCP
     {
         private ITransport? _transport;
         private CancellationTokenSource? _cts;
-        private const int DefaultPort = 9876;
+        private const int DefaultPort = 9877;
 
         public GameComponent_McpServer(Game game)
         {
@@ -70,7 +70,7 @@ namespace RimWorldMCP
                         $"skill://{skill.Name}", skill.Name, skill.Description);
                 }
 
-                // 4. 创建 Transport（默认 SSE + Streamable HTTP，端口 9876）
+                // 4. 创建 Transport（默认 SSE + Streamable HTTP，端口 9877）
                 // 目前启动 Streamable HTTP（新版 MCP 规范推荐），SSE 可后续并行启动
                 _transport = new StreamableHttpTransport(DefaultPort);
 

@@ -45,14 +45,14 @@ RimWorld 1.6 模组——将游戏状态和操作暴露为 MCP (Model Context Pr
 
 ## Claude Desktop 配置
 
-游戏启动后 MCP 服务自动运行在 `http://localhost:9876`。
+游戏启动后 MCP 服务自动运行在 `http://localhost:9877`。
 
 ```json
 {
   "mcpServers": {
     "rimworld": {
       "type": "sse",
-      "url": "http://localhost:9876/sse"
+      "url": "http://localhost:9877/sse"
     }
   }
 }
@@ -65,7 +65,7 @@ RimWorld 1.6 模组——将游戏状态和操作暴露为 MCP (Model Context Pr
   "mcpServers": {
     "rimworld": {
       "type": "http",
-      "url": "http://localhost:9876/mcp"
+      "url": "http://localhost:9877/mcp"
     }
   }
 }

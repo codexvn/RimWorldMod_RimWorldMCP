@@ -18,7 +18,7 @@ namespace RimWorldMCP.Transport
         public event Action<string>? OnMessage;
         public string Name => "http";
 
-        public StreamableHttpTransport(int port = 9876)
+        public StreamableHttpTransport(int port = 9877)
         {
             _port = port;
         }

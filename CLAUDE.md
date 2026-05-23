@@ -53,7 +53,7 @@ dotnet build
 mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderProjects\RimWorldMCP\publish
 ```
 
-游戏启动后，MCP 服务自动运行在 `http://localhost:9876`。
+游戏启动后，MCP 服务自动运行在 `http://localhost:9877`。
 
 ## Tool 清单（21 个，真实 API）
 
@@ -130,7 +130,7 @@ Skill 是领域知识文件（Markdown + YAML frontmatter），存放在 `Skills
   "mcpServers": {
     "rimworld": {
       "type": "sse",
-      "url": "http://localhost:9876/sse"
+      "url": "http://localhost:9877/sse"
     }
   }
 }
@@ -143,7 +143,7 @@ Skill 是领域知识文件（Markdown + YAML frontmatter），存放在 `Skills
   "mcpServers": {
     "rimworld": {
       "type": "http",
-      "url": "http://localhost:9876/mcp"
+      "url": "http://localhost:9877/mcp"
     }
   }
 }

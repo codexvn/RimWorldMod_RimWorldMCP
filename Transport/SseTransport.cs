@@ -17,7 +17,7 @@ namespace RimWorldMCP.Transport
         public string Name => "sse";
         public event Action<string>? OnMessage;
 
-        public SseTransport(int port = 9876)
+        public SseTransport(int port = 9877)
         {
             _port = port;
         }

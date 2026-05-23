@@ -146,7 +146,7 @@ StartedNewGame() / LoadedGame()
   └─→ 加载 SkillRegistry (Skills/*.md)
   └─→ 创建 ToolRegistry，注册 21 个 Tool
   └─→ 创建 McpServer
-  └─→ 创建 ITransport (StreamableHttpTransport，端口 9876)
+  └─→ 创建 ITransport (StreamableHttpTransport，端口 9877)
   └─→ 启动 Transport
 
 GameComponentUpdate() (每帧)
