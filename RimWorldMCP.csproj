@@ -47,4 +47,9 @@
     <None Include="Design.md" />
   </ItemGroup>
 
+  <Target Name="CopySkills" AfterTargets="Build">
+    <MakeDir Directories="$(OutputPath)..\..\Skills" />
+    <Copy SourceFiles="Skills\base-building.md;Skills\colony-management.md;Skills\combat-preparation.md;Skills\equipment-crafting.md;Skills\medical-care.md;Skills\research-management.md" DestinationFolder="$(OutputPath)..\..\Skills" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

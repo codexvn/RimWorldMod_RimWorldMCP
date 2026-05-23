@@ -116,21 +116,44 @@ namespace RimWorldMCP
 
         private static string FindSkillsDirectory()
         {
-            // mod 目录: publish/1.6/Assemblies/ → 向上一级找 Skills/
-            var asmDir = Path.GetDirectoryName(typeof(GameComponent_McpServer).Assembly.Location)
-                ?.Replace('\\', '/');
-            if (asmDir == null) return "Skills";
+            try
+            {
+                // Assembly 路径: .../Mods/RimWorldMCP/1.6/Assemblies/RimWorldMCP.dll
+                // Skills 路径: .../Mods/RimWorldMCP/Skills/
+                var asmPath = typeof(GameComponent_McpServer).Assembly.Location;
+                if (string.IsNullOrEmpty(asmPath))
+                    return FallbackSkillsDir();
 
-            // Assemblies/ → 1.6/ → RimWorldMCP/
-            var modDir = Path.GetFullPath(Path.Combine(asmDir, ".."));
-            var skillsDir = Path.GetFullPath(Path.Combine(modDir, "..", "Skills"));
+                var asmDir = Path.GetDirectoryName(asmPath);
+                if (asmDir == null)
+                    return FallbackSkillsDir();
 
-            if (Directory.Exists(skillsDir))
-                return skillsDir;
+                // 从 Assemblies/ 向上两级到 mod 根目录
+                var modRoot = Path.GetFullPath(Path.Combine(asmDir, "..", ".."));
+                var skillsDir = Path.Combine(modRoot, "Skills");
 
-            // 备选：相对路径
-            var fallback = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Skills"));
-            return Directory.Exists(fallback) ? fallback : "Skills";
+                Log.Message($"[RimWorldMCP] 尝试 Skills 路径: {skillsDir}");
+                if (Directory.Exists(skillsDir))
+                    return skillsDir;
+
+                // 备选：直接在 Skills/ 找（开发模式可能放这里）
+                var altDir = Path.Combine(modRoot, "..", "Skills");
+                if (Directory.Exists(altDir))
+                    return altDir;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimWorldMCP] 查找 Skills 目录异常: {ex.Message}");
+            }
+
+            return FallbackSkillsDir();
+        }
+
+        private static string FallbackSkillsDir()
+        {
+            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Skills");
+            if (Directory.Exists(dir)) return dir;
+            return "Skills";
         }
     }
 }
