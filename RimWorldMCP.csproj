@@ -53,11 +53,5 @@
     <Copy SourceFiles="Skills\base-building.md;Skills\colony-management.md;Skills\combat-preparation.md;Skills\equipment-crafting.md;Skills\medical-care.md;Skills\research-management.md" DestinationFolder="$(OutputPath)..\..\Skills" SkipUnchangedFiles="true" />
   </Target>
 
-  <Target Name="CopyDefs" AfterTargets="Build">
-    <ItemGroup>
-      <DefFiles Include="Defs\**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(DefFiles)" DestinationFolder="$(OutputPath)..\..\Defs\%(RecursiveDir)" SkipUnchangedFiles="true" />
-  </Target>
 
 </Project>
