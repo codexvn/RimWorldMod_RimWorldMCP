@@ -21,6 +21,12 @@ RimWorld 1.6 模组——将游戏状态和操作暴露为 MCP (Model Context Pr
 - **领域知识 Skill 系统**：内置 6 个领域知识文件（基地建造、殖民地管理、战斗准备、装备制造、医疗护理、科技研究），LLM 可在操作前激活获取最佳实践
 - **SSE / Streamable HTTP 双传输**：支持 MCP 2024-11-05 SSE 协议和新版 Streamable HTTP 协议
 
+## 安全说明
+
+- **凭据明文存档**：BridgeToken、BridgePassword、OssAccessKey、OssSecretKey 通过 RimWorld Scribe 系统以明文形式保存在 Mod 配置文件中（位于 `{SaveData}/Config/Mod_{packageId}_{handleName}.xml`）。任何能读取该文件的人均可获取这些凭据。
+- **建议**：使用专用 Token/Key，避免复用重要系统的凭据；定期轮换。
+- **设置界面**：当前凭据输入框为明文显示，输入时请注意周围环境。
+
 ### Tool 清单
 
 | 类别 | Tool | 说明 |

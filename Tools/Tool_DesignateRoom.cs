@@ -12,37 +12,37 @@ namespace RimWorldMCP.Tools
     public class Tool_DesignateRoom : ITool
     {
         public string Name => "designate_room";
-        public string Description => "快速建造一个矩形房间（自动放置四面墙）。尺寸不包括墙体本身（内部空间）。例如 13x13 的房间会建造 15x15 的外墙范围。";
+        public string Description => "快速建造一个矩形房间（自动放置四面墙）。指定左上角和右下角坐标，会在矩形边界放置墙体。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
             properties = new
             {
-                center_x = new { type = "integer", description = "房间中心的 X 坐标" },
-                center_y = new { type = "integer", description = "房间中心的 Y 坐标" },
-                width = new { type = "integer", description = "房间内部宽度（不含墙），默认 13", @default = 13 },
-                height = new { type = "integer", description = "房间内部高度（不含墙），默认 13", @default = 13 },
+                pos_x = new { type = "integer", description = "左上角 X 坐标" },
+                pos_y = new { type = "integer", description = "左上角 Y 坐标" },
+                end_x = new { type = "integer", description = "右下角 X 坐标" },
+                end_y = new { type = "integer", description = "右下角 Y 坐标" },
                 wall_defName = new { type = "string", description = "墙体 DefName，默认 Wall（可用 Steel 自动使用钢材料）", @default = "Wall" },
                 door_positions = new { type = "string", description = "门的位置，多个用逗号分隔。可选: top, bottom, left, right, center_top, center_bottom, center_left, center_right" },
                 door_defName = new { type = "string", description = "门的 DefName，默认 Door", @default = "Door" },
                 floor_defName = new { type = "string", description = "地板 DefName，可选" },
                 force = new { type = "boolean", description = "跳过资源检查强制建造（默认 false）", @default = false }
             },
-            required = new[] { "center_x", "center_y" }
+            required = new[] { "pos_x", "pos_y", "end_x", "end_y" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             // 参数验证（任意线程安全）
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("center_x", out var jX) || !jX.TryGetInt32(out var centerX))
-                return ToolResult.Error("缺少必填参数: center_x");
-            if (!args.Value.TryGetProperty("center_y", out var jY) || !jY.TryGetInt32(out var centerY))
-                return ToolResult.Error("缺少必填参数: center_y");
-
-            int width = 13, height = 13;
-            if (args.Value.TryGetProperty("width", out var jW) && jW.TryGetInt32(out var wv) && wv > 0) width = wv;
-            if (args.Value.TryGetProperty("height", out var jH) && jH.TryGetInt32(out var hv) && hv > 0) height = hv;
+            if (!args.Value.TryGetProperty("pos_x", out var jSx) || !jSx.TryGetInt32(out var rawStartX))
+                return ToolResult.Error("缺少必填参数: pos_x");
+            if (!args.Value.TryGetProperty("pos_y", out var jSz) || !jSz.TryGetInt32(out var rawStartZ))
+                return ToolResult.Error("缺少必填参数: pos_y");
+            if (!args.Value.TryGetProperty("end_x", out var jEx) || !jEx.TryGetInt32(out var rawEndX))
+                return ToolResult.Error("缺少必填参数: end_x");
+            if (!args.Value.TryGetProperty("end_y", out var jEz) || !jEz.TryGetInt32(out var rawEndZ))
+                return ToolResult.Error("缺少必填参数: end_y");
 
             string wallDefName = "Wall";
             if (args.Value.TryGetProperty("wall_defName", out var jWall)) wallDefName = jWall.GetString() ?? "Steel";
@@ -61,25 +61,30 @@ namespace RimWorldMCP.Tools
                 force = jForce.ValueKind == JsonValueKind.True;
 
             // 计算房间几何（不涉及游戏状态，可在任意线程执行）
-            int roomW = width + 2;
-            int roomH = height + 2;
-            int startX = centerX - roomW / 2;
-            int startY = centerY - roomH / 2;
-            int endX = startX + roomW - 1;
-            int endY = startY + roomH - 1;
+            int minX = Math.Min(rawStartX, rawEndX);
+            int maxX = Math.Max(rawStartX, rawEndX);
+            int minZ = Math.Min(rawStartZ, rawEndZ);
+            int maxZ = Math.Max(rawStartZ, rawEndZ);
+
+            int roomWidth = maxX - minX + 1;
+            int roomHeight = maxZ - minZ + 1;
 
             // 计算墙体位置（矩形四条边）
             var wallPositions = new List<(int x, int y)>();
-            for (int x = startX; x <= endX; x++)
+            for (int x = minX; x <= maxX; x++)
             {
-                wallPositions.Add((x, startY)); // 上边
-                wallPositions.Add((x, endY));   // 下边
+                wallPositions.Add((x, minZ)); // 上边
+                wallPositions.Add((x, maxZ)); // 下边
             }
-            for (int y = startY + 1; y < endY; y++)
+            for (int z = minZ + 1; z < maxZ; z++)
             {
-                wallPositions.Add((startX, y)); // 左边
-                wallPositions.Add((endX, y));   // 右边
+                wallPositions.Add((minX, z)); // 左边
+                wallPositions.Add((maxX, z)); // 右边
             }
+
+            // 门的居中位置取边界中点
+            int midX = (minX + maxX) / 2;
+            int midZ = (minZ + maxZ) / 2;
 
             // 解析门的位置
             var doorPosSet = new HashSet<(int x, int y)>();
@@ -90,14 +95,14 @@ namespace RimWorldMCP.Tools
                     string trimmed = posStr.Trim();
                     (int x, int y)? doorPoint = trimmed switch
                     {
-                        "top" => (centerX, startY),
-                        "bottom" => (centerX, endY),
-                        "left" => (startX, centerY),
-                        "right" => (endX, centerY),
-                        "center_top" => (centerX, startY),
-                        "center_bottom" => (centerX, endY),
-                        "center_left" => (startX, centerY),
-                        "center_right" => (endX, centerY),
+                        "top" => (midX, minZ),
+                        "bottom" => (midX, maxZ),
+                        "left" => (minX, midZ),
+                        "right" => (maxX, midZ),
+                        "center_top" => (midX, minZ),
+                        "center_bottom" => (midX, maxZ),
+                        "center_left" => (minX, midZ),
+                        "center_right" => (maxX, midZ),
                         _ => null
                     };
                     if (doorPoint != null)
@@ -109,11 +114,11 @@ namespace RimWorldMCP.Tools
             var floorPositions = new List<(int x, int y)>();
             if (!string.IsNullOrEmpty(floorDefName))
             {
-                for (int x = startX + 1; x < endX; x++)
+                for (int x = minX + 1; x < maxX; x++)
                 {
-                    for (int y = startY + 1; y < endY; y++)
+                    for (int z = minZ + 1; z < maxZ; z++)
                     {
-                        floorPositions.Add((x, y));
+                        floorPositions.Add((x, z));
                     }
                 }
             }
@@ -159,8 +164,8 @@ namespace RimWorldMCP.Tools
 
                     // 地图边界检查
                     int mapW = map.Size.x, mapH = map.Size.z;
-                    if (startX < 0 || startY < 0 || endX >= mapW || endY >= mapH)
-                        return ToolResult.Error($"房间范围 ({startX}~{endX}, {startY}~{endY}) 超出地图边界 (0~{mapW - 1}, 0~{mapH - 1})。请选择更靠内的中心点或缩小房间。");
+                    if (minX < 0 || minZ < 0 || maxX >= mapW || maxZ >= mapH)
+                        return ToolResult.Error($"房间范围 ({minX}~{maxX}, {minZ}~{maxZ}) 超出地图边界 (0~{mapW - 1}, 0~{mapH - 1})。请调整坐标。");
 
                     if (Faction.OfPlayer == null)
                         return ToolResult.Error("玩家派系不存在");
@@ -273,13 +278,13 @@ namespace RimWorldMCP.Tools
                     // 构建返回文本
                     var sb = new StringBuilder();
                     sb.AppendLine($"房间建造蓝图规划完成:");
-                    sb.AppendLine($"- 范围: ({startX}, {startY}) ~ ({endX}, {endY})，中心 ({centerX}, {centerY})");
+                    sb.AppendLine($"- 范围: ({minX}, {minZ}) ~ ({maxX}, {maxZ})，共 {roomWidth}x{roomHeight} 格");
                     sb.AppendLine($"- 外墙: {placedWalls} 格 {wallDef.label} ({wallDefName})");
                     if (placedDoors > 0)
                         sb.AppendLine($"- 门: {placedDoors} 扇 {doorDef?.label ?? doorDefName}");
                     if (placedFloors > 0)
                         sb.AppendLine($"- 地板: {placedFloors} 格 {floorDef?.label ?? floorDefName}");
-                    sb.AppendLine($"- 内部空间: {width}x{height} = {width * height} 格");
+                    sb.AppendLine($"- 内部空间: {roomWidth - 2}x{roomHeight - 2} = {(roomWidth - 2) * (roomHeight - 2)} 格");
                     if (errors.Count > 0)
                         sb.AppendLine($"- 部分失败 ({errors.Count} 处): {string.Join("; ", errors)}");
 

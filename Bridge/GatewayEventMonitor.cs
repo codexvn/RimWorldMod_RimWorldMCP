@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -17,6 +18,7 @@ namespace RimWorldMCP
         private static HashSet<int> _seenLetterIds = new();
         private static HashSet<string> _seenMessageIds = new();
         private static FieldInfo? _msgStartingTimeField;
+        public static readonly ConcurrentQueue<string> RecentMessages = new();
 
         public static void Reset()
         {
@@ -200,6 +202,7 @@ namespace RimWorldMCP
                         ? msg.text.Substring(0, 297) + "..."
                         : msg.text;
                     GatewayMessageQueue.Enqueue(MessageCategory.Alert, $"[{label}] {text}");
+                    RecentMessages.Enqueue($"[{label}] {text}");
                     Find.Archive!.Remove(msg);
                     ExpireLiveMessage(msg);
                 }
@@ -230,6 +233,33 @@ namespace RimWorldMCP
             _msgStartingTimeField ??= typeof(Verse.Message).GetField("startingTime",
                 BindingFlags.Instance | BindingFlags.NonPublic);
             _msgStartingTimeField?.SetValue(msg, -99999f);
+        }
+
+        /// <summary>立即读取 Find.Archive 中尚未处理的 Message，捕获 CheckNewMessages 周期间的消息</summary>
+        public static string DrainUnprocessedMessages()
+        {
+            var archivables = Find.Archive?.ArchivablesListForReading;
+            if (archivables == null || _seenMessageIds.Count == 0) return "";
+
+            var sb = new StringBuilder();
+            foreach (var a in archivables)
+            {
+                if (a is not Verse.Message msg) continue;
+                string id = ((ILoadReferenceable)msg).GetUniqueLoadID();
+                if (_seenMessageIds.Contains(id)) continue;
+                if (string.IsNullOrEmpty(msg.text)) continue;
+
+                _seenMessageIds.Add(id);
+                string label = GetMessageTypeLabel(msg.def);
+                string text = msg.text.Length > 300
+                    ? msg.text.Substring(0, 297) + "..."
+                    : msg.text;
+                string formatted = $"[{label}] {text}";
+                RecentMessages.Enqueue(formatted);
+                sb.AppendLine($"- {formatted}");
+                ExpireLiveMessage(msg);
+            }
+            return sb.ToString().TrimEnd();
         }
 
         // ========== 消息构建 ==========

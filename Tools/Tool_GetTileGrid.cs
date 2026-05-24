@@ -19,12 +19,12 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                min_x = new { type = "integer", description = "网格 X 范围最小值（水平轴）" },
-                min_y = new { type = "integer", description = "网格 Y 范围最小值（垂直轴，即 IntVec3.z）" },
-                max_x = new { type = "integer", description = "网格 X 范围最大值" },
-                max_y = new { type = "integer", description = "网格 Y 范围最大值" }
+                pos_x = new { type = "integer", description = "左上 X 坐标" },
+                pos_y = new { type = "integer", description = "左上 Y 坐标" },
+                end_x = new { type = "integer", description = "右下 X 坐标（可选，不提供则只查单格）" },
+                end_y = new { type = "integer", description = "右下 Y 坐标（可选，不提供则只查单格）" }
             },
-            required = new[] { "min_x", "min_y", "max_x", "max_y" }
+            required = new[] { "pos_x", "pos_y" }
         });
 
         // 完整图例映射表（动态输出时只显示实际用到的符号）
@@ -134,14 +134,17 @@ namespace RimWorldMCP.Tools
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("min_x", out var jMinX) || !jMinX.TryGetInt32(out var minX))
-                return ToolResult.Error("缺少 min_x");
-            if (!args.Value.TryGetProperty("min_y", out var jMinY) || !jMinY.TryGetInt32(out var minY))
-                return ToolResult.Error("缺少 min_y");
-            if (!args.Value.TryGetProperty("max_x", out var jMaxX) || !jMaxX.TryGetInt32(out var maxX))
-                return ToolResult.Error("缺少 max_x");
-            if (!args.Value.TryGetProperty("max_y", out var jMaxY) || !jMaxY.TryGetInt32(out var maxY))
-                return ToolResult.Error("缺少 max_y");
+            if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var posX))
+                return ToolResult.Error("缺少必填参数: pos_x");
+            if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var posY))
+                return ToolResult.Error("缺少必填参数: pos_y");
+
+            int endX = posX, endY = posY;
+            if (args.Value.TryGetProperty("end_x", out var jEx)) jEx.TryGetInt32(out endX);
+            if (args.Value.TryGetProperty("end_y", out var jEy)) jEy.TryGetInt32(out endY);
+
+            int minX = Math.Min(posX, endX), maxX = Math.Max(posX, endX);
+            int minY = Math.Min(posY, endY), maxY = Math.Max(posY, endY);
 
             if (maxX - minX > 80 || maxY - minY > 80)
                 return ToolResult.Error("网格范围不能超过 80x80");

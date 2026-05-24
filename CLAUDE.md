@@ -206,8 +206,8 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 ### 网格查询 (2)
 | Tool | 说明 | 参数 |
 |------|------|------|
-| `get_tile_detail` | 指定坐标范围详情（建筑/物品/植物/生物） | min_x, min_y, max_x, max_y |
-| `get_tile_grid` | 文本化字符网格地图（64 种符号） | min_x, min_y, max_x, max_y |
+| `get_tile_detail` | 指定坐标范围详情（建筑/物品/植物/生物） | pos_x, pos_y, end_x, end_y |
+| `get_tile_grid` | 文本化字符网格地图（64 种符号） | pos_x, pos_y, end_x, end_y |
 
 ### 制造 (4)
 | Tool | 说明 | 数据源/操作 |
@@ -221,7 +221,7 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 | Tool | 说明 | 数据源/操作 |
 |------|------|------------|
 | `designate_build` | 放置建造蓝图（参数: pos_x=水平, pos_y=垂直网格） | `GenConstruct.PlaceBlueprintForBuild()` (入队) |
-| `designate_room` | 快速建造矩形房间（参数: center_x=水平, center_y=垂直网格） | 批量 `PlaceBlueprintForBuild()` (入队) |
+| `designate_room` | 快速建造矩形房间（参数: pos_x/pos_y=左上, end_x/end_y=右下） | 批量 `PlaceBlueprintForBuild()` (入队) |
 
 ### 标记 (4)
 | Tool | 说明 | 数据源/操作 |
@@ -335,3 +335,15 @@ Skill 是领域知识文件（Markdown + YAML frontmatter），存放在 `Skills
 - `dotnet build` → `publish/1.6/Assemblies/RimWorldMCP.dll`
 - **坐标陷阱**：`IntVec3(x,y,z)` 中 `y` 是海拔，`z` 是网格垂直轴。MCP 用户的 `pos_y` 必须映射到 `IntVec3.z`，写 `new IntVec3(x, posY, 0)` 是 bug
 - **HttpListener 陷阱**：`StartAsync` 中 `HttpListener.Start()` 可能抛 `HttpListenerException`（端口占用/权限不足），需提供中文诊断；`_transport` 要在 `StartAsync` 成功后才赋值；RimWorld 返回主菜单会导致 Game 对象被 Dispose 但 GameComponent 不通知，需静态字段跨实例清理
+
+### 开发规范
+
+**1. 新增 Tool 先查游戏源码**
+
+开发任何新 Tool 时，第一步是到 `F:\RiderProjects\Assembly-CSharp\` 反编译源码中追踪完整链路：用户在游戏界面点击 → Designator/Command → JobGiver/JobDriver → 游戏执行。理解原版如何处理输入验证、资源检查、失败路径，然后尽量复用游戏原有逻辑（Designator、Job、Bill 等），不要凭空造轮子。
+
+**2. 坐标参数统一左上→右下**
+
+所有 MCP Tool 的区域坐标参数使用 `pos_x/pos_y`（左上角）→ `end_x/end_y`（右下角）模式，禁止使用中心点+半径/宽高向外扩展的 API 设计。参考 `designate_mine` 的实现。
+- `pos_x`/`pos_y` — 必填，区域起始角
+- `end_x`/`end_y` — 可选，区域结束角（不提供则只操作单格）

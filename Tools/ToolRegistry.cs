@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using RimWorldMCP.Mcp;
@@ -61,6 +62,40 @@ namespace RimWorldMCP.Tools
             return _resources;
         }
 
+        private static async Task<string> BuildGameMessageSuffixAsync()
+        {
+            var buffered = new List<string>();
+            while (GatewayEventMonitor.RecentMessages.TryDequeue(out var msg))
+                buffered.Add(msg);
+
+            string? unprocessed = null;
+            try
+            {
+                unprocessed = await McpCommandQueue.DispatchAsync(
+                    GatewayEventMonitor.DrainUnprocessedMessages);
+            }
+            catch { /* 调度失败不影响工具结果 */ }
+
+            if (buffered.Count == 0 && string.IsNullOrEmpty(unprocessed)) return "";
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("---");
+            sb.AppendLine("### 游戏消息");
+            foreach (var m in buffered)
+                sb.AppendLine($"- {m}");
+            if (!string.IsNullOrEmpty(unprocessed))
+            {
+                foreach (var line in unprocessed.Split('\n'))
+                {
+                    if (!string.IsNullOrWhiteSpace(line))
+                        sb.AppendLine(line);
+                }
+            }
+
+            return sb.ToString();
+        }
+
         public string? ReadResource(string uri)
         {
             return _resources.Any(r => r.Uri == uri)
@@ -75,11 +110,15 @@ namespace RimWorldMCP.Tools
                 try
                 {
                     var result = await tool.ExecuteAsync(args);
+
+                    // 捕获工具调用间隙的游戏内消息
+                    var gameMessages = await BuildGameMessageSuffixAsync();
+
                     return new ToolCallResult
                     {
                         Content = new List<ContentItem>
                         {
-                            new() { Type = "text", Text = result.Text }
+                            new() { Type = "text", Text = result.Text + gameMessages }
                         },
                         IsError = result.IsError
                     };

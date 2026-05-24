@@ -18,26 +18,26 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                min_x = new { type = "integer", description = "截图范围最小 X 坐标" },
-                max_x = new { type = "integer", description = "截图范围最大 X 坐标（含）" },
-                min_z = new { type = "integer", description = "截图范围最小 Z 坐标（可选）" },
-                max_z = new { type = "integer", description = "截图范围最大 Z 坐标（可选）" },
+                pos_x = new { type = "integer", description = "截图范围最小 X 坐标" },
+                end_x = new { type = "integer", description = "截图范围最大 X 坐标（含）" },
+                pos_y = new { type = "integer", description = "截图范围最小 Y 坐标（可选）" },
+                end_y = new { type = "integer", description = "截图范围最大 Y 坐标（可选）" },
                 file_name = new { type = "string", description = "输出文件名，不含扩展名（可选）" }
             },
-            required = new[] { "min_x", "max_x" }
+            required = new[] { "pos_x", "end_x" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("min_x", out var jMinX) || !jMinX.TryGetInt32(out var minX))
-                return ToolResult.Error("缺少必填参数: min_x");
-            if (!args.Value.TryGetProperty("max_x", out var jMaxX) || !jMaxX.TryGetInt32(out var maxX))
-                return ToolResult.Error("缺少必填参数: max_x");
+            if (!args.Value.TryGetProperty("pos_x", out var jMinX) || !jMinX.TryGetInt32(out var minX))
+                return ToolResult.Error("缺少必填参数: pos_x");
+            if (!args.Value.TryGetProperty("end_x", out var jMaxX) || !jMaxX.TryGetInt32(out var maxX))
+                return ToolResult.Error("缺少必填参数: end_x");
 
             int? minZ = null, maxZ = null;
-            if (args.Value.TryGetProperty("min_z", out var jMinZ) && jMinZ.TryGetInt32(out var mz)) minZ = mz;
-            if (args.Value.TryGetProperty("max_z", out var jMaxZ) && jMaxZ.TryGetInt32(out var mz2)) maxZ = mz2;
+            if (args.Value.TryGetProperty("pos_y", out var jMinZ) && jMinZ.TryGetInt32(out var mz)) minZ = mz;
+            if (args.Value.TryGetProperty("end_y", out var jMaxZ) && jMaxZ.TryGetInt32(out var mz2)) maxZ = mz2;
 
             string fileName = "";
             if (args.Value.TryGetProperty("file_name", out var jFileName))
