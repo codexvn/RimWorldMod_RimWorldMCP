@@ -99,7 +99,7 @@ namespace RimWorldMCP.Tools
                             oldRootSize);
                     });
 
-                    string fullPath = Path.Combine(GenFilePaths.ScreenshotFolderPath, localFile + ".png");
+                    string fullPath = Path.GetFullPath(Path.Combine(GenFilePaths.ScreenshotFolderPath, localFile + ".png"));
                     McpOssUploader.EnqueuePendingUpload(fullPath, objectKey);
                     string publicUrl = McpOssUploader.GetPublicUrl(objectKey);
 

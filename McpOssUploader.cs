@@ -17,7 +17,7 @@ namespace RimWorldMCP
 
         public static void EnqueuePendingUpload(string filePath, string objectKey)
         {
-            _pending.Enqueue((filePath, objectKey, Time.frameCount, 0));
+            _pending.Enqueue((Path.GetFullPath(filePath), objectKey, Time.frameCount, 0));
         }
 
         /// <summary>主线程每帧调用，仅处理上一帧及之前入队的上传（避免 CaptureScreenshot 帧末写文件尚未完成）</summary>
@@ -35,7 +35,7 @@ namespace RimWorldMCP
 
                 try
                 {
-                    if (!File.Exists(dequeued.filePath))
+                    if (!File.Exists(Path.GetFullPath(dequeued.filePath)))
                     {
                         if (dequeued.retryCount < MaxRetries)
                         {
@@ -77,7 +77,7 @@ namespace RimWorldMCP
             {
                 BucketName = McpOssConfig.BucketName,
                 Key = objectKey,
-                FilePath = filePath,
+                FilePath = Path.GetFullPath(filePath),
                 ContentType = "image/png"
             });
 
