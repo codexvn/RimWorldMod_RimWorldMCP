@@ -1,16 +1,14 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
-using Amazon.Runtime;
-using Amazon.S3;
-using Amazon.S3.Model;
+using Aliyun.OSS;
 
 namespace RimWorldMCP
 {
     public static class McpOssUploader
     {
-        private const double MinWaitSeconds = 2.0;  // 至少等 Unity 写完文件
-        private const double MaxWaitSeconds = 60.0; // 最多等 60 秒
+        private const double MinWaitSeconds = 2.0;
+        private const double MaxWaitSeconds = 60.0;
 
         private static readonly ConcurrentQueue<(string filePath, string objectKey, DateTime enqueuedAt)> _pending = new();
 
@@ -19,7 +17,6 @@ namespace RimWorldMCP
             _pending.Enqueue((Path.GetFullPath(filePath), objectKey, DateTime.UtcNow));
         }
 
-        /// <summary>主线程每帧调用，时间基准等待文件就绪后再上传</summary>
         public static void ProcessPendingUploads()
         {
             if (!McpOssConfig.IsConfigured || _pending.IsEmpty) return;
@@ -34,7 +31,7 @@ namespace RimWorldMCP
                 {
                     if (elapsed < MinWaitSeconds)
                     {
-                        toRetry.Add(item); // 还没到最短等待时间，下帧再看
+                        toRetry.Add(item);
                         continue;
                     }
 
@@ -42,7 +39,7 @@ namespace RimWorldMCP
                     {
                         if (elapsed < MaxWaitSeconds)
                         {
-                            toRetry.Add(item); // 文件尚未就绪，继续等
+                            toRetry.Add(item);
                         }
                         else
                         {
@@ -63,7 +60,6 @@ namespace RimWorldMCP
                 _pending.Enqueue(retry);
         }
 
-        /// <summary>尝试打开文件读取，确认写入已完毕</summary>
         private static bool IsFileReady(string path)
         {
             try
@@ -80,25 +76,9 @@ namespace RimWorldMCP
 
         private static void UploadInternal(string filePath, string objectKey)
         {
-            var s3Config = new AmazonS3Config
-            {
-                ServiceURL = McpOssConfig.NormalizeUrl(McpOssConfig.ServiceUrl),
-                ForcePathStyle = McpOssConfig.ForcePathStyle,
-                AuthenticationRegion = McpOssConfig.Region
-            };
-
-            using var client = new AmazonS3Client(McpOssConfig.AccessKey, McpOssConfig.SecretKey, s3Config);
-            string normalizedPath = Path.GetFullPath(filePath);
-            client.PutObject(new PutObjectRequest
-            {
-                BucketName = McpOssConfig.BucketName,
-                Key = objectKey,
-                FilePath = normalizedPath,
-                ContentType = "image/png",
-                DisablePayloadSigning = true,
-                DisableDefaultChecksumValidation = true,
-                Headers = { ContentLength = new FileInfo(normalizedPath).Length }
-            });
+            var client = new OssClient(McpOssConfig.ServiceUrl, McpOssConfig.AccessKey, McpOssConfig.SecretKey);
+            var metadata = new ObjectMetadata { ContentType = "image/png" };
+            client.PutObject(McpOssConfig.BucketName, objectKey, Path.GetFullPath(filePath), metadata);
 
             McpLog.Info($"OSS 上传成功: {objectKey}");
 
@@ -111,37 +91,15 @@ namespace RimWorldMCP
             if (McpOssConfig.UseSignedUrl)
                 return GetSignedUrl(objectKey);
 
-            if (McpOssConfig.ForcePathStyle)
-                return $"{McpOssConfig.ServiceUrl}/{McpOssConfig.BucketName}/{objectKey}";
-
-            try
-            {
-                return $"https://{McpOssConfig.BucketName}.{new Uri(McpOssConfig.ServiceUrl).Host}/{objectKey}";
-            }
-            catch (UriFormatException)
-            {
-                return $"{McpOssConfig.ServiceUrl}/{McpOssConfig.BucketName}/{objectKey}";
-            }
+            return $"{McpOssConfig.ServiceUrl}/{McpOssConfig.BucketName}/{objectKey}";
         }
 
         private static string GetSignedUrl(string objectKey)
         {
-            var s3Config = new AmazonS3Config
-            {
-                ServiceURL = McpOssConfig.NormalizeUrl(McpOssConfig.ServiceUrl),
-                ForcePathStyle = McpOssConfig.ForcePathStyle,
-                AuthenticationRegion = McpOssConfig.Region
-            };
-
-            using var client = new AmazonS3Client(McpOssConfig.AccessKey, McpOssConfig.SecretKey, s3Config);
-            return client.GetPreSignedURL(new GetPreSignedUrlRequest
-            {
-                BucketName = McpOssConfig.BucketName,
-                Key = objectKey,
-                Expires = DateTime.UtcNow.AddHours(McpOssConfig.SignedUrlExpiryHours),
-                Verb = HttpVerb.GET,
-                Protocol = Protocol.HTTPS
-            });
+            var client = new OssClient(McpOssConfig.ServiceUrl, McpOssConfig.AccessKey, McpOssConfig.SecretKey);
+            var expiry = DateTime.UtcNow.AddHours(McpOssConfig.SignedUrlExpiryHours);
+            var uri = client.GeneratePresignedUri(McpOssConfig.BucketName, objectKey, expiry, SignHttpMethod.Get);
+            return uri.ToString();
         }
     }
 }

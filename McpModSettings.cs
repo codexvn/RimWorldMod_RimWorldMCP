@@ -9,8 +9,6 @@ namespace RimWorldMCP
         public string OssBucketName = "";
         public string OssAccessKey = "";
         public string OssSecretKey = "";
-        public string OssRegion = "";
-        public bool OssForcePathStyle = false;
         public bool OssUseSignedUrl = true;
         public int OssSignedUrlExpiryHours = 24;
 
@@ -22,8 +20,6 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref OssBucketName, "ossBucketName", "");
             Scribe_Values.Look(ref OssAccessKey, "ossAccessKey", "");
             Scribe_Values.Look(ref OssSecretKey, "ossSecretKey", "");
-            Scribe_Values.Look(ref OssRegion, "ossRegion", "");
-            Scribe_Values.Look(ref OssForcePathStyle, "ossForcePathStyle", false);
             Scribe_Values.Look(ref OssUseSignedUrl, "ossUseSignedUrl", true);
             Scribe_Values.Look(ref OssSignedUrlExpiryHours, "ossSignedUrlExpiryHours", 24);
         }

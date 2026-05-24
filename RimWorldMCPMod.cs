@@ -25,30 +25,24 @@ namespace RimWorldMCP
             listing.Begin(inRect);
 
             listing.CheckboxLabeled("启用 OSS 上传", ref Settings.OssEnabled,
-                "开启后，截图将自动上传到 S3 兼容的对象存储（如阿里云 OSS、MinIO 等）");
+                "开启后，截图将自动上传到阿里云 OSS");
 
             if (Settings.OssEnabled)
             {
                 listing.Gap(12f);
 
-                listing.Label("Service URL");
+                listing.Label("Endpoint");
+                listing.Label("示例: https://oss-cn-beijing.aliyuncs.com");
                 Settings.OssServiceUrl = listing.TextEntry(Settings.OssServiceUrl);
 
                 listing.Label("Bucket 名称");
                 Settings.OssBucketName = listing.TextEntry(Settings.OssBucketName);
 
-                listing.Label("Access Key");
+                listing.Label("AccessKey ID");
                 Settings.OssAccessKey = listing.TextEntry(Settings.OssAccessKey);
 
-                listing.Label("Secret Key");
+                listing.Label("AccessKey Secret");
                 Settings.OssSecretKey = listing.TextEntry(Settings.OssSecretKey);
-
-                listing.Label("Region");
-                Settings.OssRegion = listing.TextEntry(Settings.OssRegion);
-
-                listing.Gap(12f);
-                listing.CheckboxLabeled("Force Path Style", ref Settings.OssForcePathStyle,
-                    "勾选 = endpoint/bucket/key，不勾选 = bucket.endpoint/key");
 
                 listing.Gap(12f);
                 listing.CheckboxLabeled("使用签名 URL", ref Settings.OssUseSignedUrl,
