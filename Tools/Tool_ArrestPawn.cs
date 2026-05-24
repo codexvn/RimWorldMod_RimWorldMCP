@@ -18,27 +18,20 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                colonist_name = new { type = "string", description = "执行逮捕的殖民者名称" },
-                target_name = new { type = "string", description = "目标名称" }
+                doer_id = new { type = "integer", description = "执行逮捕的殖民者 ID（来自 get_colonists）" },
+                target_id = new { type = "integer", description = "目标 ID（来自 get_tile_detail）" }
             },
-            required = new[] { "colonist_name", "target_name" }
+            required = new[] { "doer_id", "target_id" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("colonist_name", out var jName))
-                return ToolResult.Error("缺少必填参数: colonist_name");
+            if (!args.Value.TryGetProperty("doer_id", out var jDid) || !jDid.TryGetInt32(out var doerId))
+                return ToolResult.Error("缺少必填参数: doer_id");
 
-            string colonistName = jName.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(colonistName))
-                return ToolResult.Error("colonist_name 不能为空");
-
-            string targetName = "";
-            if (args.Value.TryGetProperty("target_name", out var jTarget))
-                targetName = jTarget.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(targetName))
-                return ToolResult.Error("缺少必填参数: target_name");
+            if (!args.Value.TryGetProperty("target_id", out var jTid) || !jTid.TryGetInt32(out var targetId))
+                return ToolResult.Error("缺少必填参数: target_id");
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -48,27 +41,19 @@ namespace RimWorldMCP.Tools
                     if (colonists == null || colonists.Count == 0)
                         return ToolResult.Error("当前没有自由殖民者。");
 
-                    Pawn pawn = colonists.FirstOrDefault(c =>
-                        c.Name.ToStringShort.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        c.Name.ToStringFull.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0);
+                    Pawn pawn = colonists.FirstOrDefault(c => c.thingIDNumber == doerId);
                     if (pawn == null)
-                        return ToolResult.Error($"找不到执行逮捕的殖民者: {colonistName}");
+                        return ToolResult.Error($"找不到执行逮捕的殖民者 ID={doerId}");
 
                     Map map = Find.CurrentMap;
                     if (map == null)
                         return ToolResult.Error("没有当前地图。");
 
-                    // 查找目标：搜索所有可能的活体 Pawn
-                    var allTargets = PawnsFinder.AllMaps_FreeColonistsSpawned
-                        .Concat(PawnsFinder.AllMaps_PrisonersOfColonySpawned)
-                        .Concat(map.mapPawns.AllPawnsSpawned);
-
-                    Pawn clickedPawn = allTargets.FirstOrDefault(c =>
-                        c.Name.ToStringShort.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        c.Name.ToStringFull.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0);
+                    // 查找目标：按 thingIDNumber 在所有活体 Pawn 中搜索
+                    Pawn clickedPawn = map.mapPawns.AllPawnsSpawned.FirstOrDefault(p => p.thingIDNumber == targetId);
 
                     if (clickedPawn == null)
-                        return ToolResult.Error($"找不到目标: {targetName}");
+                        return ToolResult.Error($"找不到目标 ID={targetId}");
 
                     // 验证：是否可被捕
                     if (!clickedPawn.CanBeArrestedBy(pawn))

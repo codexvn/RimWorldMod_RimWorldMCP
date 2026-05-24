@@ -73,7 +73,7 @@ namespace RimWorldMCP.Tools
                             if (b != null)
                             {
                                 var stuffLabel = b.Stuff != null ? $" ({b.Stuff.label})" : "";
-                                buildings.Add($"- [{x},{y}] {b.Label}{stuffLabel} ({(int)(b.HitPoints * 100f / b.MaxHitPoints)}%)");
+                                buildings.Add($"- [{x},{y}] {b.Label}{stuffLabel} ({(int)(b.HitPoints * 100f / b.MaxHitPoints)}%, ID:{b.thingIDNumber})");
                                 buildingCount++;
                             }
                         }
@@ -102,7 +102,7 @@ namespace RimWorldMCP.Tools
                                     if (qc != null) quality = $" ({qc.Quality.GetLabel()})";
                                 }
                                 var label = t.def.IsApparel || t.def.IsWeapon ? $"{t.Label}{quality}" : $"{t.Label} x{t.stackCount}";
-                                items.Add($"- [{x},{y}] {label}");
+                                items.Add($"- [{x},{y}] {label} (ID:{t.thingIDNumber})");
                                 itemCount++;
                             }
                         }
@@ -123,7 +123,7 @@ namespace RimWorldMCP.Tools
                             var p = pos.GetPlant(map);
                             if (p != null)
                             {
-                                plants.Add($"- [{x},{y}] {p.Label} (成长 {p.Growth * 100f:F0}%)");
+                                plants.Add($"- [{x},{y}] {p.Label} (成长 {p.Growth * 100f:F0}%, ID:{p.thingIDNumber})");
                                 plantCount++;
                             }
                         }
@@ -143,7 +143,7 @@ namespace RimWorldMCP.Tools
                         var p = pawn.Position;
                         if (p.x >= minX && p.x <= maxX && p.z >= minY && p.z <= maxY)
                         {
-                            pawns.Add($"- [{p.x},{p.z}] {pawn.LabelShort} ({pawn.KindLabel})");
+                            pawns.Add($"- [{p.x},{p.z}] {pawn.LabelShort} ({pawn.KindLabel}, ID:{pawn.thingIDNumber})");
                             pawnCount++;
                         }
                     }

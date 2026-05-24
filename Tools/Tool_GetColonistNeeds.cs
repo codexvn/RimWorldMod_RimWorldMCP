@@ -17,14 +17,24 @@ namespace RimWorldMCP.Tools
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
-            properties = new { colonist_name = new { type = "string", description = "殖民者名称（模糊匹配），不传返回全部" } }
+            properties = new
+            {
+                colonist_id = new { type = "integer", description = "殖民者 ID（来自 get_colonists），不传返回全部" },
+                colonist_name = new { type = "string", description = "殖民者名称（模糊匹配），不传返回全部" }
+            }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
+            int? colonistId = null;
             string nameFilter = "";
-            if (args != null && args.Value.TryGetProperty("colonist_name", out var n))
-                nameFilter = n.GetString() ?? "";
+            if (args != null)
+            {
+                if (args.Value.TryGetProperty("colonist_id", out var jId) && jId.TryGetInt32(out var cid))
+                    colonistId = cid;
+                if (args.Value.TryGetProperty("colonist_name", out var n))
+                    nameFilter = n.GetString() ?? "";
+            }
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -33,7 +43,9 @@ namespace RimWorldMCP.Tools
                     return ToolResult.Success("## 殖民者需求状态\n\n暂无自由殖民者。");
 
                 IEnumerable<Pawn> filtered = colonists;
-                if (!string.IsNullOrEmpty(nameFilter))
+                if (colonistId.HasValue)
+                    filtered = colonists.Where(c => c.thingIDNumber == colonistId.Value);
+                else if (!string.IsNullOrEmpty(nameFilter))
                     filtered = colonists.Where(c =>
                         c.Name.ToStringShort.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         c.Name.ToStringFull.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0);

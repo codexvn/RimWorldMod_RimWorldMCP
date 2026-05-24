@@ -19,7 +19,7 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                colonist_name = new { type = "string", description = "殖民者名称。留空则操作全部。" },
+                thing_id = new { type = "integer", description = "殖民者 ID（来自 get_colonists，留空则操作全部）" },
                 drafted = new { type = "boolean", description = "true=征召, false=解除征召" }
             },
             required = new[] { "drafted" }
@@ -34,9 +34,9 @@ namespace RimWorldMCP.Tools
                 return ToolResult.Error("缺少 drafted（需要 true 或 false）");
 
             var drafted = d.GetBoolean();
-            var nameFilter = "";
-            if (args.Value.TryGetProperty("colonist_name", out var cn))
-                nameFilter = cn.GetString() ?? "";
+            int thingId = -1;
+            if (args.Value.TryGetProperty("thing_id", out var jId) && jId.TryGetInt32(out var tid))
+                thingId = tid;
 
             // 所有游戏 API 访问通过 DispatchAsync 调度到主线程
             return await McpCommandQueue.DispatchAsync(() =>
@@ -53,19 +53,16 @@ namespace RimWorldMCP.Tools
 
                     // 查找目标殖民者
                     List<Pawn> targets;
-                    if (string.IsNullOrEmpty(nameFilter))
+                    if (thingId < 0)
                     {
                         targets = colonists.ToList();
                     }
                     else
                     {
-                        targets = colonists.Where(c =>
-                            c.Name.ToStringShort.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0
-                            || c.Name.ToStringFull.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0
-                        ).ToList();
-
-                        if (targets.Count == 0)
-                            return ToolResult.Error($"未找到匹配的殖民者: {nameFilter}。使用 get_colonists 查看可用殖民者。");
+                        var p = colonists.FirstOrDefault(c => c.thingIDNumber == thingId);
+                        if (p == null)
+                            return ToolResult.Error($"找不到 ID={thingId} 的殖民者。使用 get_colonists 查看可用殖民者。");
+                        targets = new List<Pawn> { p };
                     }
 
                     // 检查 drafter 可用性
@@ -108,9 +105,9 @@ namespace RimWorldMCP.Tools
 
                     if (draftedCount == 1 && targets.Count <= 1)
                     {
-                        sb.Append($"{targets[0].Name.ToStringShort} {actionText}");
+                        sb.Append($"{targets[0].Name.ToStringShort} (ID:{targets[0].thingIDNumber}) {actionText}");
                     }
-                    else if (string.IsNullOrEmpty(nameFilter) && skippedPawns.Count == 0)
+                    else if (thingId < 0 && skippedPawns.Count == 0)
                     {
                         sb.Append($"全体殖民者({draftedCount}人) {actionText}");
                     }

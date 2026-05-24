@@ -12,42 +12,33 @@ namespace RimWorldMCP.Tools
     public class Tool_ForceDress : ITool
     {
         public string Name => "force_dress";
-        public string Description => "强制殖民者给另一位殖民者穿戴衣物。通过游戏 Job 系统（ForceTargetWear），A 将拿取衣物给 B 穿上。";
+        public string Description => "强制殖民者去拿取衣物给另一位殖民者穿上。通过衣物唯一 ID 定位；先用 get_tile_detail 查看衣物 ID。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
             properties = new
             {
-                colonist_name = new { type = "string", description = "执行穿戴操作的殖民者名称" },
-                target_name = new { type = "string", description = "目标殖民者名称（被穿者）" },
-                thing_defName = new { type = "string", description = "衣物 DefName" }
+                doer_id = new { type = "integer", description = "执行穿戴操作的殖民者 ID（去拿衣物的人，来自 get_colonists）" },
+                target_id = new { type = "integer", description = "目标殖民者 ID（被穿者，来自 get_colonists）" },
+                thing_id = new { type = "integer", description = "衣物唯一 ID（来自 get_tile_detail）" }
             },
-            required = new[] { "colonist_name", "target_name", "thing_defName" }
+            required = new[] { "doer_id", "target_id", "thing_id" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("colonist_name", out var jDoer))
-                return ToolResult.Error("缺少必填参数: colonist_name");
+            if (!args.Value.TryGetProperty("doer_id", out var jDid) || !jDid.TryGetInt32(out var doerId))
+                return ToolResult.Error("缺少必填参数: doer_id");
+            if (!args.Value.TryGetProperty("target_id", out var jTid) || !jTid.TryGetInt32(out var targetId))
+                return ToolResult.Error("缺少必填参数: target_id");
 
-            string colonistName = jDoer.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(colonistName))
-                return ToolResult.Error("colonist_name 不能为空");
+            if (!args.Value.TryGetProperty("thing_id", out var jId) || !jId.TryGetInt32(out var thingId))
+                return ToolResult.Error("缺少必填参数: thing_id");
 
-            if (!args.Value.TryGetProperty("target_name", out var jTarget))
-                return ToolResult.Error("缺少必填参数: target_name");
-
-            string targetName = jTarget.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(targetName))
-                return ToolResult.Error("target_name 不能为空");
-
-            if (!args.Value.TryGetProperty("thing_defName", out var jDef))
-                return ToolResult.Error("缺少必填参数: thing_defName");
-
-            string thingDefName = jDef.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(thingDefName))
-                return ToolResult.Error("thing_defName 不能为空");
+            string thingDefName = "";
+            if (args.Value.TryGetProperty("thing_defName", out var jDef))
+                thingDefName = jDef.GetString() ?? "";
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -57,43 +48,28 @@ namespace RimWorldMCP.Tools
                     if (colonists == null || colonists.Count == 0)
                         return ToolResult.Error("当前没有自由殖民者。");
 
-                    // 查找执行者
-                    Pawn pawn = colonists.FirstOrDefault(c =>
-                        c.Name.ToStringShort.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        c.Name.ToStringFull.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0);
+                    Pawn pawn = colonists.FirstOrDefault(c => c.thingIDNumber == doerId);
                     if (pawn == null)
-                        return ToolResult.Error($"找不到执行穿戴的殖民者: {colonistName}");
+                        return ToolResult.Error($"找不到执行穿戴的殖民者 ID={doerId}");
 
-                    // 查找目标（被穿者）
-                    Pawn targetPawn = colonists.FirstOrDefault(c =>
-                        c.Name.ToStringShort.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        c.Name.ToStringFull.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0);
+                    Pawn targetPawn = colonists.FirstOrDefault(c => c.thingIDNumber == targetId);
                     if (targetPawn == null)
-                        return ToolResult.Error($"找不到目标殖民者: {targetName}");
+                        return ToolResult.Error($"找不到目标殖民者 ID={targetId}");
 
                     if (pawn == targetPawn)
-                        return ToolResult.Error("执行者和目标不能是同一人，请使用 equip_pawn 或 force_equip 自行装备。");
+                        return ToolResult.Error("执行者和目标不能是同一人，请使用 equip_pawn 自行装备。");
 
                     Map map = Find.CurrentMap;
                     if (map == null)
                         return ToolResult.Error("没有当前地图。");
 
                     // 查找衣物
-                    var apparelList = map.listerThings.ThingsInGroup(ThingRequestGroup.Apparel);
-                    if (apparelList == null || apparelList.Count == 0)
-                        return ToolResult.Error("地图上没有任何衣物。");
-
-                    Thing? thing = apparelList.FirstOrDefault(t => t.def.defName == thingDefName);
-                    if (thing == null)
-                    {
-                        var available = apparelList.Take(10).Select(t => $"{t.Label} ({t.def.defName})").ToArray();
-                        return ToolResult.Error($"找不到匹配 '{thingDefName}' 的衣物。可用: {string.Join(", ", available)}");
-                    }
-
-                    // 验证 —— 对齐 FloatMenuOptionProvider_DressOtherPawn
-                    Apparel apparel = thing as Apparel;
+                    var t = FindThingById(map, thingId);
+                    if (t == null)
+                        return ToolResult.Error($"找不到 ID={thingId} 的物品。");
+                    Apparel? apparel = t as Apparel;
                     if (apparel == null)
-                        return ToolResult.Error($"{thing.Label} 不是有效的衣物。");
+                        return ToolResult.Error($"ID={thingId} ({t.Label}) 不是衣物。");
 
                     if (!pawn.CanReach(apparel, PathEndMode.ClosestTouch, Danger.Deadly))
                         return ToolResult.Error($"{pawn.Name.ToStringShort} 无法到达 {apparel.Label}。");
@@ -116,18 +92,25 @@ namespace RimWorldMCP.Tools
                     if (!EquipmentUtility.CanEquip(apparel, targetPawn, out string reason, true))
                         return ToolResult.Error($"无法给 {targetPawn.Name.ToStringShort} 穿戴 {apparel.Label}：{reason}");
 
-                    // 执行穿戴 Job
                     apparel.SetForbidden(false, true);
                     Job job = JobMaker.MakeJob(JobDefOf.ForceTargetWear, targetPawn, apparel);
                     pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
 
-                    return ToolResult.Success($"小人已前往给 {targetPawn.Name} 穿戴: {apparel.Label}");
+                    return ToolResult.Success($"{pawn.Name.ToStringShort} 已前往 ({apparel.Position.x},{apparel.Position.z}) 拿取衣物并给 {targetPawn.Name} 穿戴: {apparel.Label}");
                 }
                 catch (Exception ex)
                 {
                     return ToolResult.Error($"强制穿戴失败: {ex.Message}");
                 }
             });
+        }
+
+        private static Thing? FindThingById(Map map, int id)
+        {
+            foreach (var t in map.listerThings.AllThings)
+                if (t.thingIDNumber == id)
+                    return t;
+            return null;
         }
     }
 }

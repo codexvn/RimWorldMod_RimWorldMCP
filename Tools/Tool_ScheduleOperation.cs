@@ -18,25 +18,21 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                colonist_name = new { type = "string", description = "要接受手术的殖民者名称" },
+                colonist_id = new { type = "integer", description = "殖民者 ID（来自 get_colonists）" },
                 recipe_defName = new { type = "string", description = "手术配方 DefName，如 InstallBionicArm" },
                 body_part = new { type = "string", description = "目标身体部位标签（可选），如 左臂、右眼。不传则自动选择。" }
             },
-            required = new[] { "colonist_name", "recipe_defName" }
+            required = new[] { "colonist_id", "recipe_defName" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             // 参数验证（任意线程安全）
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("colonist_name", out var jName))
-                return ToolResult.Error("缺少必填参数: colonist_name");
+            if (!args.Value.TryGetProperty("colonist_id", out var jCid) || !jCid.TryGetInt32(out var colonistId))
+                return ToolResult.Error("缺少必填参数: colonist_id");
             if (!args.Value.TryGetProperty("recipe_defName", out var jRecipe))
                 return ToolResult.Error("缺少必填参数: recipe_defName");
-
-            string colonistName = jName.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(colonistName))
-                return ToolResult.Error("colonist_name 不能为空");
 
             string recipeDefName = jRecipe.GetString() ?? "";
             if (string.IsNullOrWhiteSpace(recipeDefName))
@@ -56,11 +52,9 @@ namespace RimWorldMCP.Tools
                     if (colonists == null || colonists.Count == 0)
                         return ToolResult.Error("当前没有自由殖民者。");
 
-                    Pawn pawn = colonists.FirstOrDefault(c =>
-                        c.Name.ToStringShort.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        c.Name.ToStringFull.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0);
+                    Pawn pawn = colonists.FirstOrDefault(c => c.thingIDNumber == colonistId);
                     if (pawn == null)
-                        return ToolResult.Error($"找不到殖民者: {colonistName}");
+                        return ToolResult.Error($"找不到殖民者 ID={colonistId}");
 
                     // 查找 RecipeDef
                     RecipeDef recipe = DefDatabase<RecipeDef>.GetNamedSilentFail(recipeDefName);

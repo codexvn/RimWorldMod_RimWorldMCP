@@ -8,10 +8,10 @@ using RimWorldMCP;
 
 namespace RimWorldMCP.Tools
 {
-    public class Tool_DesignatePlantsCut : ITool
+    public class Tool_DesignateClearPlants : ITool
     {
-        public string Name => "designate_plants_cut";
-        public string Description => "标记指定区域的树木以供砍伐收获。成熟树木使用收获木材命令（HarvestPlant），未成熟树木通过 include_immature 参数控制是否砍除（CutPlant）。非树木植物请使用 designate_clear_plants。提供 end_x/end_y 可划定矩形范围。";
+        public string Name => "designate_clear_plants";
+        public string Description => "标记指定区域的杂草、灌木等非树木植物进行清除（CutPlant 命令）。不处理树木（树木请使用 designate_plants_cut）。提供 end_x/end_y 可划定矩形范围。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
@@ -21,8 +21,7 @@ namespace RimWorldMCP.Tools
                 pos_y = new { type = "integer", description = "起点 Y 坐标（垂直）" },
                 end_x = new { type = "integer", description = "终点 X 坐标（可选，与 end_y 配对划定矩形范围）" },
                 end_y = new { type = "integer", description = "终点 Y 坐标（可选，与 end_x 配对划定矩形范围）" },
-                plant_defName = new { type = "string", description = "植物 defName 过滤（可选，只砍特定种类，如 OakTree）" },
-                include_immature = new { type = "boolean", description = "是否包含未成熟树木（默认 false，未成熟树木将被跳过）" }
+                plant_defName = new { type = "string", description = "植物 defName 过滤（可选，只清除特定种类）" }
             },
             required = new[] { "pos_x", "pos_y" }
         });
@@ -43,10 +42,6 @@ namespace RimWorldMCP.Tools
             if (args.Value.TryGetProperty("plant_defName", out var jPlant))
                 plantDefName = jPlant.GetString() ?? "";
 
-            bool includeImmature = false;
-            if (args.Value.TryGetProperty("include_immature", out var jImm) && jImm.ValueKind == JsonValueKind.True)
-                includeImmature = true;
-
             return await McpCommandQueue.DispatchAsync(() =>
             {
                 try
@@ -65,7 +60,6 @@ namespace RimWorldMCP.Tools
                     if (area.IsEmpty)
                         return ToolResult.Error($"指定范围 ({minX},{minZ})~({maxX},{maxZ}) 完全在地图外。");
 
-                    var harvestWoodDesignator = new Designator_PlantsHarvestWood();
                     var cutDesignator = new Designator_PlantsCut();
                     int designated = 0, skipped = 0, filtered = 0;
 
@@ -85,40 +79,24 @@ namespace RimWorldMCP.Tools
 
                         if (plant == null) { skipped++; continue; }
 
-                        bool isTree = plant.def.plant.IsTree;
+                        // 跳过树木，树木归 designate_plants_cut 处理
+                        if (plant.def.plant.IsTree) { skipped++; continue; }
 
-                        if (isTree && plant.HarvestableNow)
-                        {
-                            if (!harvestWoodDesignator.CanDesignateCell(cell).Accepted) { skipped++; continue; }
-                            harvestWoodDesignator.DesignateSingleCell(cell);
-                            designated++;
-                        }
-                        else if (isTree && includeImmature)
-                        {
-                            if (!cutDesignator.CanDesignateCell(cell).Accepted) { skipped++; continue; }
-                            cutDesignator.DesignateSingleCell(cell);
-                            designated++;
-                        }
-                        else if (isTree)
-                        {
-                            skipped++;
-                        }
-                        else
-                        {
-                            skipped++;
-                        }
+                        if (!cutDesignator.CanDesignateCell(cell).Accepted) { skipped++; continue; }
+                        cutDesignator.DesignateSingleCell(cell);
+                        designated++;
                     }
 
                     var sb = new StringBuilder();
                     string filterInfo = !string.IsNullOrEmpty(plantDefName) ? $"（过滤: {plantDefName}）" : "";
                     sb.Append(isRange
-                        ? $"已标记砍伐范围 ({minX},{minZ})~({maxX},{maxZ}){filterInfo}：{designated} 株"
-                        : $"已标记砍伐坐标 ({posX}, {posY}){filterInfo}：{designated} 株");
+                        ? $"已标记清除范围 ({minX},{minZ})~({maxX},{maxZ}){filterInfo}：{designated} 株"
+                        : $"已标记清除坐标 ({posX}, {posY}){filterInfo}：{designated} 株");
                     sb.Append($"。（跳过 {skipped}，不匹配过滤 {filtered}）");
 
                     return ToolResult.Success(sb.ToString());
                 }
-                catch (Exception ex) { return ToolResult.Error($"标记砍伐失败: {ex.Message}"); }
+                catch (Exception ex) { return ToolResult.Error($"标记清除植物失败: {ex.Message}"); }
             });
         }
     }

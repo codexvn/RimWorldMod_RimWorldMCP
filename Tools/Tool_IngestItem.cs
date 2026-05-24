@@ -18,28 +18,20 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                colonist_name = new { type = "string", description = "殖民者名称" },
-                thing_defName = new { type = "string", description = "物品 DefName（食物/药物/饮料）" }
+                colonist_id = new { type = "integer", description = "殖民者 ID（来自 get_colonists）" },
+                thing_id = new { type = "integer", description = "物品唯一 ID（来自 get_tile_detail）" }
             },
-            required = new[] { "colonist_name", "thing_defName" }
+            required = new[] { "colonist_id", "thing_id" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("colonist_name", out var jName))
-                return ToolResult.Error("缺少必填参数: colonist_name");
+            if (!args.Value.TryGetProperty("colonist_id", out var jCid) || !jCid.TryGetInt32(out var colonistId))
+                return ToolResult.Error("缺少必填参数: colonist_id");
 
-            string colonistName = jName.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(colonistName))
-                return ToolResult.Error("colonist_name 不能为空");
-
-            if (!args.Value.TryGetProperty("thing_defName", out var jDef))
-                return ToolResult.Error("缺少必填参数: thing_defName");
-
-            string thingDefName = jDef.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(thingDefName))
-                return ToolResult.Error("thing_defName 不能为空");
+            if (!args.Value.TryGetProperty("thing_id", out var jTid) || !jTid.TryGetInt32(out var thingId))
+                return ToolResult.Error("缺少必填参数: thing_id");
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -49,11 +41,9 @@ namespace RimWorldMCP.Tools
                     if (colonists == null || colonists.Count == 0)
                         return ToolResult.Error("当前没有自由殖民者。");
 
-                    Pawn pawn = colonists.FirstOrDefault(c =>
-                        c.Name.ToStringShort.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        c.Name.ToStringFull.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0);
+                    Pawn pawn = colonists.FirstOrDefault(c => c.thingIDNumber == colonistId);
                     if (pawn == null)
-                        return ToolResult.Error($"找不到殖民者: {colonistName}");
+                        return ToolResult.Error($"找不到殖民者 ID={colonistId}");
 
                     Map map = Find.CurrentMap;
                     if (map == null)
@@ -64,12 +54,9 @@ namespace RimWorldMCP.Tools
                     if (candidates == null || candidates.Count == 0)
                         return ToolResult.Error("地图上没有任何可食用物品。");
 
-                    Thing? thing = candidates.FirstOrDefault(t => t.def.defName == thingDefName);
+                    Thing? thing = candidates.FirstOrDefault(t => t.thingIDNumber == thingId);
                     if (thing == null)
-                    {
-                        var available = candidates.Take(10).Select(t => $"{t.Label} ({t.def.defName})").ToArray();
-                        return ToolResult.Error($"找不到匹配 '{thingDefName}' 的可食用物品。可用: {string.Join(", ", available)}");
-                    }
+                        return ToolResult.Error($"找不到匹配 ID={thingId} 的可食用物品。");
 
                     // 验证 —— 对齐 FloatMenuOptionProvider_Ingest
                     if (thing.def.ingestible == null || !thing.def.ingestible.showIngestFloatOption)

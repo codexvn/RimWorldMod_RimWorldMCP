@@ -168,6 +168,7 @@ namespace RimWorldMCP
             registry.Register(new Tool_DesignatePlantsCut());
             registry.Register(new Tool_DesignateMine());
             registry.Register(new Tool_DesignateDeconstruct());
+            registry.Register(new Tool_DesignateClearPlants());
             registry.Register(new Tool_DesignateHarvest());
             registry.Register(new Tool_TakeScreenshot());
             registry.Register(new Tool_ListResearchProjects());

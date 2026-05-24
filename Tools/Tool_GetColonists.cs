@@ -89,7 +89,7 @@ namespace RimWorldMCP.Tools
                     string recentLogs = GetRecentLogs(pawn);
 
                     sb.AppendLine();
-                    sb.AppendLine($"### {name}");
+                    sb.AppendLine($"### {name} (ID:{pawn.thingIDNumber})");
                     sb.AppendLine($"- {name} ({age}岁, {gender}) | 心情: {moodStr} ({moodLabel}) | 健康: {healthSummary}");
                     sb.AppendLine($"  特性: {traitsStr}");
                     sb.AppendLine($"  技能: {skillsStr}");

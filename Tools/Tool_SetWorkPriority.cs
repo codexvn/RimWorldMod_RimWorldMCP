@@ -19,7 +19,7 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                colonist_name = new { type = "string", description = "殖民者名称" },
+                colonist_id = new { type = "integer", description = "殖民者 ID（来自 get_colonists）" },
                 priorities = new
                 {
                     type = "array",
@@ -29,27 +29,34 @@ namespace RimWorldMCP.Tools
                         type = "object",
                         properties = new
                         {
-                            work_type = new { type = "string", description = "工作类型 defName" },
+                            work_type = new
+                            {
+                                type = "string",
+                                description = "工作类型 defName",
+                                @enum = new[]
+                                {
+                                    "Firefighter", "Doctor", "Patient", "PatientBedRest", "BasicWorker",
+                                    "Warden", "Handling", "Cooking", "Construction", "Repair",
+                                    "Growing", "Mining", "PlantCutting", "Smithing", "Tailoring",
+                                    "Art", "Crafting", "Hauling", "Cleaning", "Research"
+                                }
+                            },
                             priority = new { type = "integer", description = "优先级: 0=不分配, 1=最高, 2=高, 3=普通, 4=最低", minimum = 0, maximum = 4 }
                         },
                         required = new[] { "work_type", "priority" }
                     }
                 }
             },
-            required = new[] { "colonist_name", "priorities" }
+            required = new[] { "colonist_id", "priorities" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("colonist_name", out var cn))
-                return ToolResult.Error("缺少 colonist_name");
+            if (!args.Value.TryGetProperty("colonist_id", out var jCid) || !jCid.TryGetInt32(out var colonistId))
+                return ToolResult.Error("缺少必填参数: colonist_id");
             if (!args.Value.TryGetProperty("priorities", out var jp) || jp.ValueKind != JsonValueKind.Array)
                 return ToolResult.Error("缺少 priorities（需为数组）");
-
-            var colonistName = cn.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(colonistName))
-                return ToolResult.Error("colonist_name 不能为空。");
 
             var entries = new List<(string workType, int priority)>();
             foreach (var item in jp.EnumerateArray())
@@ -72,12 +79,9 @@ namespace RimWorldMCP.Tools
                     if (colonists == null || colonists.Count == 0)
                         return ToolResult.Error("当前没有殖民者。");
 
-                    var pawn = colonists.FirstOrDefault(c =>
-                        c.Name.ToStringShort.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0
-                        || c.Name.ToStringFull.IndexOf(colonistName, StringComparison.OrdinalIgnoreCase) >= 0);
-
+                    var pawn = colonists.FirstOrDefault(c => c.thingIDNumber == colonistId);
                     if (pawn == null)
-                        return ToolResult.Error($"未找到匹配的殖民者: {colonistName}。");
+                        return ToolResult.Error($"找不到 ID={colonistId} 的殖民者。");
 
                     if (pawn.workSettings == null)
                         return ToolResult.Error($"{pawn.Name.ToStringShort} 没有工作设置。");
