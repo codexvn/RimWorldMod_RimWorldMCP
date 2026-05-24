@@ -48,7 +48,6 @@
 
   <ItemGroup>
     <None Include="CLAUDE.md" />
-    <None Include="Design.md" />
   </ItemGroup>
 
 
