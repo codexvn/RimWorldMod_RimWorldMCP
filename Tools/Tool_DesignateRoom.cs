@@ -288,7 +288,7 @@ namespace RimWorldMCP.Tools
                     var sb = new StringBuilder();
                     sb.AppendLine($"房间建造蓝图规划完成:");
                     sb.AppendLine($"- 范围: ({minX}, {minZ}) ~ ({maxX}, {maxZ})，共 {roomWidth}x{roomHeight} 格");
-                    sb.AppendLine($"- 外墙: {placedWalls} 格 {wallDef.label}（材料: {wallStuff?.label ?? "Steel"}）");
+                    sb.AppendLine($"- 外墙: {placedWalls} 格 {wallDef.label}（材料: {wallStuff?.label}）");
                     if (placedDoors > 0)
                         sb.AppendLine($"- 门: {placedDoors} 扇 {doorDef?.label ?? doorDefName}");
                     if (placedFloors > 0)
