@@ -69,7 +69,7 @@ namespace RimWorldMCP
             {
                 ServiceURL = McpOssConfig.NormalizeUrl(McpOssConfig.ServiceUrl),
                 ForcePathStyle = McpOssConfig.ForcePathStyle,
-                RegionEndpoint = RegionEndpoint.GetBySystemName(McpOssConfig.Region)
+                AuthenticationRegion = McpOssConfig.Region
             };
 
             using var client = new AmazonS3Client(McpOssConfig.AccessKey, McpOssConfig.SecretKey, s3Config);
@@ -111,7 +111,7 @@ namespace RimWorldMCP
             {
                 ServiceURL = McpOssConfig.NormalizeUrl(McpOssConfig.ServiceUrl),
                 ForcePathStyle = McpOssConfig.ForcePathStyle,
-                RegionEndpoint = RegionEndpoint.GetBySystemName(McpOssConfig.Region)
+                AuthenticationRegion = McpOssConfig.Region
             };
 
             using var client = new AmazonS3Client(McpOssConfig.AccessKey, McpOssConfig.SecretKey, s3Config);
