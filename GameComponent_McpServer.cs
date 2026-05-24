@@ -198,6 +198,8 @@ namespace RimWorldMCP
             registry.Register(new Tool_IngestItem());
             registry.Register(new Tool_ForceDress());
             registry.Register(new Tool_CreateStockpile());
+            registry.Register(new Tool_CreateGrowingZone());
+            registry.Register(new Tool_SetGrowerPlant());
             registry.Register(new Tool_SearchMap());
             registry.Register(new Tool_FindPawn());
             registry.Register(new Tool_GetThingDef());
