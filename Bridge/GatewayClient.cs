@@ -2,9 +2,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Signers;
 
 namespace RimWorldMCP
 {
@@ -18,6 +21,11 @@ namespace RimWorldMCP
         private static string _token = "";
         private static string _password = "";
         private static int _rpcSeq;
+
+        // 设备身份（ED25519），首次使用时生成
+        private static Ed25519PrivateKeyParameters? _deviceKey;
+        private static string? _deviceId;
+        private static string? _devicePublicKeyBase64;
         private static ClientState _state = ClientState.Disconnected;
         private static TaskCompletionSource<bool>? _helloOk;
         private static int _tickIntervalMs = 30000; // 默认 30s，hello-ok 可能覆盖
@@ -114,9 +122,38 @@ namespace RimWorldMCP
         private static string Truncate(string s) => s.Length <= 200 ? s : s.Substring(0, 197) + "...";
 
         // Gateway 完整握手：收到 challenge → 发 connect RPC → 等 hello-ok
-        // backend + loopback + token 认证路径，可省略 device 签名（官方文档明确允许）
+        private static void EnsureDeviceIdentity()
+        {
+            if (_deviceKey != null) return;
+
+            var rng = RandomNumberGenerator.Create();
+            var seed = new byte[32];
+            rng.GetBytes(seed);
+            _deviceKey = new Ed25519PrivateKeyParameters(seed, 0);
+            var pubKey = _deviceKey.GeneratePublicKey();
+            _devicePublicKeyBase64 = Convert.ToBase64String(pubKey.GetEncoded());
+            // device id = SHA-256 of public key 的前 16 字节 hex
+            using var sha = SHA256.Create();
+            var hash = sha.ComputeHash(pubKey.GetEncoded());
+            _deviceId = BitConverter.ToString(hash, 0, 16).Replace("-", "").ToLowerInvariant();
+        }
+
+        private static string SignDevicePayload(string nonce)
+        {
+            // v2 签名载荷: device.id + client.id + role + scope+list + token + nonce
+            var scopeList = string.Join(" ", new[] { "operator.read", "operator.write" });
+            var payload = $"{_deviceId}\ngateway-client\noperator\n{scopeList}\n{_token}\n{nonce}";
+            var data = Encoding.UTF8.GetBytes(payload);
+            var signer = new Ed25519Signer();
+            signer.Init(true, _deviceKey);
+            signer.BlockUpdate(data, 0, data.Length);
+            return Convert.ToBase64String(signer.GenerateSignature());
+        }
+
         private static async Task SendChallengeResponse(string nonce)
         {
+            EnsureDeviceIdentity();
+
             var connectParams = new
             {
                 minProtocol = 3,
@@ -143,7 +180,10 @@ namespace RimWorldMCP
                 },
                 device = new
                 {
-                    id = "rimworld-mcp",
+                    id = _deviceId,
+                    publicKey = _devicePublicKeyBase64,
+                    signature = SignDevicePayload(nonce),
+                    signedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     nonce
                 }
             };
