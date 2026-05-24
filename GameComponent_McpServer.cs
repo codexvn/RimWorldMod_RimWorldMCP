@@ -202,6 +202,7 @@ namespace RimWorldMCP
             registry.Register(new Tool_FindPawn());
             registry.Register(new Tool_GetThingDef());
             registry.Register(new Tool_SearchThingDef());
+            registry.Register(new Tool_MovePawn());
         }
 
         private static string FindSkillsDirectory()

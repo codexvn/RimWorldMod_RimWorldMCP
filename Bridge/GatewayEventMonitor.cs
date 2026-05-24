@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text;
 using Verse;
 using RimWorld;
+using RimWorldMCP.Helpers;
 
 namespace RimWorldMCP
 {
@@ -45,38 +46,50 @@ namespace RimWorldMCP
             // === 2. 右侧消息监控 ===
             CheckNewMessages();
 
-            // === 3. 空闲殖民者检测 ===
-            int idleCount = colonists.Count(c =>
-                (c.CurJob?.def?.defName == "Wait_MaintainPosture" || c.CurJob == null)
-                && !c.Downed && !c.Deathresting);
+            // === 3. 殖民者数量变化 ===
+            int prevColonistCount = _lastColonistCount;
+            bool countChanged = colonistCount != prevColonistCount && prevColonistCount >= 0;
+            _lastColonistCount = colonistCount;
+
+            // === 4. 综合警报（复用原生 Alert 系统） ===
+            var nativeAlerts = NativeAlertHelper.GetActiveAlerts();
+            var alertLines = NativeAlertHelper.BuildAlertLines(nativeAlerts);
+
+            // 空闲检测：从原生警报中提取空闲殖民者数量
+            var idleAlert = nativeAlerts.FirstOrDefault(a => NativeAlertHelper.ClassifyAlert(a) == AlertCategory.Idle);
+            int idleCount = 0;
+            if (idleAlert != null)
+            {
+                try
+                {
+                    var report = idleAlert.GetReport();
+                    idleCount = report.culpritsPawns?.Count ?? 0;
+                }
+                catch { }
+            }
             bool hasNewIdle = idleCount > _lastIdleCount && idleCount > 0;
             _lastIdleCount = idleCount;
 
-            // === 3. 殖民者数量变化 ===
-            bool countChanged = colonistCount != _lastColonistCount && _lastColonistCount >= 0;
-            _lastColonistCount = colonistCount;
-
-            // === 4. 综合警报 ===
-            var alerts = BuildAlertLines(map, colonists, colonistCount);
             if (hasNewIdle)
             {
-                var names = colonists
-                    .Where(c => (c.CurJob?.def?.defName == "Wait_MaintainPosture" || c.CurJob == null)
-                        && !c.Downed && !c.Deathresting)
-                    .Take(5).Select(c => c.Name.ToStringShort);
-                alerts.Add($"{(idleCount > 1 ? $"{idleCount} 名" : "")}殖民者空闲: {string.Join(", ", names)}");
+                try
+                {
+                    var names = idleAlert!.GetReport().culpritsPawns!.Take(5).Select(p => p.Name.ToStringShort);
+                    alertLines.Add($"{(idleCount > 1 ? $"{idleCount} 名" : "")}殖民者空闲: {string.Join(", ", names)}");
+                }
+                catch { }
             }
             if (countChanged)
             {
-                int diff = colonistCount - _lastColonistCount;
-                alerts.Add($"殖民者数量: {_lastColonistCount} → {colonistCount} ({(diff > 0 ? "+" : "")}{diff})");
+                int diff = colonistCount - prevColonistCount;
+                alertLines.Add($"殖民者数量: {prevColonistCount} → {colonistCount} ({(diff > 0 ? "+" : "")}{diff})");
             }
 
-            if (alerts.Count > 0)
+            if (alertLines.Count > 0)
             {
                 var sb = new StringBuilder();
                 sb.AppendLine("## ⚠ 殖民地警报");
-                foreach (var a in alerts)
+                foreach (var a in alertLines)
                     sb.AppendLine($"- {a}");
                 sb.Append(BuildColonySummary(map, colonists, colonistCount));
                 GatewayMessageQueue.Enqueue(MessageCategory.Alert, sb.ToString().TrimEnd());
@@ -295,7 +308,7 @@ namespace RimWorldMCP
             int wood = GetCountByDefName(map, "WoodLog");
             int components = GetCountByDefName(map, "ComponentIndustrial");
             int silver = GetCountByDefName(map, "Silver");
-            int foodDays = CalcFoodDays(map, colonistCount);
+            int foodDays = NativeAlertHelper.CalcFoodDays(map, colonistCount);
             sb.AppendLine($"资源: 钢{steel} 木{wood} 零件{components} 银{silver} | 食物约{foodDays}天");
 
             // 电力
@@ -325,12 +338,12 @@ namespace RimWorldMCP
             float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
             sb.AppendLine($"财富: {wealth:N0}");
 
-            // 警报
-            var alerts = BuildAlertLines(map, colonists, colonistCount);
-            if (alerts.Count > 0)
+            // 警报（复用原生 Alert 系统）
+            var nativeLines = NativeAlertHelper.BuildAlertLines(NativeAlertHelper.GetActiveAlerts());
+            if (nativeLines.Count > 0)
             {
                 sb.AppendLine("警报:");
-                foreach (var a in alerts)
+                foreach (var a in nativeLines)
                     sb.AppendLine($"  - {a}");
             }
 
@@ -341,7 +354,7 @@ namespace RimWorldMCP
         private static string BuildColonySummary(Map map, List<Pawn> colonists, int colonistCount)
         {
             var sb = new StringBuilder();
-            int foodDays = CalcFoodDays(map, colonistCount);
+            int foodDays = NativeAlertHelper.CalcFoodDays(map, colonistCount);
             float avgMood = colonists.Count > 0
                 ? colonists.Average(c => c.needs?.mood?.CurLevelPercentage ?? 0.5f) * 100f
                 : 0f;
@@ -356,54 +369,6 @@ namespace RimWorldMCP
             return sb.ToString();
         }
 
-        // ========== 警报提取（check_colony 同款逻辑） ==========
-
-        private static List<string> BuildAlertLines(Map map, List<Pawn> colonists, int colonistCount)
-        {
-            var alerts = new List<string>();
-
-            // 崩溃风险
-            var breakRisks = colonists
-                .Where(c => (c.needs?.mood?.CurLevelPercentage ?? 1f) < 0.2f)
-                .Select(c => $"崩溃风险: {c.Name.ToStringShort} 心情{(c.needs!.mood!.CurLevelPercentage * 100f):F0}%")
-                .ToList();
-            alerts.AddRange(breakRisks);
-
-            // 严重流血
-            var bleeders = colonists
-                .Where(c => (c.health?.hediffSet?.BleedRateTotal ?? 0f) > 0.3f)
-                .Select(c => $"严重流血: {c.Name.ToStringShort} 失血率{(c.health!.hediffSet.BleedRateTotal * 100f):F0}%/天")
-                .ToList();
-            alerts.AddRange(bleeders);
-
-            // 逃跑中
-            var fleeing = colonists
-                .Where(c => c.MentalState?.def == MentalStateDefOf.PanicFlee)
-                .Select(c => $"逃跑中: {c.Name.ToStringShort}")
-                .ToList();
-            alerts.AddRange(fleeing);
-
-            // 食物不足
-            int foodDays = CalcFoodDays(map, colonistCount);
-            if (foodDays < 3 && colonistCount > 0)
-                alerts.Add($"食物不足: 仅够 {foodDays} 天");
-
-            // 无防御
-            int turrets = map.listerBuildings.AllBuildingsColonistOfClass<Building_Turret>().Count();
-            int traps = map.listerBuildings.AllBuildingsColonistOfClass<Building_Trap>().Count();
-            float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
-            if (turrets == 0 && traps == 0 && wealth > 15000)
-                alerts.Add($"无防御工事 (财富{wealth:N0})");
-
-            // 缺床
-            int beds = map.listerBuildings.AllBuildingsColonistOfClass<Building_Bed>()
-                .Count(b => !b.ForPrisoners && !b.Medical);
-            if (colonistCount > beds)
-                alerts.Add($"缺床: {colonistCount}人仅{beds}张");
-
-            return alerts;
-        }
-
         // ========== 工具方法 ==========
 
         private static int GetCountByDefName(Map map, string defName)
@@ -414,20 +379,6 @@ namespace RimWorldMCP
                 if (kv.Key.defName == defName)
                     return kv.Value;
             return 0;
-        }
-
-        private static int CalcFoodDays(Map map, int colonistCount)
-        {
-            if (colonistCount <= 0) return 999;
-            float total = 0f;
-            foreach (var kv in map.resourceCounter?.AllCountedAmounts ?? new Dictionary<ThingDef, int>())
-            {
-                var def = kv.Key;
-                if (def.IsNutritionGivingIngestible && def.ingestible?.HumanEdible == true
-                    && (def.ingestible?.foodType & FoodTypeFlags.Tree) == 0)
-                    total += kv.Value * (def.ingestible?.CachedNutrition ?? 0f);
-            }
-            return (int)(total / (colonistCount * 1.6f));
         }
     }
 }
