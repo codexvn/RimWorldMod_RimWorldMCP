@@ -4,24 +4,35 @@ using System.IO;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
+using UnityEngine;
 
 namespace RimWorldMCP
 {
     public static class McpOssUploader
     {
-        private static readonly ConcurrentQueue<(string filePath, string objectKey)> _pending = new();
+        private static readonly ConcurrentQueue<(string filePath, string objectKey, int enqueuedFrame)> _pending = new();
 
         public static void EnqueuePendingUpload(string filePath, string objectKey)
         {
-            _pending.Enqueue((filePath, objectKey));
+            _pending.Enqueue((filePath, objectKey, Time.frameCount));
         }
 
-        /// <summary>主线程每帧调用，处理待上传队列（仅在配置完成时执行）</summary>
+        /// <summary>主线程每帧调用，仅处理上一帧及之前入队的上传（避免 CaptureScreenshot 帧末写文件尚未完成）</summary>
         public static void ProcessPendingUploads()
         {
             if (!McpOssConfig.IsConfigured || _pending.IsEmpty) return;
 
-            while (_pending.TryDequeue(out var item))
+            int currentFrame = Time.frameCount;
+            var toProcess = new System.Collections.Generic.List<(string filePath, string objectKey)>();
+
+            // 只取出上一帧及之前的项，保留当前帧的项
+            while (_pending.TryPeek(out var item) && item.enqueuedFrame < currentFrame)
+            {
+                if (_pending.TryDequeue(out var dequeued))
+                    toProcess.Add((dequeued.filePath, dequeued.objectKey));
+            }
+
+            foreach (var item in toProcess)
             {
                 try
                 {
