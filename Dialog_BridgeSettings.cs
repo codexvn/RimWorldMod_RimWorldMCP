@@ -6,7 +6,8 @@ namespace RimWorldMCP
     public class Dialog_BridgeSettings : Window
     {
         private McpModSettings _settings;
-        private string _testResult = "";
+        private string _inputText = "";
+        private string _status = "";
         private Vector2 _scrollPos;
 
         public Dialog_BridgeSettings(McpModSettings settings)
@@ -19,7 +20,7 @@ namespace RimWorldMCP
             resizeable = false;
         }
 
-        public override Vector2 InitialSize => new Vector2(500f, 400f);
+        public override Vector2 InitialSize => new Vector2(500f, 350f);
 
         public override void DoWindowContents(Rect inRect)
         {
@@ -27,57 +28,30 @@ namespace RimWorldMCP
             listing.Begin(inRect);
 
             Text.Font = GameFont.Medium;
-            listing.Label("桥接器设置");
+            listing.Label("MCP 桥接消息");
             Text.Font = GameFont.Small;
+
+            // 连接状态
+            var statusLabel = McpClient.IsConnected
+                ? $"已连接: {McpModSettings.BridgeTypeLabels[_settings.BridgeType]}"
+                : (_settings.BridgeType > 0 ? "未连接" : "未配置");
+            listing.Label(statusLabel);
+
+            if (!string.IsNullOrEmpty(_status))
+                listing.Label(_status);
+
             listing.Gap(12f);
 
-            listing.Label("对接类型");
-            var typeLabel = _settings.BridgeType < McpModSettings.BridgeTypeLabels.Length
-                ? McpModSettings.BridgeTypeLabels[_settings.BridgeType] : "未知";
-            if (listing.ButtonText(typeLabel))
+            // —— 输入 ——
+            listing.Label("发送消息");
+            _inputText = listing.TextEntry(_inputText);
+            if (listing.ButtonText("发送") && !string.IsNullOrWhiteSpace(_inputText))
             {
-                _settings.BridgeType = (_settings.BridgeType + 1) % McpModSettings.BridgeTypeLabels.Length;
-            }
-            listing.Gap(12f);
-
-            if (_settings.BridgeType > 0)
-            {
-                listing.Label("Gateway WebSocket URL");
-                listing.Label("示例: ws://localhost:8080/gateway");
-                _settings.BridgeUrl = listing.TextEntry(_settings.BridgeUrl);
-                listing.Gap(6f);
-
-                listing.Label("Token");
-                _settings.BridgeToken = listing.TextEntry(_settings.BridgeToken);
-                listing.Gap(6f);
-
-                listing.Label("Password");
-                _settings.BridgePassword = listing.TextEntry(_settings.BridgePassword);
-                listing.Gap(12f);
-
-                if (listing.ButtonText("测试连接"))
-                {
-                    TestConnection();
-                }
-
-                if (!string.IsNullOrEmpty(_testResult))
-                {
-                    listing.Label(_testResult);
-                }
-            }
-            else
-            {
-                listing.Label("选择对接类型以配置桥接器");
+                _ = McpClient.SendMessage(_inputText);
+                _inputText = "";
             }
 
             listing.End();
-        }
-
-        private async void TestConnection()
-        {
-            _testResult = "正在连接...";
-            bool ok = await McpClient.Connect(_settings.BridgeUrl, _settings.BridgeToken, _settings.BridgePassword);
-            _testResult = ok ? "✅ 连接成功" : "❌ 连接失败";
         }
     }
 }
