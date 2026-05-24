@@ -376,6 +376,13 @@ namespace RimWorldMCP
                 .ToList();
             alerts.AddRange(bleeders);
 
+            // 逃跑中
+            var fleeing = colonists
+                .Where(c => c.MentalState?.def == MentalStateDefOf.PanicFlee)
+                .Select(c => $"逃跑中: {c.Name.ToStringShort}")
+                .ToList();
+            alerts.AddRange(fleeing);
+
             // 食物不足
             int foodDays = CalcFoodDays(map, colonistCount);
             if (foodDays < 3 && colonistCount > 0)

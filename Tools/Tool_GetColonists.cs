@@ -82,6 +82,12 @@ namespace RimWorldMCP.Tools
                     // 意识形态角色和头衔
                     string ideoAndTitle = GetIdeoAndTitle(pawn);
 
+                    // 精神态
+                    string mentalStateStr = GetMentalState(pawn);
+
+                    // 最近日志
+                    string recentLogs = GetRecentLogs(pawn);
+
                     sb.AppendLine();
                     sb.AppendLine($"### {name}");
                     sb.AppendLine($"- {name} ({age}岁, {gender}) | 心情: {moodStr} ({moodLabel}) | 健康: {healthSummary}");
@@ -91,6 +97,10 @@ namespace RimWorldMCP.Tools
                     sb.AppendLine($"  当前: {currentActivity} | 工作: {workPriorities}");
                     if (!string.IsNullOrEmpty(ideoAndTitle))
                         sb.AppendLine($"  {ideoAndTitle}");
+                    if (!string.IsNullOrEmpty(mentalStateStr))
+                        sb.AppendLine($"  精神态: {mentalStateStr}");
+                    if (!string.IsNullOrEmpty(recentLogs))
+                        sb.AppendLine($"  最近日志: {recentLogs}");
                 }
 
                 return ToolResult.Success(sb.ToString());
@@ -253,6 +263,43 @@ namespace RimWorldMCP.Tools
                 if (title != null)
                     parts.Add($"头衔: {title.def?.label}");
                 return string.Join(" | ", parts);
+            }
+            catch (Exception) { return ""; }
+        }
+
+        private static string GetMentalState(Pawn pawn)
+        {
+            try
+            {
+                if (!pawn.InMentalState || pawn.MentalState == null) return "";
+                return pawn.MentalState.InspectLine ?? pawn.MentalState.def.label;
+            }
+            catch (Exception) { return ""; }
+        }
+
+        private static string GetRecentLogs(Pawn pawn)
+        {
+            try
+            {
+                var entries = new List<(int Tick, LogEntry Entry)>();
+
+                // 社交日志
+                foreach (var e in Find.PlayLog.AllEntries)
+                    if (e.Concerns(pawn))
+                        entries.Add((e.Tick, e));
+
+                // 战斗日志
+                foreach (var b in Find.BattleLog.Battles)
+                    if (b.Concerns(pawn))
+                        foreach (var e in b.Entries)
+                            if (e.Concerns(pawn))
+                                entries.Add((e.Tick, e));
+
+                if (entries.Count == 0) return "";
+
+                var last2 = entries.OrderByDescending(x => x.Tick).Take(2)
+                    .Select(x => x.Entry.ToGameStringFromPOV(pawn, true));
+                return string.Join(" | ", last2);
             }
             catch (Exception) { return ""; }
         }

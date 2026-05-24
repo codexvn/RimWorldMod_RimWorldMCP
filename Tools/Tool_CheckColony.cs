@@ -27,6 +27,7 @@ namespace RimWorldMCP.Tools
         private static int _lastIdleCount = -1;
         private static int _lastBreakRiskCount = -1;
         private static int _lastBleederCount = -1;
+        private static int _lastFleeCount = -1;
         private static int _lastFoodDays = -1;
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
@@ -56,6 +57,10 @@ namespace RimWorldMCP.Tools
                     var bleed = colonists?.Where(c => c.health?.hediffSet?.BleedRateTotal > 0.3f).ToList();
                     int bleedCount = bleed?.Count ?? 0;
 
+                    // 逃跑中
+                    var fleeing = colonists?.Where(c => c.MentalState?.def == MentalStateDefOf.PanicFlee).ToList();
+                    int fleeCount = fleeing?.Count ?? 0;
+
                     // 食物天数
                     int foodDays = 99;
                     if (cCount > 0)
@@ -76,21 +81,23 @@ namespace RimWorldMCP.Tools
                         idleCount != _lastIdleCount ||
                         breakCount != _lastBreakRiskCount ||
                         bleedCount != _lastBleederCount ||
+                        fleeCount != _lastFleeCount ||
                         foodDays != _lastFoodDays;
 
                     _lastIdleCount = idleCount;
                     _lastBreakRiskCount = breakCount;
                     _lastBleederCount = bleedCount;
+                    _lastFleeCount = fleeCount;
                     _lastFoodDays = foodDays;
 
                     bool anythingWrong = idleCount > 0 || breakCount > 0 || bleedCount > 0
-                        || foodDays < 3;
+                        || fleeCount > 0 || foodDays < 3;
 
                     if (!anythingWrong)
                     {
                         // 一切正常，简短回复
                         _lastIdleCount = -1; _lastBreakRiskCount = -1;
-                        _lastBleederCount = -1; _lastFoodDays = -1;
+                        _lastBleederCount = -1; _lastFleeCount = -1; _lastFoodDays = -1;
                         sb.AppendLine($"一切正常 —— {cCount} 名殖民者，食物够 {foodDays} 天。");
                         sb.AppendLine("建议等待几秒后再次调用本工具检查。");
                         return ToolResult.Success(sb.ToString().TrimEnd());
@@ -99,7 +106,7 @@ namespace RimWorldMCP.Tools
                     if (!hasNewIssue)
                     {
                         // 问题没变，简短重复
-                        sb.AppendLine($"状态不变: 空闲 {idleCount}, 崩溃风险 {breakCount}, 流血 {bleedCount}, 食物 {foodDays}天");
+                        sb.AppendLine($"状态不变: 空闲 {idleCount}, 崩溃风险 {breakCount}, 流血 {bleedCount}, 逃跑 {fleeCount}, 食物 {foodDays}天");
                         return ToolResult.Success(sb.ToString().TrimEnd());
                     }
 
@@ -140,6 +147,14 @@ namespace RimWorldMCP.Tools
                         sb.AppendLine();
                     }
 
+                    if (fleeCount > 0 && fleeing != null)
+                    {
+                        sb.AppendLine($"### 逃跑中 ({fleeCount})");
+                        foreach (var c in fleeing)
+                            sb.AppendLine($"- {c.Name.ToStringShort} ({c.Position.x},{c.Position.z})：恐慌逃跑，不受控制");
+                        sb.AppendLine();
+                    }
+
                     if (foodDays < 3)
                     {
                         sb.AppendLine($"### ⚠ 食物不足: 仅 {foodDays} 天储备");
@@ -166,7 +181,7 @@ namespace RimWorldMCP.Tools
                         sb.AppendLine();
                     }
 
-                    sb.AppendLine($"---\n上次检查无异常，现在出现 {idleCount + breakCount + bleedCount + (foodDays < 3 ? 1 : 0) + (turrets == 0 && traps == 0 && wealth > 15000 ? 1 : 0) + (cCount > beds ? 1 : 0)} 项提醒。");
+                    sb.AppendLine($"---\n上次检查无异常，现在出现 {idleCount + breakCount + bleedCount + fleeCount + (foodDays < 3 ? 1 : 0) + (turrets == 0 && traps == 0 && wealth > 15000 ? 1 : 0) + (cCount > beds ? 1 : 0)} 项提醒。");
 
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }

@@ -115,6 +115,8 @@ namespace RimWorldMCP.Tools
                     foreach (IntVec3 cell in area)
                     {
                         if (zone.Cells.Contains(cell)) { skipped++; continue; }
+                        var things = cell.GetThingList(map);
+                        if (things.Any(t => !t.def.CanOverlapZones)) { skipped++; continue; }
                         zone.AddCell(cell);
                         added++;
                     }
