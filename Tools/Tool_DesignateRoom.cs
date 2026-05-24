@@ -22,7 +22,7 @@ namespace RimWorldMCP.Tools
                 center_y = new { type = "integer", description = "房间中心的 Y 坐标" },
                 width = new { type = "integer", description = "房间内部宽度（不含墙），默认 13", @default = 13 },
                 height = new { type = "integer", description = "房间内部高度（不含墙），默认 13", @default = 13 },
-                wall_defName = new { type = "string", description = "墙体材料 DefName，默认 Steel", @default = "Steel" },
+                wall_defName = new { type = "string", description = "墙体 DefName，默认 Wall（可用 Steel 自动使用钢材料）", @default = "Wall" },
                 door_positions = new { type = "string", description = "门的位置，多个用逗号分隔。可选: top, bottom, left, right, center_top, center_bottom, center_left, center_right" },
                 door_defName = new { type = "string", description = "门的 DefName，默认 Door", @default = "Door" },
                 floor_defName = new { type = "string", description = "地板 DefName，可选" }
@@ -43,7 +43,7 @@ namespace RimWorldMCP.Tools
             if (args.Value.TryGetProperty("width", out var jW) && jW.TryGetInt32(out var wv) && wv > 0) width = wv;
             if (args.Value.TryGetProperty("height", out var jH) && jH.TryGetInt32(out var hv) && hv > 0) height = hv;
 
-            string wallDefName = "Steel";
+            string wallDefName = "Wall";
             if (args.Value.TryGetProperty("wall_defName", out var jWall)) wallDefName = jWall.GetString() ?? "Steel";
 
             string doors = "";
@@ -130,6 +130,8 @@ namespace RimWorldMCP.Tools
                     ThingDef wallDef = DefDatabase<ThingDef>.GetNamed(wallDefName, false);
                     if (wallDef == null)
                         return ToolResult.Error($"找不到墙体 ThingDef: {wallDefName}。请确认 DefName 拼写正确。");
+                    if (wallDef.blueprintDef == null)
+                        return ToolResult.Error($"{wallDefName} 没有蓝图定义，不支持建造。墙体请用 Wall，材料通过 wall_defName 右侧说明指定。");
 
                     ThingDef? doorDef = null;
                     if (doorCount > 0)
