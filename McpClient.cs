@@ -137,8 +137,8 @@ namespace RimWorldMCP
                 userAgent = "RimWorldMCP/1.0",
                 auth = new
                 {
-                    token = string.IsNullOrEmpty(_token) ? null : _token,
-                    password = string.IsNullOrEmpty(_password) ? null : _password,
+                    token = !string.IsNullOrEmpty(_token) ? _token : !string.IsNullOrEmpty(_password) ? _password : null,
+                    password = (string?)null,
                     deviceToken = (string?)null
                 },
                 device = new
