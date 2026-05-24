@@ -38,6 +38,7 @@ namespace RimWorldMCP
             base.GameComponentUpdate();
             McpLog.Flush();
             McpCommandQueue.ProcessPending();
+            McpOssUploader.ProcessPendingUploads();
         }
 
         public override void ExposeData()
@@ -62,7 +63,12 @@ namespace RimWorldMCP
                 var skillRegistry = new SkillRegistry();
                 skillRegistry.LoadFromDirectory(skillsDir);
 
-                // 2. 创建 ToolRegistry + 注册 21 个 Tool
+                // 1.5 加载 OSS 配置（mod 根目录，与 Skills/ 同级）
+                var modRoot = Path.GetDirectoryName(skillsDir);
+                if (modRoot != null)
+                    McpOssConfig.LoadFromFile(Path.Combine(modRoot, "oss_config.json"));
+
+                // 2. 创建 ToolRegistry + 注册 24 个 Tool
                 var toolRegistry = new ToolRegistry();
                 RegisterAllTools(toolRegistry, skillRegistry);
 

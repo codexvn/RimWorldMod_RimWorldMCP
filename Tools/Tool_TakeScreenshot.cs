@@ -22,7 +22,8 @@ namespace RimWorldMCP.Tools
                 max_x = new { type = "integer", description = "截图范围最大 X 坐标（含）" },
                 min_z = new { type = "integer", description = "截图范围最小 Z 坐标（可选）" },
                 max_z = new { type = "integer", description = "截图范围最大 Z 坐标（可选）" },
-                file_name = new { type = "string", description = "输出文件名，不含扩展名（可选）" }
+                file_name = new { type = "string", description = "输出文件名，不含扩展名（可选）" },
+                upload_to_oss = new { type = "boolean", description = "是否上传到 OSS（可选，默认跟随 oss_config.json）" }
             },
             required = new[] { "min_x", "max_x" }
         });
@@ -42,6 +43,13 @@ namespace RimWorldMCP.Tools
             string fileName = "";
             if (args.Value.TryGetProperty("file_name", out var jFileName))
                 fileName = jFileName.GetString() ?? "";
+
+            // upload_to_oss: 参数覆盖 > 配置文件
+            bool uploadToOss = McpOssConfig.IsConfigured;
+            if (args.Value.TryGetProperty("upload_to_oss", out var jUp))
+            {
+                uploadToOss = jUp.ValueKind == JsonValueKind.True;
+            }
 
             if (minX > maxX) return ToolResult.Error($"min_x ({minX}) 不能大于 max_x ({maxX})");
             if (minZ.HasValue && maxZ.HasValue && minZ.Value > maxZ.Value)
@@ -90,6 +98,17 @@ namespace RimWorldMCP.Tools
                     Find.UIRoot.screenshotMode.Active = false;
 
                     string fullPath = Path.Combine(GenFilePaths.ScreenshotFolderPath, saveFileName + ".png");
+
+                    if (uploadToOss)
+                    {
+                        McpOssUploader.EnqueuePendingUpload(fullPath, saveFileName + ".png");
+                        string publicUrl = McpOssUploader.GetPublicUrl(saveFileName + ".png");
+                        return ToolResult.Success(
+                            $"已截取地图区域 ({minX}~{maxX}, {minZ}~{maxZ})。\n" +
+                            $"- 截图将在帧末保存并自动上传 OSS\n" +
+                            $"- OSS URL: {publicUrl}");
+                    }
+
                     return ToolResult.Success(
                         $"已截取地图区域 ({minX}~{maxX}, {minZ}~{maxZ})。\n" +
                         $"- 截图文件: {fullPath}\n" +
