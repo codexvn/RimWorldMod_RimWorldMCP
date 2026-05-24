@@ -27,7 +27,6 @@ namespace RimWorldMCP.Tools
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
-            // 参数验证（任意线程安全）
             if (args == null) return ToolResult.Error("缺少参数");
             if (!args.Value.TryGetProperty("thingDef_name", out var jDefName))
                 return ToolResult.Error("缺少必填参数: thingDef_name");
@@ -41,24 +40,17 @@ namespace RimWorldMCP.Tools
 
             string rotationStr = "North";
             if (args.Value.TryGetProperty("rotation", out var jRot))
-            {
                 rotationStr = jRot.GetString() ?? "North";
-            }
-
 
             string stuffDefName = "";
             if (args.Value.TryGetProperty("stuff_defName", out var jStuff))
-            {
                 stuffDefName = jStuff.GetString() ?? "";
-            }
 
-            // 所有游戏 API 访问通过 DispatchAsync 调度到主线程
             return await McpCommandQueue.DispatchAsync(() =>
             {
                 try
                 {
-                    Map map = Find.CurrentMap;
-                    if (map == null)
+                    if (Find.CurrentMap == null)
                         return ToolResult.Error("没有当前地图，请先加载游戏存档。");
 
                     ThingDef def = DefDatabase<ThingDef>.GetNamed(thingDefName, false);
@@ -83,34 +75,40 @@ namespace RimWorldMCP.Tools
                         if (stuff == null)
                             return ToolResult.Error($"找不到材料 ThingDef: {stuffDefName}");
                     }
-                    else if (def is ThingDef td && td.MadeFromStuff)
+                    else if (def.MadeFromStuff)
                     {
                         stuff = ThingDef.Named("Steel");
                     }
 
-                    if (stuff != null && def is ThingDef td2 && !td2.MadeFromStuff)
+                    if (stuff != null && !def.MadeFromStuff)
                         return ToolResult.Error($"{def.label} ({thingDefName}) 不支持材料选择，请勿指定 stuff_defName。");
 
                     IntVec3 pos = new IntVec3(posX, 0, posY);
-                    BuildableDef bdef = (BuildableDef)def;
 
-                    // 地形/合法性检查
-                    var canPlace = GenConstruct.CanPlaceBlueprintAt(bdef, pos, rot, map, false, null, null, stuff);
+                    // 复用游戏原生 Designator_Build 放置逻辑
+                    var designator = new Designator_Build(def);
+                    if (stuff != null)
+                        designator.SetStuffDef(stuff);
+                    if (rot != Rot4.North)
+                    {
+                        typeof(Designator_Place).GetField("placingRot",
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                            ?.SetValue(designator, rot);
+                    }
+
+                    // 验证可放置性
+                    var canPlace = designator.CanDesignateCell(pos);
                     if (!canPlace)
                         return ToolResult.Error($"无法在 ({posX}, {posY}) 放置 {def.label}：{canPlace.Reason}");
 
-                    if (Faction.OfPlayer == null)
-                        return ToolResult.Error("玩家派系不存在");
-
-                    GenSpawn.WipeExistingThings(pos, rot, def.blueprintDef, map, DestroyMode.Deconstruct);
-                    GenConstruct.PlaceBlueprintForBuild(bdef, pos, map, rot, Faction.OfPlayer, stuff);
+                    designator.DesignateSingleCell(pos);
 
                     string stuffInfo = stuff != null ? $"（材料: {stuff.label}）" : "";
-                    return ToolResult.Success($"已成功在坐标 ({posX}, {posY}) 放置 {def.label} ({thingDefName}) 的建造蓝图{stuffInfo}，朝向: {rotationStr}。");
+                    return ToolResult.Success($"已成功在坐标 ({posX}, {posY}) 放置 {def.label} ({thingDefName}){stuffInfo}，朝向: {rotationStr}。");
                 }
                 catch (Exception ex)
                 {
-                    return ToolResult.Error($"建造蓝图放置失败: {ex.Message}");
+                    return ToolResult.Error($"建造失败: {ex.Message}");
                 }
             });
         }

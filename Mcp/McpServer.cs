@@ -197,7 +197,7 @@ namespace RimWorldMCP.Mcp
 
             // 注册到 inflight 列表，支持取消
             var requestId = request.Id?.GetRawText() ?? callParams.Name;
-            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
             _inflight[requestId] = cts;
 
             try

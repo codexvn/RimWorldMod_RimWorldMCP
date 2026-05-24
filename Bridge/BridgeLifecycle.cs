@@ -46,10 +46,20 @@ namespace RimWorldMCP
 
         private static void SendSessionPrompt()
         {
-            GatewayMessageQueue.MarkSessionPromptSent();
             var prompt = LoadPromptFile();
-            if (string.IsNullOrEmpty(prompt)) return;
+            if (string.IsNullOrEmpty(prompt))
+            {
+                _connectionCheckInterval = 120; // 延迟重试
+                return;
+            }
 
+            if (!GatewayClient.IsReady)
+            {
+                _connectionCheckInterval = 120;
+                return;
+            }
+
+            GatewayMessageQueue.MarkSessionPromptSent();
             McpLog.Info("[bridge] 发送会话 Prompt");
             GatewayMessageQueue.SendNow(MessageCategory.SessionInit, prompt);
         }
@@ -78,17 +88,17 @@ namespace RimWorldMCP
             try
             {
                 var asmPath = typeof(BridgeLifecycle).Assembly.Location;
-                McpLog.Debug($"[bridge] Assembly 路径: {asmPath ?? "null"}");
+                McpLog.Info($"[bridge] Assembly 路径: {asmPath ?? "null"}");
                 if (string.IsNullOrEmpty(asmPath)) return "";
 
                 var asmDir = Path.GetDirectoryName(asmPath);
-                McpLog.Debug($"[bridge] Assembly 目录: {asmDir ?? "null"}");
+                McpLog.Info($"[bridge] Assembly 目录: {asmDir ?? "null"}");
                 if (asmDir == null) return "";
 
                 // Assemblies/ → ../.. = mod root
                 var modRoot = Path.GetFullPath(Path.Combine(asmDir, "..", ".."));
                 var prompt = Path.Combine(modRoot, "Prompt.md");
-                McpLog.Debug($"[bridge] 尝试读取 Prompt: {prompt} (Exists={File.Exists(prompt)})");
+                McpLog.Info($"[bridge] 尝试读取 Prompt: {prompt} (Exists={File.Exists(prompt)})");
                 if (File.Exists(prompt)) return prompt;
             }
             catch (Exception ex)

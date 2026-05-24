@@ -163,60 +163,73 @@ namespace RimWorldMCP.Tools
                     // 材料默认
                     var wallStuff = (wallDef.MadeFromStuff) ? ThingDef.Named("Steel") : null;
                     var doorStuff = (doorDef?.MadeFromStuff == true) ? ThingDef.Named("Steel") : null;
+                    var floorStuff = (floorDef?.MadeFromStuff == true) ? ThingDef.Named("Steel") : null;
+
+                    // 复用游戏原生 Designator_Build
+                    var wallDes = new Designator_Build(wallDef);
+                    if (wallStuff != null) wallDes.SetStuffDef(wallStuff);
+
+                    Designator_Build? doorDes = null;
+                    if (doorDef != null)
+                    {
+                        doorDes = new Designator_Build(doorDef);
+                        if (doorStuff != null) doorDes.SetStuffDef(doorStuff);
+                    }
+
+                    Designator_Build? floorDes = null;
+                    if (floorDef != null)
+                    {
+                        floorDes = new Designator_Build(floorDef);
+                        if (floorStuff != null) floorDes.SetStuffDef(floorStuff);
+                    }
 
                     // 放置墙体（在门位置处替换为门）
                     foreach (var (wx, wy) in wallPositions)
                     {
                         var ipos = new IntVec3(wx, 0, wy);
-                        if (doorPosSet.Contains((wx, wy)))
+                        if (doorPosSet.Contains((wx, wy)) && doorDes != null)
                         {
-                            var bdef = (BuildableDef)doorDef!;
-                            if (!GenConstruct.CanPlaceBlueprintAt(bdef, ipos, Rot4.North, map, false, null, null, doorStuff))
+                            if (!doorDes.CanDesignateCell(ipos).Accepted)
                             {
                                 // 门放不了，退化为墙
-                                if (GenConstruct.CanPlaceBlueprintAt((BuildableDef)wallDef, ipos, Rot4.North, map, false, null, null, wallStuff))
+                                if (wallDes.CanDesignateCell(ipos).Accepted)
                                 {
-                                    GenSpawn.WipeExistingThings(ipos, Rot4.North, wallDef.blueprintDef, map, DestroyMode.Deconstruct);
-                                    GenConstruct.PlaceBlueprintForBuild((BuildableDef)wallDef, ipos, map, Rot4.North, Faction.OfPlayer, wallStuff);
+                                    wallDes.DesignateSingleCell(ipos);
                                     placedWalls++;
                                 }
                                 continue;
                             }
                             try
                             {
-                                GenSpawn.WipeExistingThings(ipos, Rot4.North, doorDef!.blueprintDef, map, DestroyMode.Deconstruct);
-                                GenConstruct.PlaceBlueprintForBuild(bdef, ipos, map, Rot4.North, Faction.OfPlayer, doorStuff);
+                                doorDes.DesignateSingleCell(ipos);
                                 placedDoors++;
                             }
                             catch (Exception ex) { errors.Add($"门({wx},{wy}): {ex.Message}"); }
                         }
                         else
                         {
-                            if (!GenConstruct.CanPlaceBlueprintAt((BuildableDef)wallDef, ipos, Rot4.North, map, false, null, null, wallStuff))
+                            if (!wallDes.CanDesignateCell(ipos).Accepted)
                                 continue;
                             try
                             {
-                                GenSpawn.WipeExistingThings(ipos, Rot4.North, wallDef.blueprintDef, map, DestroyMode.Deconstruct);
-                                GenConstruct.PlaceBlueprintForBuild((BuildableDef)wallDef, ipos, map, Rot4.North, Faction.OfPlayer, wallStuff);
+                                wallDes.DesignateSingleCell(ipos);
                                 placedWalls++;
                             }
                             catch (Exception ex) { errors.Add($"墙({wx},{wy}): {ex.Message}"); }
                         }
                     }
 
-                    var floorStuff = (floorDef?.MadeFromStuff == true) ? ThingDef.Named("Steel") : null;
                     // 放置地板
-                    if (floorCount > 0 && floorDef != null)
+                    if (floorDes != null)
                     {
                         foreach (var (fx, fy) in floorPositions)
                         {
                             var fpos = new IntVec3(fx, 0, fy);
-                            if (!GenConstruct.CanPlaceBlueprintAt((BuildableDef)floorDef, fpos, Rot4.North, map, false, null, null, floorStuff))
+                            if (!floorDes.CanDesignateCell(fpos).Accepted)
                                 continue;
                             try
                             {
-                                GenSpawn.WipeExistingThings(fpos, Rot4.North, floorDef.blueprintDef, map, DestroyMode.Deconstruct);
-                                GenConstruct.PlaceBlueprintForBuild((BuildableDef)floorDef, fpos, map, Rot4.North, Faction.OfPlayer, floorStuff);
+                                floorDes.DesignateSingleCell(fpos);
                                 placedFloors++;
                             }
                             catch (Exception ex) { errors.Add($"地板({fx},{fy}): {ex.Message}"); }
