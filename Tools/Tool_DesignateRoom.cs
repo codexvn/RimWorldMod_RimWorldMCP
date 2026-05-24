@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Verse;
 using RimWorld;
 using RimWorldMCP;
+using RimWorldMCP.Helpers;
 
 namespace RimWorldMCP.Tools
 {
@@ -22,7 +23,7 @@ namespace RimWorldMCP.Tools
                 pos_y = new { type = "integer", description = "左上角 Y 坐标" },
                 end_x = new { type = "integer", description = "右下角 X 坐标" },
                 end_y = new { type = "integer", description = "右下角 Y 坐标" },
-                wall_defName = new { type = "string", description = "墙体 DefName，默认 Wall（可用 Steel 自动使用钢材料）", @default = "Wall" },
+                wall_stuff = new { type = "string", description = "墙体材料 DefName（可选，默认 Steel）", @enum = BuildingMaterialHelper.GetStuffEnum() },
                 door_positions = new { type = "string", description = "门的位置，多个用逗号分隔。可选: top, bottom, left, right, center_top, center_bottom, center_left, center_right" },
                 door_defName = new { type = "string", description = "门的 DefName，默认 Door", @default = "Door" },
                 floor_defName = new { type = "string", description = "地板 DefName，可选" },
@@ -44,8 +45,8 @@ namespace RimWorldMCP.Tools
             if (!args.Value.TryGetProperty("end_y", out var jEz) || !jEz.TryGetInt32(out var rawEndZ))
                 return ToolResult.Error("缺少必填参数: end_y");
 
-            string wallDefName = "Wall";
-            if (args.Value.TryGetProperty("wall_defName", out var jWall)) wallDefName = jWall.GetString() ?? "Steel";
+            string wallStuffName = "";
+            if (args.Value.TryGetProperty("wall_stuff", out var jWall)) wallStuffName = jWall.GetString() ?? "";
 
             string doors = "";
             if (args.Value.TryGetProperty("door_positions", out var jDoors)) doors = jDoors.GetString() ?? "";
@@ -136,12 +137,10 @@ namespace RimWorldMCP.Tools
                     if (map == null)
                         return ToolResult.Error("没有当前地图，请先加载游戏存档。");
 
-                    // 查找 Def
-                    ThingDef wallDef = DefDatabase<ThingDef>.GetNamed(wallDefName, false);
+                    // 查找 Def — 墙体就是 Wall，材料通过 wall_stuff 指定
+                    ThingDef wallDef = DefDatabase<ThingDef>.GetNamed("Wall", false);
                     if (wallDef == null)
-                        return ToolResult.Error($"找不到墙体 ThingDef: {wallDefName}。请确认 DefName 拼写正确。");
-                    if (wallDef.blueprintDef == null)
-                        return ToolResult.Error($"{wallDefName} 没有蓝图定义，不支持建造。墙体请用 Wall，材料通过 wall_defName 右侧说明指定。");
+                        return ToolResult.Error("找不到墙体定义 'Wall'。");
 
                     ThingDef? doorDef = null;
                     if (doorCount > 0)
@@ -170,8 +169,18 @@ namespace RimWorldMCP.Tools
                     if (Faction.OfPlayer == null)
                         return ToolResult.Error("玩家派系不存在");
 
-                    // 材料默认
-                    var wallStuff = (wallDef.MadeFromStuff) ? ThingDef.Named("Steel") : null;
+                    // 材料 — wall_stuff 指定，默认 Steel
+                    ThingDef? wallStuff = null;
+                    if (wallDef.MadeFromStuff)
+                    {
+                        if (!string.IsNullOrEmpty(wallStuffName))
+                        {
+                            wallStuff = DefDatabase<ThingDef>.GetNamed(wallStuffName, false);
+                            if (wallStuff == null)
+                                return ToolResult.Error($"找不到材料: {wallStuffName}。请用 list_building_materials 查看可用材料。");
+                        }
+                        else wallStuff = ThingDef.Named("Steel");
+                    }
                     var doorStuff = (doorDef?.MadeFromStuff == true) ? ThingDef.Named("Steel") : null;
                     var floorStuff = (floorDef?.MadeFromStuff == true) ? ThingDef.Named("Steel") : null;
 
@@ -279,7 +288,7 @@ namespace RimWorldMCP.Tools
                     var sb = new StringBuilder();
                     sb.AppendLine($"房间建造蓝图规划完成:");
                     sb.AppendLine($"- 范围: ({minX}, {minZ}) ~ ({maxX}, {maxZ})，共 {roomWidth}x{roomHeight} 格");
-                    sb.AppendLine($"- 外墙: {placedWalls} 格 {wallDef.label} ({wallDefName})");
+                    sb.AppendLine($"- 外墙: {placedWalls} 格 {wallDef.label}（材料: {wallStuff?.label ?? "Steel"}）");
                     if (placedDoors > 0)
                         sb.AppendLine($"- 门: {placedDoors} 扇 {doorDef?.label ?? doorDefName}");
                     if (placedFloors > 0)

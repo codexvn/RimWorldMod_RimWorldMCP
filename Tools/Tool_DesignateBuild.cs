@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Verse;
 using RimWorld;
 using RimWorldMCP;
+using RimWorldMCP.Helpers;
 
 namespace RimWorldMCP.Tools
 {
@@ -20,7 +21,7 @@ namespace RimWorldMCP.Tools
                 pos_x = new { type = "integer", description = "X 坐标" },
                 pos_y = new { type = "integer", description = "Y 坐标" },
                 rotation = new { type = "string", description = "旋转方向", @enum = new[] { "North", "East", "South", "West" } },
-                stuff_defName = new { type = "string", description = "建筑材料 DefName，如 Steel, WoodLog" },
+                stuff_defName = new { type = "string", description = "建筑材料 DefName（可选）", @enum = BuildingMaterialHelper.GetStuffEnum() },
             },
             required = new[] { "thingDef_name", "pos_x", "pos_y" }
         });
