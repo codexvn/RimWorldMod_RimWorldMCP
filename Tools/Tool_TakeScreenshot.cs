@@ -83,14 +83,14 @@ namespace RimWorldMCP.Tools
                     driver.SetRootPosAndSize(new Vector3(centerX, 0f, centerZ), rootSize);
                     Find.UIRoot.screenshotMode.Active = true;
 
-                    string saveFileName = !string.IsNullOrEmpty(fileName)
-                        ? fileName
-                        : $"mcp_{DateTime.Now:yyyyMMdd_HHmmss}";
+                    // 本地文件始终用 ASCII 安全名（Unity CaptureScreenshot 不支持 Unicode 文件名）
+                    string localFile = $"mcp_{DateTime.Now:yyyyMMdd_HHmmss}";
+                    string objectKey = (!string.IsNullOrEmpty(fileName) ? fileName : localFile) + ".png";
 
                     if (!McpOssConfig.IsConfigured)
                         return ToolResult.Error("OSS 未配置，请在游戏 Mod 设置中配置 OSS 后再使用截图功能。");
 
-                    ScreenshotTaker.TakeNonSteamShot(saveFileName);
+                    ScreenshotTaker.TakeNonSteamShot(localFile);
                     // screenshotMode 和相机必须在帧末 Unity CaptureScreenshot 完成后再恢复
                     McpCommandQueue.ScheduleDeferred(() =>
                     {
@@ -99,9 +99,9 @@ namespace RimWorldMCP.Tools
                             oldRootSize);
                     });
 
-                    string fullPath = Path.Combine(GenFilePaths.ScreenshotFolderPath, saveFileName + ".png");
-                    McpOssUploader.EnqueuePendingUpload(fullPath, saveFileName + ".png");
-                    string publicUrl = McpOssUploader.GetPublicUrl(saveFileName + ".png");
+                    string fullPath = Path.Combine(GenFilePaths.ScreenshotFolderPath, localFile + ".png");
+                    McpOssUploader.EnqueuePendingUpload(fullPath, objectKey);
+                    string publicUrl = McpOssUploader.GetPublicUrl(objectKey);
 
                     return ToolResult.Success(
                         $"已截取地图区域 ({minX}~{maxX}, {minZ}~{maxZ})。\n" +
