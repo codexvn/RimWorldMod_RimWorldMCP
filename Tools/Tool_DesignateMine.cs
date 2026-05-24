@@ -16,11 +16,10 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                pos_x = new { type = "integer", description = "X 坐标" },
-                pos_y = new { type = "integer", description = "Y 坐标" },
-                pos_z = new { type = "integer", description = "Z 坐标" }
+                pos_x = new { type = "integer", description = "X 坐标（水平）" },
+                pos_y = new { type = "integer", description = "Y 坐标（垂直）" }
             },
-            required = new[] { "pos_x", "pos_y", "pos_z" }
+            required = new[] { "pos_x", "pos_y" }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
@@ -30,8 +29,6 @@ namespace RimWorldMCP.Tools
                 return ToolResult.Error("缺少必填参数: pos_x");
             if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var posY))
                 return ToolResult.Error("缺少必填参数: pos_y");
-            if (!args.Value.TryGetProperty("pos_z", out var jZ) || !jZ.TryGetInt32(out var posZ))
-                return ToolResult.Error("缺少必填参数: pos_z");
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -40,22 +37,22 @@ namespace RimWorldMCP.Tools
                     Map map = Find.CurrentMap;
                     if (map == null) return ToolResult.Error("没有当前地图，请先加载游戏存档。");
 
-                    IntVec3 pos = new IntVec3(posX, posY, posZ);
+                    IntVec3 pos = new IntVec3(posX, 0, posY);
                     if (!pos.InBounds(map))
-                        return ToolResult.Error($"坐标 ({posX}, {posY}, {posZ}) 超出地图边界。");
+                        return ToolResult.Error($"坐标 ({posX}, {posY}) 超出地图边界。");
 
                     if (map.designationManager.DesignationAt(pos, DesignationDefOf.Mine) != null)
                     {
                         Mineable existing = pos.GetFirstMineable(map);
                         string label = existing?.def.label ?? "未知";
-                        return ToolResult.Success($"坐标 ({posX}, {posY}, {posZ}) 已被标记为开采（{label}），无需重复操作。");
+                        return ToolResult.Success($"坐标 ({posX}, {posY}) 已被标记为开采（{label}），无需重复操作。");
                     }
 
                     if (!pos.Fogged(map))
                     {
                         Mineable mineable = pos.GetFirstMineable(map);
                         if (mineable == null)
-                            return ToolResult.Error($"坐标 ({posX}, {posY}, {posZ}) 没有可开采的矿物或岩石。");
+                            return ToolResult.Error($"坐标 ({posX}, {posY}) 没有可开采的矿物或岩石。");
                     }
 
                     map.designationManager.AddDesignation(new Designation(pos, DesignationDefOf.Mine, null));
@@ -68,7 +65,7 @@ namespace RimWorldMCP.Tools
                     string? productInfo = mined?.def.building?.mineableThing?.label;
                     string extraInfo = productInfo != null ? $"，预期产出: {productInfo}" : "";
 
-                    return ToolResult.Success($"已标记 {minedLabel} 在坐标 ({posX}, {posY}, {posZ}) 以供开采{extraInfo}。");
+                    return ToolResult.Success($"已标记 {minedLabel} 在坐标 ({posX}, {posY}) 以供开采{extraInfo}。");
                 }
                 catch (Exception ex) { return ToolResult.Error($"标记采矿失败: {ex.Message}"); }
             });

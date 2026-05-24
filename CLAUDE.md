@@ -18,7 +18,7 @@ RimWorldMCP/
 ├── Mcp/                                  # MCP 协议层
 │   ├── McpServer.cs                      # JSON-RPC 调度：initialize/tools/list/tools/call/resources
 │   └── McpMessage.cs                     # 数据类型：请求/响应/Tool定义/资源
-├── Tools/                                # 21 个 Tool（真实 RimWorld API 调用）
+├── Tools/                                # 24 个 Tool（真实 RimWorld API 调用）
 │   ├── ITool.cs                          # Tool 接口 + ToolResult
 │   ├── ToolRegistry.cs                   # 注册表 + 执行调度 + 资源映射
 │   └── Tool_*.cs                         # 各 Tool 实现
@@ -79,7 +79,7 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 
 游戏启动后，MCP 服务自动运行在 `http://localhost:9877`。
 
-## Tool 清单（21 个，真实 API）
+## Tool 清单（24 个，真实 API）
 
 ### 通用查询
 | Tool | 说明 | 数据源 |
@@ -98,8 +98,19 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 ### 建造 (2)
 | Tool | 说明 | 数据源/操作 |
 |------|------|------------|
-| `designate_build` | 放置建造蓝图（参数: pos_x=水平, pos_y=垂直网格, 无 pos_z） | `GenConstruct.PlaceBlueprintForBuild()` (入队) |
-| `designate_room` | 快速建造矩形房间（参数: center_x=水平, center_y=垂直网格, 无 center_z） | 批量 `PlaceBlueprintForBuild()` (入队) |
+| `designate_build` | 放置建造蓝图（参数: pos_x=水平, pos_y=垂直网格） | `GenConstruct.PlaceBlueprintForBuild()` (入队) |
+| `designate_room` | 快速建造矩形房间（参数: center_x=水平, center_y=垂直网格） | 批量 `PlaceBlueprintForBuild()` (入队) |
+
+### 伐木与采矿 (2)
+| Tool | 说明 | 数据源/操作 |
+|------|------|------------|
+| `designate_plants_cut` | 标记植物砍伐（参数: pos_x=水平, pos_y=垂直网格） | `DesignationManager.AddDesignation(CutPlant)` (入队) |
+| `designate_mine` | 标记采矿（参数: pos_x=水平, pos_y=垂直网格） | `DesignationManager.AddDesignation(Mine)` (入队) |
+
+### 截图 (1)
+| Tool | 说明 | 数据源/操作 |
+|------|------|------------|
+| `take_screenshot` | 截取地图指定 X/Z 范围画面（参数: min_x/max_x 必填, min_z/max_z 可选） | `ScreenshotTaker.TakeNonSteamShot()` (入队) |
 
 ### 研究 (3)
 | Tool | 说明 | 数据源/操作 |
