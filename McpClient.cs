@@ -19,6 +19,8 @@ namespace RimWorldMCP
         private static int _rpcSeq;
         private static ClientState _state = ClientState.Disconnected;
         private static TaskCompletionSource<bool>? _helloOk;
+        private static int _tickIntervalMs = 30000; // 默认 30s，hello-ok 可能覆盖
+        private static DateTime _lastTick = DateTime.MinValue;
 
         public static ClientState State => _state;
         public static bool IsConnected => _state >= ClientState.Handshake;
@@ -112,21 +114,27 @@ namespace RimWorldMCP
         }
 
         // Gateway 完整握手：收到 challenge → 发 connect RPC → 等 hello-ok
+        // backend + loopback + token 认证路径，可省略 device 签名（官方文档明确允许）
         private static async Task SendChallengeResponse(string nonce)
         {
             var connectParams = new
             {
                 minProtocol = 3,
-                maxProtocol = 3,
+                maxProtocol = 4,
                 client = new
                 {
                     id = "gateway-client",
                     displayName = "RimWorldMCP",
                     version = "1.0",
-                    platform = "windows",
+                    platform = Environment.OSVersion.Platform.ToString().Contains("Win") ? "windows"
+                        : Environment.OSVersion.Platform.ToString().Contains("Mac") ? "macos" : "linux",
                     mode = "backend"
                 },
+                role = "operator",
+                scopes = new[] { "operator.read", "operator.write" },
                 caps = new[] { "tool-events" },
+                locale = "zh-CN",
+                userAgent = "RimWorldMCP/1.0",
                 auth = new
                 {
                     token = _token,
@@ -184,8 +192,28 @@ namespace RimWorldMCP
                                 && root.TryGetProperty("payload", out var payload)
                                 && payload.TryGetProperty("type", out var pt) && pt.GetString() == "hello-ok")
                             {
+                                // 从 hello-ok 读取 tick 间隔
+                                if (payload.TryGetProperty("policy", out var policy)
+                                    && policy.TryGetProperty("tickIntervalMs", out var tiv) && tiv.TryGetInt32(out var iv))
+                                    _tickIntervalMs = iv;
+
+                                _lastTick = DateTime.UtcNow;
                                 _helloOk?.TrySetResult(true);
                             }
+                        }
+                        else if (type == "event" || type == "evt")
+                        {
+                            if (root.TryGetProperty("event", out var ev) && ev.GetString() == "tick")
+                                _lastTick = DateTime.UtcNow;
+                        }
+
+                        // tick 超时检查 (2x tickIntervalMs)
+                        if (_state == ClientState.Ready && (DateTime.UtcNow - _lastTick).TotalMilliseconds > _tickIntervalMs * 2)
+                        {
+                            McpLog.Warn("[ws] tick 超时，连接可能已断开");
+                            _state = ClientState.Disconnected;
+                            try { _ws?.CloseAsync(WebSocketCloseStatus.ProtocolError, "tick timeout", CancellationToken.None); } catch { }
+                            break;
                         }
                     }
                     catch { }
