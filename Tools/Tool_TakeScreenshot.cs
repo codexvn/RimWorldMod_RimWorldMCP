@@ -61,6 +61,7 @@ namespace RimWorldMCP.Tools
 
                     var driver = Find.CameraDriver;
                     CellRect oldView = driver.CurrentViewRect;
+                    float oldRootSize = driver.RootSize;
 
                     int viewWidth = maxX - minX + 1;
                     float aspectRatio = (float)UI.screenWidth / (float)UI.screenHeight;
@@ -90,8 +91,13 @@ namespace RimWorldMCP.Tools
                         return ToolResult.Error("OSS 未配置，请在游戏 Mod 设置中配置 OSS 后再使用截图功能。");
 
                     ScreenshotTaker.TakeNonSteamShot(saveFileName);
-                    // screenshotMode.Active 必须保持到帧末 Unity CaptureScreenshot 完成后再关闭
-                    McpCommandQueue.ScheduleDeferred(() => Find.UIRoot.screenshotMode.Active = false);
+                    // screenshotMode 和相机必须在帧末 Unity CaptureScreenshot 完成后再恢复
+                    McpCommandQueue.ScheduleDeferred(() =>
+                    {
+                        Find.UIRoot.screenshotMode.Active = false;
+                        driver.SetRootPosAndSize(new Vector3(oldView.CenterCell.x, 0f, oldView.CenterCell.z),
+                            oldRootSize);
+                    });
 
                     string fullPath = Path.Combine(GenFilePaths.ScreenshotFolderPath, saveFileName + ".png");
                     McpOssUploader.EnqueuePendingUpload(fullPath, saveFileName + ".png");
