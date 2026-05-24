@@ -63,10 +63,9 @@ namespace RimWorldMCP
                 var skillRegistry = new SkillRegistry();
                 skillRegistry.LoadFromDirectory(skillsDir);
 
-                // 1.5 加载 OSS 配置（mod 根目录，与 Skills/ 同级）
-                var modRoot = Path.GetDirectoryName(skillsDir);
-                if (modRoot != null)
-                    McpOssConfig.LoadFromFile(Path.Combine(modRoot, "oss_config.json"));
+                // 1.5 从 ModSettings 加载 OSS 配置
+                if (RimWorldMCPMod.Instance != null)
+                    McpOssConfig.LoadFromModSettings(RimWorldMCPMod.Instance.Settings);
 
                 // 2. 创建 ToolRegistry + 注册 24 个 Tool
                 var toolRegistry = new ToolRegistry();

@@ -1,6 +1,4 @@
 using System;
-using System.IO;
-using System.Text.Json;
 
 namespace RimWorldMCP
 {
@@ -21,47 +19,22 @@ namespace RimWorldMCP
             !string.IsNullOrEmpty(AccessKey) &&
             !string.IsNullOrEmpty(SecretKey);
 
-        public static void LoadFromFile(string configPath)
+        /// <summary>从 RimWorld ModSettings 实例同步配置</summary>
+        public static void LoadFromModSettings(McpModSettings settings)
         {
-            try
-            {
-                if (!File.Exists(configPath))
-                {
-                    McpLog.Info($"OSS 配置文件不存在，上传已禁用: {configPath}");
-                    return;
-                }
+            if (settings == null) return;
 
-                var json = File.ReadAllText(configPath);
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
+            Enabled = settings.OssEnabled;
+            ServiceUrl = settings.OssServiceUrl ?? "";
+            BucketName = settings.OssBucketName ?? "";
+            AccessKey = settings.OssAccessKey ?? "";
+            SecretKey = settings.OssSecretKey ?? "";
+            Region = settings.OssRegion ?? "";
+            ForcePathStyle = settings.OssForcePathStyle;
 
-                Enabled = TryGetBool(root, "enabled");
-                ServiceUrl = TryGetString(root, "serviceUrl");
-                BucketName = TryGetString(root, "bucketName");
-                AccessKey = TryGetString(root, "accessKey");
-                SecretKey = TryGetString(root, "secretKey");
-                Region = TryGetString(root, "region");
-                ForcePathStyle = TryGetBool(root, "forcePathStyle");
-
-                McpLog.Info(IsConfigured
-                    ? $"OSS 配置已加载: {ServiceUrl}/{BucketName}"
-                    : "OSS 配置不完整，上传已禁用");
-            }
-            catch (Exception ex)
-            {
-                McpLog.Warn($"加载 OSS 配置失败: {ex.Message}");
-                Enabled = false;
-            }
-        }
-
-        private static string TryGetString(JsonElement root, string key)
-        {
-            return root.TryGetProperty(key, out var prop) ? prop.GetString() ?? "" : "";
-        }
-
-        private static bool TryGetBool(JsonElement root, string key)
-        {
-            return root.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.True;
+            McpLog.Info(IsConfigured
+                ? $"OSS 配置已加载: {ServiceUrl}/{BucketName}"
+                : "OSS 未配置或未启用");
         }
     }
 }

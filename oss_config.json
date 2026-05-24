@@ -1,9 +1,0 @@
-{
-  "enabled": false,
-  "serviceUrl": "https://oss-cn-hangzhou.aliyuncs.com",
-  "bucketName": "rimworld-mcp",
-  "accessKey": "",
-  "secretKey": "",
-  "region": "oss-cn-hangzhou",
-  "forcePathStyle": false
-}
