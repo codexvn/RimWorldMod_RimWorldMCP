@@ -16,6 +16,7 @@ namespace RimWorldMCP
         private static CancellationTokenSource? _cts;
         private static string _url = "";
         private static string _token = "";
+        private static string _password = "";
         private static int _rpcSeq;
         private static ClientState _state = ClientState.Disconnected;
         private static TaskCompletionSource<bool>? _helloOk;
@@ -32,7 +33,8 @@ namespace RimWorldMCP
         public static async Task Connect(string wsUrl, string token, string password)
         {
             _url = wsUrl;
-            _token = !string.IsNullOrEmpty(token) ? token : password;
+            _token = token ?? "";
+            _password = password ?? "";
             Disconnect();
 
             try
@@ -132,8 +134,8 @@ namespace RimWorldMCP
                 userAgent = "RimWorldMCP/1.0",
                 auth = new
                 {
-                    token = _token,
-                    password = (string?)null,
+                    token = string.IsNullOrEmpty(_token) ? null : _token,
+                    password = string.IsNullOrEmpty(_password) ? null : _password,
                     deviceToken = (string?)null
                 },
                 device = new
