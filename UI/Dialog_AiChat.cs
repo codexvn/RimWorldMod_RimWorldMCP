@@ -11,7 +11,6 @@ namespace RimWorldMCP
         private Vector2 _scrollPos;
         private bool _scrollToBottom;
         private string _inputText = "";
-        private string _pendingSendText = "";
         private static float _alpha = 0.8f;
         private static readonly Color UserBgColor = new Color(0.12f, 0.18f, 0.30f, 1f);
         private static readonly Color AiBgColor = new Color(0.08f, 0.22f, 0.10f, 1f);
@@ -60,35 +59,24 @@ namespace RimWorldMCP
             _scrollToBottom = true;
         }
 
-        /// <summary>发送输入框文本（SendMessage 入口统一 abort，此处只缓存文本）</summary>
         private void TrySendInput()
         {
             var text = _inputText.Trim();
             if (string.IsNullOrEmpty(text)) return;
-            if (!CCClient.IsConnected) return;
-            if (!string.IsNullOrEmpty(_pendingSendText)) return;
+            if (!CCClient.IsReady) return;
 
             _inputText = "";
-            _pendingSendText = text;
+            _ = CCClient.SendEventText("rimworld.chat", "UserMessage", text);
+            ChatDisplayState.OnUserMessage(text);
         }
 
         public override void DoWindowContents(Rect inRect)
         {
-            // 全局 Enter 键发送（在 GUI 绘制前处理，参考 Dialog_GiveName.cs）
             if (Event.current.type == EventType.KeyDown
                 && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter))
             {
                 TrySendInput();
                 Event.current.Use();
-            }
-
-            // 处理延迟发送（SendMessage 入口统一 abort）
-            if (!string.IsNullOrEmpty(_pendingSendText))
-            {
-                var t = _pendingSendText;
-                _pendingSendText = "";
-                if (CCClient.IsReady)
-                    _ = CCClient.SendEventText("rimworld.chat", "UserMessage", t);
             }
 
             // 半透明背景
@@ -244,8 +232,7 @@ namespace RimWorldMCP
             GUI.color = connected ? Color.white : Color.grey;
             if (Widgets.ButtonText(abortRect, "中断"))
             {
-                if (CCClient.IsReady)
-                    _ = CCClient.SendEventText("rimworld.chat", "Abort", "");
+                ChatDisplayState.Clear();
             }
 
             // 清空
@@ -265,7 +252,8 @@ namespace RimWorldMCP
                     if (map != null)
                     {
                         var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
-                        _pendingSendText = GameContextProvider.BuildColonyOverview(map, colonists, colonists.Count);
+                        _ = CCClient.SendEventText("rimworld.chat", "ColonyOverview",
+                            GameContextProvider.BuildColonyOverview(map, colonists, colonists.Count));
                     }
                 }
             }

@@ -51,6 +51,20 @@ namespace RimWorldMCP
 
         public static void Tick()
         {
+            // Companion 进程健康监控——崩溃时自动重启
+            if (_companionProcess != null && _companionProcess.HasExited)
+            {
+                McpLog.Error($"[cc] Companion 进程意外退出 (退出码: {_companionProcess.ExitCode})，正在重启...");
+                StopCompanionProcess();
+                KillStaleByPidFile();
+                var settings = RimWorldMCPMod.Instance?.Settings;
+                if (settings?.CCAutoStart == true)
+                {
+                    StartCompanionProcess(settings.LocalCCPort, settings.CCToken);
+                    _ = CCClient.Connect(settings.CCUrl, settings.CCToken);
+                }
+            }
+
             CCClient.Tick();
             CCEventTick();
         }

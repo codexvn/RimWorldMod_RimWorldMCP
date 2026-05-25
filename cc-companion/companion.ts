@@ -87,10 +87,10 @@ async function main(): Promise<void> {
   let connectTimer: ReturnType<typeof setTimeout> | null = null;
   if (CONFIG.connectTimeout > 0) {
     connectTimer = setTimeout(() => {
-      console.log(`[cc-companion] ${CONFIG.connectTimeout / 1000}s 内无客户端连接，自动退出`);
+      console.log(`[cc-companion] 超时：${CONFIG.connectTimeout / 1000}s 内无客户端连接，自动退出`);
       shutdown();
     }, CONFIG.connectTimeout);
-    console.log(`[cc-companion] 连接超时: ${CONFIG.connectTimeout / 1000}s (--no-connect-timeout 禁用)`);
+    console.log(`[cc-companion] ${CONFIG.connectTimeout / 1000}s 内无客户端连接将自动退出（--no-connect-timeout 可关闭）`);
   }
 
   // 7. PID 文件

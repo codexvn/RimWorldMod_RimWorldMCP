@@ -85,6 +85,7 @@ namespace RimWorldMCP
             {
                 _state = CCClientState.Disconnected;
                 McpLog.Error($"[cc] 连接失败: {ex.Message}");
+                _ = ScheduleReconnect();
             }
         }
 
@@ -203,25 +204,12 @@ namespace RimWorldMCP
 
                             case "assistant":
                             case "user":
-                                // Companion 广播的 Claude SDK 消息 → 聊天窗显示
-                                try
-                                {
-                                    var wrapper = JsonDocument.Parse(
-                                        $"{{\"type\":\"event\",\"event\":\"chat\",\"payload\":{root.GetRawText()}}}");
-                                    ChatDisplayState.OnChatEvent(wrapper.RootElement);
-                                }
-                                catch { }
+                                ChatDisplayState.OnSdkMessage(root);
                                 break;
 
                             case "result":
-                                // Tool 执行结果 → Agent 事件
-                                try
-                                {
-                                    var rw = JsonDocument.Parse(
-                                        $"{{\"type\":\"event\",\"event\":\"agent\",\"payload\":{{\"stream\":\"tool\",\"data\":{root.GetRawText()}}}}}");
-                                    ChatDisplayState.OnAgentEvent(rw.RootElement);
-                                }
-                                catch { }
+                                // Tool 执行结果 → 清理工具调用状态
+                                ChatDisplayState.ClearToolCalls();
                                 break;
 
                             case "error":
@@ -265,8 +253,9 @@ namespace RimWorldMCP
             // 检查 pong 超时
             if (_lastPong != DateTime.MinValue && (now - _lastPong).TotalMilliseconds > PongTimeoutMs)
             {
-                McpLog.Error("[cc] pong 超时，断开连接");
-                Disconnect();
+                McpLog.Error("[cc] pong 超时，断开连接（将自动重连）");
+                _state = CCClientState.Disconnected;
+                try { _ws?.CloseAsync(WebSocketCloseStatus.ProtocolError, "pong timeout", CancellationToken.None); } catch { }
             }
         }
 

@@ -80,13 +80,9 @@ export function createSession(sdk: any, config: CompanionConfig) {
       USER_TYPE: 'external',
     },
     settingSources: ['user', 'project', 'local'],
-    canUseTool: (toolName: string) => {
-      // 禁止 Bash——游戏控制不需要执行 shell 命令
-      if (toolName === 'Bash') {
-        console.log(`[cc-companion] 已阻止 Bash 调用`);
-        return false;
-      }
-      return true;
+    permissions: {
+      deny: ['*'],
+      allow: ['mcp__*__*'],
     },
     mcpServers: {
       rimworld: mcpServerConfig,

@@ -64,12 +64,10 @@
       <CompanionSrc>$(MSBuildProjectDirectory)\cc-companion\</CompanionSrc>
       <CompanionOut>$(MSBuildProjectDirectory)\publish\cc-companion\</CompanionOut>
     </PropertyGroup>
-    <RemoveDir Directories="$(CompanionOut)" Condition="Exists('$(CompanionOut)')" />
     <ItemGroup>
-      <CompanionFiles Include="$(CompanionSrc)**\*" Exclude="$(CompanionSrc)node_modules\**;$(CompanionSrc)dist\**;$(CompanionSrc)README.md" />
+      <CompanionFiles Include="$(CompanionSrc)**\*" Exclude="$(CompanionSrc)dist\**;$(CompanionSrc)node_modules\**;$(CompanionSrc)README.md" />
     </ItemGroup>
     <Copy SourceFiles="@(CompanionFiles)" DestinationFolder="$(CompanionOut)%(RecursiveDir)" />
-    <Exec Command="npm install" WorkingDirectory="$(CompanionOut)" ContinueOnError="true" />
   </Target>
 
 </Project>

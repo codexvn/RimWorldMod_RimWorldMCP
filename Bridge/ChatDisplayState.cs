@@ -335,6 +335,66 @@ namespace RimWorldMCP
             OnChanged?.Invoke();
         }
 
+        public static void ClearToolCalls()
+        {
+            lock (_lock) { _toolCalls.Clear(); }
+            OnChanged?.Invoke();
+        }
+
+        /// <summary>处理 Companion 广播的 SDK 消息（assistant/user 类型）</summary>
+        public static void OnSdkMessage(JsonElement sdkMsg)
+        {
+            var message = sdkMsg.TryGetProperty("message", out var msg) ? msg : sdkMsg;
+            var role = message.TryGetProperty("role", out var r) ? r.GetString() : "assistant";
+
+            if (!message.TryGetProperty("content", out var content)
+                || content.ValueKind != JsonValueKind.Array) return;
+
+            foreach (var block in content.EnumerateArray())
+            {
+                var blockType = block.TryGetProperty("type", out var bt) ? bt.GetString() : "";
+                if (blockType == "text")
+                {
+                    var text = block.TryGetProperty("text", out var tt) ? tt.GetString() ?? "" : "";
+                    lock (_lock)
+                    {
+                        _entries.Add(new ChatEntry
+                        {
+                            Role = role == "user" ? ChatRole.User : ChatRole.Assistant,
+                            Text = text,
+                            State = ChatState.Done
+                        });
+                        TrimEntries();
+                    }
+                    OnChanged?.Invoke();
+                }
+                else if (blockType == "tool_use")
+                {
+                    var name = block.TryGetProperty("name", out var tn) ? tn.GetString() ?? "" : "";
+                    var itemId = block.TryGetProperty("id", out var iid) ? iid.GetString() ?? "" : "";
+                    lock (_lock)
+                    {
+                        // 去重：同一工具 ID 不重复添加
+                        bool exists = false;
+                        for (int i = 0; i < _toolCalls.Count; i++)
+                        {
+                            if (_toolCalls[i].ItemId == itemId) { exists = true; break; }
+                        }
+                        if (!exists)
+                        {
+                            _toolCalls.Add(new ToolCallInfo
+                            {
+                                ItemId = itemId, Name = name, Title = name,
+                                Status = ToolStatus.Running
+                            });
+                            while (_toolCalls.Count > 20) _toolCalls.RemoveAt(0);
+                        }
+                    }
+                    OnChanged?.Invoke();
+                }
+            }
+        }
+
         /// <summary>从 WebSocket 线程调用：处理 Gateway 广播的 "session.operation" 事件（压缩事件）</summary>
         public static void OnSessionOperationEvent(JsonElement root)
         {

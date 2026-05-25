@@ -47,11 +47,6 @@ export function createWSServer(
   const wss = new WebSocketServer({ server: httpServer });
   httpServer.listen(port, host);
 
-  wss.on('listening', () => {
-    console.log(`[cc-companion] WebSocket 服务器已启动: ws://${host}:${port}`);
-    onStatusChange?.({ status: 'listening', port });
-  });
-
   wss.on('error', (err: Error) => {
     console.error(`[cc-companion] WebSocket 服务器错误: ${err.message}`);
     onStatusChange?.({ status: 'error', error: err.message });
