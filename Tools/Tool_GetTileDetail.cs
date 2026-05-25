@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
+using Verse.AI;
+using Verse.AI.Group;
 using RimWorld;
 using RimWorldMCP;
 
@@ -143,7 +145,11 @@ namespace RimWorldMCP.Tools
                         var p = pawn.Position;
                         if (p.x >= minX && p.x <= maxX && p.z >= minY && p.z <= maxY)
                         {
-                            pawns.Add($"- [{p.x},{p.z}] {pawn.LabelShort} ({pawn.KindLabel}, ID:{pawn.thingIDNumber})");
+                            string statusTag = pawn.Downed ? " [倒地]"
+                                : IsFleeing(pawn) ? " [逃跑中]"
+                                : pawn.Drafted ? " [征召]"
+                                : "";
+                            pawns.Add($"- [{p.x},{p.z}] {pawn.LabelShort} ({pawn.KindLabel}, ID:{pawn.thingIDNumber}){statusTag}");
                             pawnCount++;
                         }
                     }
@@ -164,6 +170,22 @@ namespace RimWorldMCP.Tools
                     return ToolResult.Error($"区域扫描失败: {ex.Message}");
                 }
             });
+        }
+
+        private static bool IsFleeing(Pawn pawn)
+        {
+            if (pawn.InMentalState)
+            {
+                var def = pawn.MentalStateDef;
+                if (def == MentalStateDefOf.PanicFlee || def == MentalStateDefOf.PanicFleeFire)
+                    return true;
+            }
+            if (pawn.CurJob?.def == JobDefOf.Flee)
+                return true;
+            var lord = pawn.GetLord();
+            if (lord?.CurLordToil is LordToil_PanicFlee)
+                return true;
+            return false;
         }
     }
 }
