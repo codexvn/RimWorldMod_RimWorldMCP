@@ -85,18 +85,15 @@ namespace RimWorldMCP.Tools
                         var afterResult = await McpCommandQueue.DispatchAsync(() =>
                         {
                             var remainingStr = NotificationBus.DrainFormatted();
+                            var pauseStatus = GatewayEventMonitor.BuildPauseStatus();
                             var paused = Find.TickManager?.Paused ?? false;
-                            return new { Remaining = remainingStr, IsPaused = paused };
+                            return new { Remaining = remainingStr, IsPaused = paused, PauseStatus = pauseStatus };
                         });
                         if (!string.IsNullOrEmpty(afterResult.Remaining))
                             GatewayMessageQueue.Enqueue(MessageCategory.Alert, afterResult.Remaining);
                         if (afterResult.IsPaused)
                         {
-                            var reason = GatewayClient.CompactionPauseReason;
-                            if (!string.IsNullOrEmpty(reason))
-                                result.Text += $"\n\n[提示] {reason}";
-                            else
-                                result.Text += "\n\n[提示] 游戏当前已暂停。使用 toggle_pause 恢复时间流动。";
+                            result.Text += $"\n\n{afterResult.PauseStatus}";
                         }
                     }
                     catch { /* 调度失败不影响工具结果 */ }
