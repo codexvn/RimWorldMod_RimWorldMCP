@@ -173,6 +173,38 @@ namespace RimWorldMCP
                         }
                         break;
 
+                    case "aborted":
+                        if (entry != null)
+                        {
+                            if (payload.TryGetProperty("message", out var abortMsg)
+                                && abortMsg.TryGetProperty("content", out var ac)
+                                && ac.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var item in ac.EnumerateArray())
+                                {
+                                    if (item.TryGetProperty("text", out var at))
+                                    {
+                                        entry.Text = at.GetString() ?? entry.Text;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (string.IsNullOrEmpty(entry.Text))
+                                entry.Text = "（已中断）";
+                            entry.State = ChatState.Done;
+                        }
+                        else if (!string.IsNullOrEmpty(text))
+                        {
+                            _entries.Add(new ChatEntry
+                            {
+                                Role = ChatRole.Assistant,
+                                RunId = runId,
+                                Text = text!,
+                                State = ChatState.Done
+                            });
+                        }
+                        break;
+
                     case "error":
                         if (entry != null)
                         {
