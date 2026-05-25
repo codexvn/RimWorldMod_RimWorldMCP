@@ -30,6 +30,8 @@ namespace RimWorldMCP
         {
             public TaskCompletionSource<JsonElement> Tcs = new();
             public bool ExpectFinal;
+            /// <summary>持有克隆的 JsonDocument 引用，防止 ReceiveLoop dispose 后元素失效</summary>
+            public JsonDocument? ClonedDocument;
         }
         private static readonly ConcurrentDictionary<string, PendingRequest> _pending = new();
 
@@ -544,7 +546,12 @@ namespace RimWorldMCP
             _pending.TryRemove(id, out _);
 
             if (resOk)
-                pr.Tcs.TrySetResult(root);
+            {
+                // 克隆元素避免 ReceiveLoop 的 using JsonDocument dispose 后失效
+                var cloneDoc = JsonDocument.Parse(root.GetRawText());
+                pr.ClonedDocument = cloneDoc;
+                pr.Tcs.TrySetResult(cloneDoc.RootElement);
+            }
             else
                 pr.Tcs.TrySetException(new Exception(
                     root.TryGetProperty("error", out var err) && err.TryGetProperty("message", out var msg)
