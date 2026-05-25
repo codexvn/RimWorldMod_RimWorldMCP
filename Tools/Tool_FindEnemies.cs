@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -65,8 +66,8 @@ namespace RimWorldMCP.Tools
                         sb.AppendLine();
                         sb.AppendLine("## 已征召殖民者 → 可攻击目标");
                         sb.AppendLine();
-                        sb.AppendLine("| 殖民者 (ID) | 武器 | 类型 | 射程 | 可攻击 (ID) |");
-                        sb.AppendLine("|---|---:|---:|---|");
+                        sb.AppendLine("| 殖民者 (ID) | 武器 | 类型 | 射程 | 可攻击 (ID) | 当前攻击 |");
+                        sb.AppendLine("|---|---:|---:|---|---|");
 
                         foreach (var d in drafted)
                         {
@@ -100,7 +101,10 @@ namespace RimWorldMCP.Tools
                                 ? string.Join(", ", inRange)
                                 : "-";
 
-                            sb.AppendLine($"| {d.LabelShort} ({d.thingIDNumber}) | {weaponLabel} | {atkType} | {rangeDisplay} | {targetsDisplay} |");
+                            // 正在攻击谁
+                            string attackingDisplay = GetAttackingTarget(d, enemies);
+
+                            sb.AppendLine($"| {d.LabelShort} ({d.thingIDNumber}) | {weaponLabel} | {atkType} | {rangeDisplay} | {targetsDisplay} | {attackingDisplay} |");
                         }
                     }
 
@@ -111,6 +115,23 @@ namespace RimWorldMCP.Tools
                     return ToolResult.Error($"查找敌人失败: {ex.Message}");
                 }
             });
+        }
+
+        private static string GetAttackingTarget(Pawn pawn, List<Pawn> enemies)
+        {
+            var job = pawn.CurJob;
+            if (job == null) return "-";
+            bool isAttackJob = job.def == JobDefOf.AttackStatic || job.def == JobDefOf.AttackMelee;
+            if (!isAttackJob) return "-";
+
+            var target = job.targetA.Thing as Pawn;
+            if (target == null || target.Dead || target.Destroyed) return "-";
+
+            // 确认目标是敌人
+            if (!enemies.Any(e => e.thingIDNumber == target.thingIDNumber))
+                return $"?{target.LabelShort}";
+
+            return $"→ {target.thingIDNumber}";
         }
 
         private static bool IsFleeing(Pawn pawn)
