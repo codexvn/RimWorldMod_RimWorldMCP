@@ -2,7 +2,9 @@ using System;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Linq;
 using Verse;
+using Verse.AI;
 using RimWorld;
 using RimWorldMCP;
 
@@ -20,7 +22,8 @@ namespace RimWorldMCP.Tools
                 pos_x = new { type = "integer", description = "起点 X 坐标（水平）" },
                 pos_y = new { type = "integer", description = "起点 Y 坐标（垂直）" },
                 end_x = new { type = "integer", description = "终点 X 坐标（可选，与 end_y 配对划定矩形范围）" },
-                end_y = new { type = "integer", description = "终点 Y 坐标（可选，与 end_x 配对划定矩形范围）" }
+                end_y = new { type = "integer", description = "终点 Y 坐标（可选，与 end_x 配对划定矩形范围）" },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
             },
             required = new[] { "pos_x", "pos_y" }
         });
@@ -36,6 +39,10 @@ namespace RimWorldMCP.Tools
             int endX = posX, endY = posY;
             bool isRange = args.Value.TryGetProperty("end_x", out var jEx) && jEx.TryGetInt32(out endX)
                         && args.Value.TryGetProperty("end_y", out var jEy) && jEy.TryGetInt32(out endY);
+
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -54,6 +61,14 @@ namespace RimWorldMCP.Tools
 
                     if (area.IsEmpty)
                         return ToolResult.Error($"指定范围 ({minX},{minZ})~({maxX},{maxZ}) 完全在地图外。");
+
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        var sampleCells = area.Cells.Take(20).ToList();
+                        if (!sampleCells.Any(cell => colonists.Any(c => c.CanReach(cell, PathEndMode.ClosestTouch, Danger.Deadly))))
+                            return ToolResult.Error("殖民者无法到达收割区域，请确保有路径连通或传 ignore_unreachable=true。");
+                    }
 
                     var designator = new Designator_PlantsHarvest();
                     int designated = 0, skipped = 0;

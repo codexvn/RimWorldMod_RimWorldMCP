@@ -1,7 +1,9 @@
 using System;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Linq;
 using Verse;
+using Verse.AI;
 using RimWorld;
 using RimWorldMCP;
 using RimWorldMCP.Helpers;
@@ -22,6 +24,7 @@ namespace RimWorldMCP.Tools
                 pos_y = new { type = "integer", description = "Y 坐标" },
                 rotation = new { type = "string", description = "旋转方向", @enum = new[] { "North", "East", "South", "West" } },
                 stuff_defName = new { type = "string", description = "建筑材料 DefName（可选）", @enum = BuildingMaterialHelper.GetStuffEnum() },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" },
             },
             required = new[] { "thingDef_name", "pos_x", "pos_y" }
         });
@@ -46,6 +49,10 @@ namespace RimWorldMCP.Tools
             string stuffDefName = "";
             if (args.Value.TryGetProperty("stuff_defName", out var jStuff))
                 stuffDefName = jStuff.GetString() ?? "";
+
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -112,6 +119,13 @@ namespace RimWorldMCP.Tools
                     var canPlace = designator.CanDesignateCell(pos);
                     if (!canPlace)
                         return ToolResult.Error($"无法在 ({posX}, {posY}) 放置 {def.label}：{canPlace.Reason}");
+
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        if (!colonists.Any(c => c.CanReach(pos, PathEndMode.ClosestTouch, Danger.Deadly)))
+                            return ToolResult.Error($"殖民者无法到达目标位置 ({posX}, {posY})，无法放置蓝图。请确保有路径连通或传 ignore_unreachable=true。");
+                    }
 
                     designator.DesignateSingleCell(pos);
 

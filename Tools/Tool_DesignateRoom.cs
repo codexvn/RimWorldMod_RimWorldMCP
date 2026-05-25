@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Linq;
 using Verse;
+using Verse.AI;
 using RimWorld;
 using RimWorldMCP;
 using RimWorldMCP.Helpers;
@@ -27,7 +29,8 @@ namespace RimWorldMCP.Tools
                 door_positions = new { type = "string", description = "门的位置，多个用逗号分隔。可选: top, bottom, left, right, center_top, center_bottom, center_left, center_right" },
                 door_defName = new { type = "string", description = "门的 DefName，默认 Door", @default = "Door" },
                 floor_defName = new { type = "string", description = "地板 DefName，可选" },
-                force = new { type = "boolean", description = "跳过资源检查强制建造（默认 false）", @default = false }
+                force = new { type = "boolean", description = "跳过资源检查强制建造（默认 false）", @default = false },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
             },
             required = new[] { "pos_x", "pos_y", "end_x", "end_y" }
         });
@@ -60,6 +63,9 @@ namespace RimWorldMCP.Tools
             bool force = false;
             if (args.Value.TryGetProperty("force", out var jForce))
                 force = jForce.ValueKind == JsonValueKind.True;
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
 
             // 计算房间几何（不涉及游戏状态，可在任意线程执行）
             int minX = Math.Min(rawStartX, rawEndX);
@@ -229,6 +235,15 @@ namespace RimWorldMCP.Tools
                     {
                         floorDes = new Designator_Build(floorDef);
                         if (floorStuff != null) floorDes.SetStuffDef(floorStuff);
+                    }
+
+                    // 验证殖民者可达
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        bool anyReachable = wallPositions.Any(wp => colonists.Any(c => c.CanReach(new IntVec3(wp.x, 0, wp.y), PathEndMode.ClosestTouch, Danger.Deadly)));
+                        if (!anyReachable)
+                            return ToolResult.Error("殖民者无法到达房间建造位置，无法放置蓝图。请确保有路径连通或传 ignore_unreachable=true。");
                     }
 
                     // 放置墙体（已有墙体处跳过——共用墙，在门位置处替换为门）

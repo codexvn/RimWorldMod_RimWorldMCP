@@ -222,7 +222,7 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 
 游戏启动后，MCP 服务自动运行在 `http://localhost:9877`。
 
-## Tool 清单（40 个，真实 API）
+## Tool 清单（含可达性检测）
 
 ### 通用查询 (4)
 | Tool | 说明 | 数据源 |
@@ -246,19 +246,33 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 | `get_bills` | 查看工作单状态 | `map.listerBuildings.AllBuildingsColonistOfClass<Building_WorkTable>()` |
 | `manage_bill` | 管理单据（暂停/恢复/删除/优先级） | `bill.suspended`, `billStack.Delete()`, `billStack.Reorder()` (入队) |
 
-### 建造 (2)
+### 建造 (4)
 | Tool | 说明 | 数据源/操作 |
 |------|------|------------|
-| `designate_build` | 放置建造蓝图（参数: pos_x=水平, pos_y=垂直网格） | `GenConstruct.PlaceBlueprintForBuild()` (入队) |
-| `designate_room` | 快速建造矩形房间（参数: pos_x/pos_y=左上, end_x/end_y=右下） | 批量 `PlaceBlueprintForBuild()` (入队) |
+| `designate_build` | 放置建造蓝图（单格） | `Designator_Build.DesignateSingleCell()` (入队) |
+| `designate_room` | 快速建造矩形房间（墙+门+地板） | 批量 `Designator_Build` (入队) |
+| `uninstall_building` | 拆卸建筑为微缩物品 | `Designator_Uninstall.DesignateThing()` |
+| `install_minified_thing` | 安装微缩物品到指定坐标 | `GenConstruct.PlaceBlueprintForInstall()` |
 
-### 标记 (4)
+### 标记 (5)
 | Tool | 说明 | 数据源/操作 |
 |------|------|------------|
-| `designate_mine` | 标记采矿（支持矩形范围） | `DesignationManager.AddDesignation(Mine)` (入队) |
-| `designate_plants_cut` | 标记植物砍伐（支持矩形范围） | `DesignationManager.AddDesignation(CutPlant)` (入队) |
-| `designate_harvest` | 标记作物收割（仅成熟 Standard 作物） | `DesignationManager.AddDesignation(HarvestPlant)` (入队) |
-| `designate_deconstruct` | 标记建筑拆除（逐格查找最上层建筑） | `DesignationManager.AddDesignation(Deconstruct)` (入队) |
+| `designate_mine` | 标记采矿（支持矩形范围） | `Designator_Mine` (入队) |
+| `designate_plants_cut` | 标记植物砍伐（支持矩形范围，可过滤树种） | `Designator_PlantsCut` (入队) |
+| `designate_harvest` | 标记作物收割（仅成熟作物） | `Designator_PlantsHarvest` (入队) |
+| `designate_deconstruct` | 标记建筑拆除（矩形范围） | `Designator_Deconstruct` (入队) |
+| `designate_clear_plants` | 标记清除非树木植物（草/灌木等） | `Designator_PlantsCut` (入队) |
+
+### 存储/种植 (2)
+| Tool | 说明 | 数据源/操作 |
+|------|------|------------|
+| `create_stockpile` | 创建物品储藏区（预设+优先级+筛选） | `Zone_Stockpile` (入队) |
+| `create_growing_zone` | 创建种植区并设置植物类型 | `Zone_Growing` (入队) |
+
+### 装备管理 (1)
+| Tool | 说明 | 数据源/操作 |
+|------|------|------------|
+| `find_equipment` | 搜索地图可用武器/衣物，按类型品质分组 | `map.listerThings.AllThings` |
 
 ### 截图 (1)
 | Tool | 说明 | 数据源/操作 |
@@ -315,6 +329,12 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 |------|------|--------|
 | `get_skills` | 列出可用领域知识 | `SkillRegistry.GetAll()` |
 | `active_skill` | 激活获取 Skill 内容 | `SkillRegistry.Get(name)` |
+
+### 可达性检测
+
+以下工具默认检查殖民者是否可达目标区域/位置，不可达到返回错误。传 `ignore_unreachable=true` 可跳过：
+
+`designate_build`, `designate_room`, `designate_plants_cut`, `designate_harvest`, `designate_deconstruct`, `designate_clear_plants`, `create_stockpile`, `create_growing_zone`, `uninstall_building`, `install_minified_thing`
 
 ## Skill 系统
 

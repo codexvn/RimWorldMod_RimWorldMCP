@@ -2,7 +2,9 @@ using System;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Linq;
 using Verse;
+using Verse.AI;
 using RimWorld;
 using RimWorldMCP;
 
@@ -22,7 +24,8 @@ namespace RimWorldMCP.Tools
                 end_x = new { type = "integer", description = "终点 X 坐标（可选，与 end_y 配对划定矩形范围）" },
                 end_y = new { type = "integer", description = "终点 Y 坐标（可选，与 end_x 配对划定矩形范围）" },
                 plant_defName = new { type = "string", description = "植物 defName 过滤（可选，只砍特定种类，如 OakTree）" },
-                include_immature = new { type = "boolean", description = "是否包含未成熟树木（默认 false，未成熟树木将被跳过）" }
+                include_immature = new { type = "boolean", description = "是否包含未成熟树木（默认 false，未成熟树木将被跳过）" },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
             },
             required = new[] { "pos_x", "pos_y" }
         });
@@ -47,6 +50,10 @@ namespace RimWorldMCP.Tools
             if (args.Value.TryGetProperty("include_immature", out var jImm) && jImm.ValueKind == JsonValueKind.True)
                 includeImmature = true;
 
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
+
             return await McpCommandQueue.DispatchAsync(() =>
             {
                 try
@@ -64,6 +71,14 @@ namespace RimWorldMCP.Tools
 
                     if (area.IsEmpty)
                         return ToolResult.Error($"指定范围 ({minX},{minZ})~({maxX},{maxZ}) 完全在地图外。");
+
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        var sampleCells = area.Cells.Take(20).ToList();
+                        if (!sampleCells.Any(cell => colonists.Any(c => c.CanReach(cell, PathEndMode.ClosestTouch, Danger.Deadly))))
+                            return ToolResult.Error("殖民者无法到达砍伐区域，请确保有路径连通或传 ignore_unreachable=true。");
+                    }
 
                     var harvestWoodDesignator = new Designator_PlantsHarvestWood();
                     var cutDesignator = new Designator_PlantsCut();

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
+using Verse.AI;
 using RimWorld;
 using RimWorldMCP;
 
@@ -20,7 +21,8 @@ namespace RimWorldMCP.Tools
                 thing_id = new { type = "integer", description = "微缩物品的唯一 ID（来自 get_tile_detail，defName 含 Minified）" },
                 pos_x = new { type = "integer", description = "目标 X 坐标（水平网格）" },
                 pos_y = new { type = "integer", description = "目标 Y 坐标（垂直网格）" },
-                rotation = new { type = "string", description = "旋转方向", @enum = new[] { "North", "East", "South", "West" } }
+                rotation = new { type = "string", description = "旋转方向", @enum = new[] { "North", "East", "South", "West" } },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
             },
             required = new[] { "thing_id", "pos_x", "pos_y" }
         });
@@ -38,6 +40,10 @@ namespace RimWorldMCP.Tools
             string rotationStr = "North";
             if (args.Value.TryGetProperty("rotation", out var jRot))
                 rotationStr = jRot.GetString() ?? "North";
+
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
 
             Rot4 rot = rotationStr switch
             {
@@ -77,6 +83,16 @@ namespace RimWorldMCP.Tools
 
                     // 取消已有蓝图
                     InstallBlueprintUtility.CancelBlueprintsFor(minifiedThing);
+
+                    // 验证源和目标位置可达
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        if (!colonists.Any(c => c.CanReach(minifiedThing, PathEndMode.ClosestTouch, Danger.Deadly)))
+                            return ToolResult.Error($"殖民者无法到达微缩物品 {innerThing.Label} 的存放位置，无法搬运。请确保有路径连通或传 ignore_unreachable=true。");
+                        if (!colonists.Any(c => c.CanReach(targetCell, PathEndMode.OnCell, Danger.Deadly)))
+                            return ToolResult.Error($"殖民者无法到达目标位置 ({posX}, {posY})，无法安装。请确保有路径连通或传 ignore_unreachable=true。");
+                    }
 
                     // 放置安装蓝图
                     GenConstruct.PlaceBlueprintForInstall(minifiedThing, targetCell, map, rot, Faction.OfPlayer);

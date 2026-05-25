@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
+using Verse.AI;
 using RimWorld;
 using RimWorldMCP;
 
@@ -17,7 +18,8 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                thing_id = new { type = "integer", description = "目标建筑的唯一 ID（来自 get_tile_detail）" }
+                thing_id = new { type = "integer", description = "目标建筑的唯一 ID（来自 get_tile_detail）" },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
             },
             required = new[] { "thing_id" }
         });
@@ -27,6 +29,10 @@ namespace RimWorldMCP.Tools
             if (args == null) return ToolResult.Error("缺少参数");
             if (!args.Value.TryGetProperty("thing_id", out var jTid) || !jTid.TryGetInt32(out var thingId))
                 return ToolResult.Error("缺少必填参数: thing_id");
+
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -46,6 +52,13 @@ namespace RimWorldMCP.Tools
                     var canDesignate = designator.CanDesignateThing(thing);
                     if (!canDesignate.Accepted)
                         return ToolResult.Error($"无法拆卸 {thing.Label}：{canDesignate.Reason}");
+
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        if (!colonists.Any(c => c.CanReach(thing, PathEndMode.ClosestTouch, Danger.Deadly)))
+                            return ToolResult.Error($"殖民者无法到达 {thing.Label}，无法拆卸。请确保有路径连通或传 ignore_unreachable=true。");
+                    }
 
                     designator.DesignateThing(thing);
 

@@ -2,7 +2,9 @@ using System;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Linq;
 using Verse;
+using Verse.AI;
 using RimWorld;
 using RimWorldMCP;
 
@@ -21,7 +23,8 @@ namespace RimWorldMCP.Tools
                 pos_y = new { type = "integer", description = "起点 Y 坐标（垂直）" },
                 end_x = new { type = "integer", description = "终点 X 坐标（可选，与 end_y 配对划定矩形范围）" },
                 end_y = new { type = "integer", description = "终点 Y 坐标（可选，与 end_x 配对划定矩形范围）" },
-                plant_defName = new { type = "string", description = "植物 defName 过滤（可选，只清除特定种类）" }
+                plant_defName = new { type = "string", description = "植物 defName 过滤（可选，只清除特定种类）" },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
             },
             required = new[] { "pos_x", "pos_y" }
         });
@@ -42,6 +45,10 @@ namespace RimWorldMCP.Tools
             if (args.Value.TryGetProperty("plant_defName", out var jPlant))
                 plantDefName = jPlant.GetString() ?? "";
 
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
+
             return await McpCommandQueue.DispatchAsync(() =>
             {
                 try
@@ -59,6 +66,14 @@ namespace RimWorldMCP.Tools
 
                     if (area.IsEmpty)
                         return ToolResult.Error($"指定范围 ({minX},{minZ})~({maxX},{maxZ}) 完全在地图外。");
+
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        var sampleCells = area.Cells.Take(20).ToList();
+                        if (!sampleCells.Any(cell => colonists.Any(c => c.CanReach(cell, PathEndMode.ClosestTouch, Danger.Deadly))))
+                            return ToolResult.Error("殖民者无法到达此区域，请确保有路径连通或传 ignore_unreachable=true。");
+                    }
 
                     var cutDesignator = new Designator_PlantsCut();
                     int designated = 0, skipped = 0, filtered = 0;

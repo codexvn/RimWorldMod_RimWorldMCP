@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
+using Verse.AI;
 using RimWorld;
 
 namespace RimWorldMCP.Tools
@@ -36,7 +37,8 @@ namespace RimWorldMCP.Tools
                     @enum = new[] { "low", "normal", "preferred", "important", "critical" },
                     @default = "normal"
                 },
-                skip_roof_check = new { type = "boolean", description = "跳过屋顶校验（默认 false，存储区要求有屋顶）" }
+                skip_roof_check = new { type = "boolean", description = "跳过屋顶校验（默认 false，存储区要求有屋顶）" },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
             },
             required = new[] { "pos_x", "pos_y" }
         });
@@ -83,6 +85,9 @@ namespace RimWorldMCP.Tools
             bool skipRoof = false;
             if (args.Value.TryGetProperty("skip_roof_check", out var jSkipRoof) && jSkipRoof.ValueKind == JsonValueKind.True)
                 skipRoof = true;
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -160,6 +165,26 @@ namespace RimWorldMCP.Tools
                     }
 
                     zone.CheckContiguous();
+
+                    // 验证殖民者可达
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        bool reachable = false;
+                        foreach (var cell in zone.Cells)
+                        {
+                            if (colonists.Any(c => c.CanReach(cell, PathEndMode.OnCell, Danger.Deadly)))
+                            {
+                                reachable = true;
+                                break;
+                            }
+                        }
+                        if (!reachable)
+                        {
+                            map.zoneManager.DeregisterZone(zone);
+                            return ToolResult.Error("殖民者无法到达此存储区（被墙壁/障碍物完全阻隔），请确保有门连通或传 ignore_unreachable=true。");
+                        }
+                    }
 
                     var sb = new StringBuilder();
                     sb.Append(isRange

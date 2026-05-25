@@ -278,8 +278,8 @@ namespace RimWorldMCP
             if (entry.State == ChatState.Done && entry.CachedHeight > 0f) return;
             if (entry.CachedHeight > 0f && text.Length == entry.CachedTextLen) return;
 
-            float bodyWidth = contentWidth - 20f;
-            float bodyHeight = Text.CalcHeight(text.StripTags(), bodyWidth);
+            float labelWidth = contentWidth - 32f; // 与 DrawEntry bodyRect 宽度一致
+            float bodyHeight = Text.CalcHeight(text.StripTags(), labelWidth);
             entry.CachedHeight = 18f + Mathf.Max(bodyHeight, 10f);
             entry.CachedTextLen = text.Length;
         }

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
+using Verse.AI;
 using RimWorld;
 
 namespace RimWorldMCP.Tools
@@ -41,6 +42,7 @@ namespace RimWorldMCP.Tools
                 end_x = new { type = "integer", description = "右下角 X 坐标（可选，与 end_y 配对划定矩形范围）" },
                 end_y = new { type = "integer", description = "右下角 Y 坐标（可选，与 end_x 配对划定矩形范围）" },
                 skip_roof_check = new { type = "boolean", description = "跳过屋顶校验（默认 false，种植区要求无屋顶以获取光照）" },
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" },
                 plant_defName = new
                 {
                     type = "string",
@@ -68,6 +70,9 @@ namespace RimWorldMCP.Tools
             bool skipRoof = false;
             if (args.Value.TryGetProperty("skip_roof_check", out var jSkipRoof) && jSkipRoof.ValueKind == JsonValueKind.True)
                 skipRoof = true;
+            bool ignore_unreachable = false;
+            if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
+                ignore_unreachable = true;
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -164,6 +169,26 @@ namespace RimWorldMCP.Tools
 
                     zone.CheckContiguous();
                     zone.SetPlantDefToGrow(plantDef);
+
+                    // 验证殖民者可达
+                    if (!ignore_unreachable)
+                    {
+                        var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        bool reachable = false;
+                        foreach (var cell in zone.Cells)
+                        {
+                            if (colonists.Any(c => c.CanReach(cell, PathEndMode.OnCell, Danger.Deadly)))
+                            {
+                                reachable = true;
+                                break;
+                            }
+                        }
+                        if (!reachable)
+                        {
+                            map.zoneManager.DeregisterZone(zone);
+                            return ToolResult.Error("殖民者无法到达此种植区（被墙壁/障碍物完全阻隔），请确保有门连通或传 ignore_unreachable=true。");
+                        }
+                    }
 
                     var sb = new StringBuilder();
                     sb.Append(isRange
