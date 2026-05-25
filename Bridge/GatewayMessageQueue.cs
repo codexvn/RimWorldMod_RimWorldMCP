@@ -51,11 +51,11 @@ namespace RimWorldMCP
 
             if (!GatewayClient.IsReady) return;
 
-            // 正在发送中——取消当前 agent 等待，让通知立即抢占
+            // 正在发送中——有通知即打断（sessions.steer 服务端处理 abort+wait）
             if (_sending || GatewayClient.IsSendingMessage)
             {
                 if (_pending.Count > 0)
-                    GatewayClient.CancelCurrentSend();
+                    GatewayClient.AbortAgent();
                 return;
             }
 
@@ -77,8 +77,8 @@ namespace RimWorldMCP
                 return;
             }
 
-            // 正在发送中——取消当前 agent 等待，让通知立即抢占
-            GatewayClient.CancelCurrentSend();
+            // 正在发送中——有通知即打断
+            GatewayClient.AbortAgent();
             _pending[category] = new PendingMessage { Category = category, Text = text };
         }
 
@@ -105,10 +105,6 @@ namespace RimWorldMCP
             {
                 await GatewayClient.SendMessage(text);
                 _lastSendRealMs = Environment.TickCount;
-            }
-            catch (OperationCanceledException)
-            {
-                // 被更高优先级通知抢占，不记日志
             }
             catch (Exception ex)
             {
