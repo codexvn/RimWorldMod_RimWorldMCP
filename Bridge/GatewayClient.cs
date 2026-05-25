@@ -133,7 +133,7 @@ namespace RimWorldMCP
                         key = SessionKey,
                         message = text,
                         idempotencyKey = Guid.NewGuid().ToString("N")
-                    }, expectFinal: true);
+                    });
                 }
                 else
                 {
@@ -155,7 +155,7 @@ namespace RimWorldMCP
                 message = text,
                 sessionKey = SessionKey,
                 idempotencyKey = Guid.NewGuid().ToString("N")
-            }, expectFinal: true);
+            });
 
             _sessionInitialized = true;
             McpLog.Info("[ws] FirstSend 完成，session 已初始化");
