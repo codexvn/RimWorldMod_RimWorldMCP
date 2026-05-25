@@ -364,12 +364,12 @@ namespace RimWorldMCP
                 _companionProcess.OutputDataReceived += (_, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
-                        McpLog.Info($"[cc-companion] {e.Data}");
+                        McpLog.Info($"[js] {e.Data}");
                 };
                 _companionProcess.ErrorDataReceived += (_, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
-                        McpLog.Warn($"[cc-companion] {e.Data}");
+                        McpLog.Warn($"[js] {e.Data}");
                 };
                 _companionProcess.BeginOutputReadLine();
                 _companionProcess.BeginErrorReadLine();

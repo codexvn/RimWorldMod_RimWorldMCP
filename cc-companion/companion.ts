@@ -21,7 +21,10 @@ async function main(): Promise<void> {
   console.log('='.repeat(60));
   console.log('CC Companion — RimWorldMCP Claude Code 伴随进程');
   console.log('='.repeat(60));
+  console.log(`CWD: ${process.cwd()}`);
+  console.log(`ARGV: ${process.argv.slice(2).join(' ')}`);
   console.log(`配置: host=${CONFIG.host} port=${CONFIG.port} model=${CONFIG.model} mcp=${CONFIG.mcpUrl}`);
+  console.log(`会话目录: ${CONFIG.projectPath}`);
   console.log('');
 
   // 1. 认证
