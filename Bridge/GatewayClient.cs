@@ -62,6 +62,9 @@ namespace RimWorldMCP
         /// <summary>等待 embedded runner 退出的事件信号</summary>
         private static TaskCompletionSource<bool>? _abortCompletedTcs;
 
+        /// <summary>取消当前 SendMessage 的 agent 等待，让通知立即抢占</summary>
+        private static CancellationTokenSource? _sendCts;
+
         /// <summary>当前存档的会话 ID，持久化在 ExposeData 中。</summary>
         public static string SessionId { get; set; } = "rimworld";
 
@@ -71,17 +74,31 @@ namespace RimWorldMCP
         // ========== 通用 RPC 调用（Vantix request() 模式） ==========
 
         /// <summary>发送请求并等待响应（expectFinal=true 时跳过中间 accepted 状态）</summary>
-        private static async Task<JsonElement> Request(string method, object? @params = null, bool expectFinal = false)
+        private static async Task<JsonElement> Request(string method, object? @params = null, bool expectFinal = false, CancellationToken ct = default)
         {
             if (!IsReady) throw new InvalidOperationException("gateway not connected");
             var id = Guid.NewGuid().ToString("N").Substring(0, 8);
             var pr = new PendingRequest { ExpectFinal = expectFinal };
             _pending[id] = pr;
             await SendJson(new { type = "req", id, method, @params });
+            if (ct.CanBeCanceled)
+            {
+                var tcs = pr.Tcs;
+                using (ct.Register(() => tcs.TrySetCanceled()))
+                {
+                    return await tcs.Task;
+                }
+            }
             return await pr.Tcs.Task;
         }
 
         // ========== 业务 API ==========
+
+        /// <summary>取消当前 SendMessage 的 agent 等待，让通知立即抢占</summary>
+        public static void CancelCurrentSend()
+        {
+            Interlocked.Exchange(ref _sendCts, null)?.Cancel();
+        }
 
         /// <summary>发送消息到 Agent（AbortAgentAsync 阻塞等 runner 退出后再发），等待 agent 处理完成</summary>
         public static async Task SendMessage(string text)
@@ -96,26 +113,46 @@ namespace RimWorldMCP
                 return;
             }
 
-            // 阻塞 abort 确保旧 runner 已退出（session write lock 已释放）
-            await AbortAgentAsync();
+            // 新建 CTS，供外部取消当前发送
+            var cts = new CancellationTokenSource();
+            var old = Interlocked.Exchange(ref _sendCts, cts);
+            old?.Cancel();
+            var ct = cts.Token;
 
-            IsSendingMessage = true;
-            await _messageLock.WaitAsync();
             try
             {
-                ChatDisplayState.OnUserMessage(text);
-                await Request("agent", new
+                // 阻塞 abort 确保旧 runner 已退出（session write lock 已释放）
+                await AbortAgentAsync();
+                ct.ThrowIfCancellationRequested();
+
+                IsSendingMessage = true;
+                await _messageLock.WaitAsync(ct);
+                try
                 {
-                    message = text,
-                    sessionKey = SessionKey,
-                    sessionId = SessionId,
-                    idempotencyKey = Guid.NewGuid().ToString("N")
-                }, expectFinal: true);
+                    ct.ThrowIfCancellationRequested();
+                    ChatDisplayState.OnUserMessage(text);
+                    await Request("agent", new
+                    {
+                        message = text,
+                        sessionKey = SessionKey,
+                        sessionId = SessionId,
+                        idempotencyKey = Guid.NewGuid().ToString("N")
+                    }, expectFinal: true, ct: ct);
+                }
+                finally
+                {
+                    _messageLock.Release();
+                    IsSendingMessage = false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                McpLog.Info("[ws] SendMessage 已被取消（通知抢占）");
             }
             finally
             {
-                _messageLock.Release();
-                IsSendingMessage = false;
+                Interlocked.CompareExchange(ref _sendCts, null, cts);
+                cts.Dispose();
             }
         }
 

@@ -27,9 +27,6 @@ namespace RimWorldMCP
         private static readonly Dictionary<MessageCategory, PendingMessage> _pending = new();
         private static bool _sending;
         private static MessageCategory _currentSendingCategory;
-        private static bool _abortSent;
-        private static int _idleFrames;
-        private const int IdleFramesBeforeSend = 30; // ~0.5s 窗口让同类消息覆盖
         private static int _lastSendRealMs;
         private static int _lastDailyDaySent = -1;
         private static bool _sessionPromptSent;
@@ -40,9 +37,7 @@ namespace RimWorldMCP
         public static void Enqueue(MessageCategory category, string text)
         {
             if (!GatewayClient.IsConnected) return;
-
             _pending[category] = new PendingMessage { Category = category, Text = text };
-            _idleFrames = IdleFramesBeforeSend;
         }
 
         /// <summary>每帧调用</summary>
@@ -51,36 +46,20 @@ namespace RimWorldMCP
             if (!GatewayClient.IsConnected)
             {
                 _sending = false;
-                _abortSent = false;
                 return;
             }
 
             if (!GatewayClient.IsReady) return;
 
-            // 正在发送中——有通知即打断（SendMessage 入口会统一 abort，此处 fire-and-forget 快速中断）
+            // 正在发送中——取消当前 agent 等待，让通知立即抢占
             if (_sending || GatewayClient.IsSendingMessage)
             {
-                if (_pending.Count > 0 && !_abortSent)
-                {
-                    _ = GatewayClient.AbortAgentAsync();
-                    _abortSent = true;
-                }
+                if (_pending.Count > 0)
+                    GatewayClient.CancelCurrentSend();
                 return;
             }
 
             if (_pending.Count == 0) return;
-
-            // 短暂稳定窗口让同类消息覆盖（但高危消息立即发）
-            if (_idleFrames > 0)
-            {
-                var highest = _pending.Values.OrderByDescending(m => (int)m.Category).First();
-                if ((int)highest.Category < (int)MessageCategory.DialogPrompt)
-                {
-                    _idleFrames--;
-                    return;
-                }
-                _idleFrames = 0;
-            }
 
             // 取最高优先级发送（SendMessage 内部统一 abort）
             var bestMsg = _pending.Values.OrderByDescending(m => (int)m.Category).First();
@@ -98,12 +77,8 @@ namespace RimWorldMCP
                 return;
             }
 
-            // 正在发送中——有通知即打断（SendMessage 入口会统一 abort）
-            if (!_abortSent)
-            {
-                _ = GatewayClient.AbortAgentAsync();
-                _abortSent = true;
-            }
+            // 正在发送中——取消当前 agent 等待，让通知立即抢占
+            GatewayClient.CancelCurrentSend();
             _pending[category] = new PendingMessage { Category = category, Text = text };
         }
 
@@ -116,7 +91,6 @@ namespace RimWorldMCP
         {
             _pending.Clear();
             _sending = false;
-            _abortSent = false;
             _lastSendRealMs = 0;
             _lastDailyDaySent = -1;
             _sessionPromptSent = false;
@@ -132,6 +106,10 @@ namespace RimWorldMCP
                 await GatewayClient.SendMessage(text);
                 _lastSendRealMs = Environment.TickCount;
             }
+            catch (OperationCanceledException)
+            {
+                // 被更高优先级通知抢占，不记日志
+            }
             catch (Exception ex)
             {
                 McpLog.Warn($"[queue] 发送失败 ({category}): {ex.Message}");
@@ -139,7 +117,6 @@ namespace RimWorldMCP
             finally
             {
                 _sending = false;
-                _abortSent = false;
             }
         }
     }
