@@ -8,7 +8,6 @@
     <AssemblyName>RimWorldMCP</AssemblyName>
     <RootNamespace>RimWorldMCP</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -48,6 +47,7 @@
   <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>F:\SteamLibrary\steamapps\workshop\content\294100\2009463077\Current\Assemblies\0Harmony.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <PackageReference Include="Aliyun.OSS.SDK" Version="2.14.*" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
