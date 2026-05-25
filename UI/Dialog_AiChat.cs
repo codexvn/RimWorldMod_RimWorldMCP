@@ -231,6 +231,16 @@ namespace RimWorldMCP
             bgColor.a = _alpha;
             Widgets.DrawBoxSolid(bubbleRect, bgColor);
 
+            // 右键复制，不干扰滚动拖拽
+            if (Event.current.type == EventType.MouseDown
+                && Event.current.button == 1
+                && Mouse.IsOver(bubbleRect))
+            {
+                GUIUtility.systemCopyBuffer = entry.Text;
+                Messages.Message("已复制到剪贴板", MessageTypeDefOf.SilentInput, false);
+                Event.current.Use();
+            }
+
             // 标签
             Rect labelRect = new Rect(bubbleRect.x + 6f, bubbleRect.y + 2f, 24f, 16f);
             Text.Font = GameFont.Tiny;
