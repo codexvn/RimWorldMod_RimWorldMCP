@@ -59,6 +59,9 @@ namespace RimWorldMCP
         private static readonly SemaphoreSlim _sendLock = new(1, 1);
         private static readonly SemaphoreSlim _messageLock = new(1, 1);
 
+        /// <summary>等待 embedded runner 退出的事件信号</summary>
+        private static TaskCompletionSource<bool>? _abortCompletedTcs;
+
         /// <summary>当前存档的会话 ID，持久化在 ExposeData 中。</summary>
         public static string SessionId { get; set; } = "rimworld";
 
@@ -80,7 +83,7 @@ namespace RimWorldMCP
 
         // ========== 业务 API ==========
 
-        /// <summary>发送消息到 Agent（sessions.steer 内部处理 abort + wait + send），等待 agent 处理完成</summary>
+        /// <summary>发送消息到 Agent（AbortAgentAsync 阻塞等 runner 退出后再发），等待 agent 处理完成</summary>
         public static async Task SendMessage(string text)
         {
             if (!IsReady) return;
@@ -93,23 +96,21 @@ namespace RimWorldMCP
                 return;
             }
 
+            // 阻塞 abort 确保旧 runner 已退出（session write lock 已释放）
+            await AbortAgentAsync();
+
             IsSendingMessage = true;
             await _messageLock.WaitAsync();
             try
             {
                 ChatDisplayState.OnUserMessage(text);
-                var resp = await Request("sessions.steer", new
+                await Request("agent", new
                 {
-                    key = SessionKey,
                     message = text,
+                    sessionKey = SessionKey,
+                    sessionId = SessionId,
                     idempotencyKey = Guid.NewGuid().ToString("N")
                 }, expectFinal: true);
-
-                if (resp.TryGetProperty("interruptedActiveRun", out var interrupted)
-                    && interrupted.GetBoolean())
-                {
-                    McpLog.Info("[ws] sessions.steer 已中断上一个活跃 run");
-                }
             }
             finally
             {
@@ -131,25 +132,45 @@ namespace RimWorldMCP
                 await SendJson(new { type = "ping" });
         }
 
-        /// <summary>中止整个会话（chat.abort 仅 sessionKey），不等待响应</summary>
+        /// <summary>中止整个会话（非阻塞，发完即走）</summary>
         public static void AbortAgent()
         {
             if (!IsReady) return;
-            _ = AbortAgentAsync();
+            _ = SendJson(new { type = "req", id = Guid.NewGuid().ToString("N").Substring(0, 8), method = "chat.abort", @params = new { sessionKey = SessionKey } });
         }
 
-        /// <summary>中止整个会话，等待 OpenClaw 确认（含 transcript 持久化完成）</summary>
+        /// <summary>中止整个会话，阻塞等待 embedded runner 完全退出（含 session write lock 释放）</summary>
         public static async Task<bool> AbortAgentAsync()
         {
             if (!IsReady) return false;
             try
             {
-                await Request("chat.abort", new { sessionKey = SessionKey });
-                McpLog.Info("[ws] ← chat.abort 已确认");
+                // 先注册 TCS，再发 abort（lifecycle 事件可能在响应前到达）
+                var tcs = new TaskCompletionSource<bool>();
+                var old = Interlocked.Exchange(ref _abortCompletedTcs, tcs);
+                old?.TrySetResult(false);
+
+                var resp = await Request("chat.abort", new { sessionKey = SessionKey });
+                var aborted = resp.TryGetProperty("aborted", out var ab) && ab.GetBoolean();
+
+                if (aborted)
+                {
+                    var completed = await Task.WhenAny(tcs.Task, Task.Delay(15000)) == tcs.Task;
+                    if (completed)
+                        McpLog.Info("[ws] ← chat.abort 已确认 (runner 已退出)");
+                    else
+                        McpLog.Warn("[ws] ← chat.abort 已确认 (等待 runner 退出超时 15s)");
+                }
+                else
+                {
+                    Interlocked.CompareExchange(ref _abortCompletedTcs, null, tcs);
+                    McpLog.Info("[ws] ← chat.abort 已确认 (无活跃 run)");
+                }
                 return true;
             }
             catch (Exception ex)
             {
+                Interlocked.Exchange(ref _abortCompletedTcs, null);
                 McpLog.Warn($"[ws] chat.abort 失败: {ex.Message}");
                 return false;
             }
@@ -330,6 +351,7 @@ namespace RimWorldMCP
             }
             else if (evt == "agent")
             {
+                TryHandleAbortLifecycle(root);
                 ChatDisplayState.OnAgentEvent(root);
                 HandleCompactionEvent(root);
             }
@@ -338,6 +360,27 @@ namespace RimWorldMCP
                 HandleCompactionEvent(root);
                 ChatDisplayState.OnSessionOperationEvent(root);
             }
+        }
+
+        /// <summary>检测 agent lifecycle 事件，如果 abort 已完成则唤醒 AbortAgentAsync 的等待</summary>
+        private static void TryHandleAbortLifecycle(JsonElement root)
+        {
+            var tcs = _abortCompletedTcs;
+            if (tcs == null) return;
+
+            var payload = root.TryGetProperty("payload", out var pl) ? pl : root;
+            if (!payload.TryGetProperty("stream", out var s) || s.GetString() != "lifecycle") return;
+            if (!payload.TryGetProperty("data", out var d)) return;
+            if (!d.TryGetProperty("phase", out var ph) || ph.GetString() != "end") return;
+            if (!d.TryGetProperty("status", out var st) || st.GetString() != "cancelled") return;
+            if (!d.TryGetProperty("aborted", out var ab) || !ab.GetBoolean()) return;
+
+            // 确认是我们 session
+            if (payload.TryGetProperty("sessionKey", out var sk)
+                && !string.IsNullOrEmpty(sk.GetString())
+                && sk.GetString() != SessionKey) return;
+
+            Interlocked.Exchange(ref _abortCompletedTcs, null)?.TrySetResult(true);
         }
 
         /// <summary>上下文压缩导致暂停游戏的原因</summary>
