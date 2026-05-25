@@ -135,20 +135,20 @@
 **简易记法**：每人 **20 格** 普通土壤种水稻，或 **4 个水栽培盆**。营养膏可减半。
 
 ## 核心工具
-| 工具 | 用途                                |
-|------|-----------------------------------|
-| get_game_context | 全局快照                              |
-| check_colony | 问题提醒                              |
-| get_colonists | 殖民者详情                             |
-| set_work_priority | 工作优先级                             |
-| designate_room | 造标准间。共有墙：A的end_x=B的pos_x（坐标对齐，勿留空一格） |
-| designate_build | 放置蓝图                              |
-| create_stockpile | 创建储藏区                             |
-| list_recipes / create_production_bill | 管理生产                              |
-| draft_pawn / equip_pawn | 战斗准备                              |
-| schedule_operation | 安排手术                              |
-| get_tile_grid / get_tile_detail | 查看地图                              |
-| designate_mine / designate_plants_cut / designate_harvest | 资源采集                              |
+| 工具 | 用途                                                             |
+|------|----------------------------------------------------------------|
+| get_game_context | 全局快照                                                           |
+| check_colony | 问题提醒                                                           |
+| get_colonists | 殖民者详情                                                          |
+| set_work_priority | 工作优先级                                                          |
+| designate_room | 造标准间。共有墙：A的end_x=B的pos_x（坐标对齐，勿留空一格） , 先调用查看地图查看目标矩形范围内是否有其他东西 |
+| designate_build | 放置蓝图                                                           |
+| create_stockpile | 创建储藏区                                                          |
+| list_recipes / create_production_bill | 管理生产                                                           |
+| draft_pawn / equip_pawn | 战斗准备                                                           |
+| schedule_operation | 安排手术                                                           |
+| get_tile_grid / get_tile_detail | 查看地图                                                           |
+| designate_mine / designate_plants_cut / designate_harvest | 资源采集                                                           |
 
 # RimWorld 战斗系统教程
 
