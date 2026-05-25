@@ -38,45 +38,26 @@ namespace RimWorldMCP
             _pending[category] = new PendingMessage { Category = category, Text = text };
         }
 
-        /// <summary>每帧调用 — 有通知且正在发送时打断，空闲时发送下一条</summary>
+        /// <summary>每帧调用 — 空闲时发送下一条。sessions.steer 内部处理中断，无需单独 abort</summary>
         public static void Tick()
         {
             if (!GatewayClient.IsReady) return;
 
-            if (GatewayClient.IsSendingMessage)
-            {
-                // 正在发送中——有通知即打断当前 agent
-                if (_pending.Count > 0)
-                    GatewayClient.AbortAgent();
-                return;
-            }
+            // SendMessage 已用 _messageLock 串行化，且 sessions.steer 内部处理中断，等待自然完成即可
+            if (GatewayClient.IsSendingMessage) return;
 
             if (_pending.Count == 0) return;
 
-            // 取最高优先级，SendMessage 内部 _messageLock + sessions.steer 保证原子性
             var bestMsg = _pending.Values.OrderByDescending(m => (int)m.Category).First();
             _pending.Remove(bestMsg.Category);
             SendPending(bestMsg.Category, bestMsg.Text);
         }
 
+        /// <summary>紧急入队（sessions.steer 内部处理中断，Tick 负责调度发送）</summary>
         public static void SendNow(MessageCategory category, string text)
         {
             if (!GatewayClient.IsReady) return;
-
-            if (GatewayClient.IsSendingMessage)
-                GatewayClient.AbortAgent();
-
             _pending[category] = new PendingMessage { Category = category, Text = text };
-
-            // 如果当前没有发送中，立即发
-            if (!GatewayClient.IsSendingMessage)
-            {
-                if (_pending.TryGetValue(category, out var pm) && pm.Text == text)
-                {
-                    _pending.Remove(category);
-                    SendPending(pm.Category, pm.Text);
-                }
-            }
         }
 
         public static void MarkDailySent(int day) => _lastDailyDaySent = day;

@@ -27,7 +27,7 @@ namespace RimWorldMCP
         public override void StartedNewGame()
         {
             base.StartedNewGame();
-            GatewayClient.AbortAgent();
+            _ = GatewayClient.AbortAgent();
             _sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
             _sessionKey = "agent:main:rimworld-" + Guid.NewGuid().ToString("N").Substring(0, 12);
             StartMcpService();
@@ -37,7 +37,7 @@ namespace RimWorldMCP
         public override void LoadedGame()
         {
             base.LoadedGame();
-            GatewayClient.AbortAgent();
+            _ = GatewayClient.AbortAgent();
             _sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
             StartMcpService();
             AttachMapUI();

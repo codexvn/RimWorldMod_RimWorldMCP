@@ -61,10 +61,10 @@ namespace RimWorldMCP
         private static readonly SemaphoreSlim _sendLock = new(1, 1);
         private static readonly SemaphoreSlim _messageLock = new(1, 1);
 
-        /// <summary>待发送的 fire-and-forget abort 请求 ID</summary>
-        private static int _abortReqCounter;
+        /// <summary>AbortAgent 等待 lifecycle 事件完成的信号</summary>
+        private static TaskCompletionSource<bool>? _abortCompleteTcs;
 
-        /// <summary>当前存档的会话 ID，持久化在 ExposeData 中。</summary>
+        /// <summary>当前存档的会话 ID</summary>
         public static string SessionId { get; set; } = "rimworld";
 
         /// <summary>持久化会话路由键，格式 agent:&lt;id&gt;:&lt;name&gt;</summary>
@@ -140,28 +140,55 @@ namespace RimWorldMCP
                 await SendJson(new { type = "ping" });
         }
 
-        /// <summary>中止整个会话（非阻塞，发完即走）</summary>
-        public static void AbortAgent()
+        /// <summary>中止当前 agent 运行，等待 lifecycle 事件确认完全停止后返回。等待期间阻止新消息发送</summary>
+        public static async Task AbortAgent()
         {
             if (!IsReady) return;
-            var id = "abort" + Interlocked.Increment(ref _abortReqCounter);
-            _ = SendJson(new { type = "req", id, method = "chat.abort", @params = new { sessionKey = SessionKey } });
-        }
 
-        /// <summary>中止整个会话，等待 RPC 确认</summary>
-        public static async Task<bool> AbortAgentAsync()
-        {
-            if (!IsReady) return false;
+            // lifecycle 事件在 RPC 响应之前到达，必须先设好 TCS
+            var tcs = new TaskCompletionSource<bool>();
+            _abortCompleteTcs = tcs;
+
             try
             {
-                await Request("chat.abort", new { sessionKey = SessionKey });
+                var resp = await Request("chat.abort", new { sessionKey = SessionKey });
                 McpLog.Info("[ws] ← chat.abort 已确认");
-                return true;
+
+                var aborted = resp.TryGetProperty("payload", out var pl)
+                    && pl.TryGetProperty("aborted", out var a)
+                    && a.GetBoolean();
+
+                if (!aborted)
+                {
+                    McpLog.Info("[ws] 无活跃 run，跳过 lifecycle 等待");
+                    return;
+                }
+
+                // 持有 _messageLock 等待 lifecycle，阻止新 SendMessage 在此期间发送
+                await _messageLock.WaitAsync();
+                try
+                {
+                    IsSendingMessage = true;
+                    McpLog.Info("[ws] 等待 abort lifecycle 确认...");
+                    var completed = await Task.WhenAny(tcs.Task, Task.Delay(15000));
+                    if (completed == tcs.Task)
+                        McpLog.Info("[ws] abort lifecycle 已确认");
+                    else
+                        McpLog.Warn("[ws] abort lifecycle 等待超时");
+                }
+                finally
+                {
+                    IsSendingMessage = false;
+                    _messageLock.Release();
+                }
             }
             catch (Exception ex)
             {
                 McpLog.Warn($"[ws] chat.abort 失败: {ex.Message}");
-                return false;
+            }
+            finally
+            {
+                _abortCompleteTcs = null;
             }
         }
 
@@ -319,6 +346,22 @@ namespace RimWorldMCP
                 _ = ScheduleReconnect();
         }
 
+        /// <summary>检查 agent lifecycle 事件，确认 abort 完成</summary>
+        private static void TryHandleAbortLifecycle(JsonElement root)
+        {
+            var tcs = _abortCompleteTcs;
+            if (tcs == null) return;
+
+            if (root.TryGetProperty("payload", out var payload)
+                && payload.TryGetProperty("phase", out var phase)
+                && phase.GetString() == "end"
+                && payload.TryGetProperty("status", out var status)
+                && status.GetString() == "cancelled")
+            {
+                tcs.TrySetResult(true);
+            }
+        }
+
         private static void HandleEventFrame(JsonElement root)
         {
             if (!root.TryGetProperty("event", out var ev)) return;
@@ -340,6 +383,7 @@ namespace RimWorldMCP
             }
             else if (evt == "agent")
             {
+                TryHandleAbortLifecycle(root);
                 ChatDisplayState.OnAgentEvent(root);
                 HandleCompactionEvent(root);
             }

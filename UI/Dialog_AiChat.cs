@@ -245,7 +245,7 @@ namespace RimWorldMCP
             if (Widgets.ButtonText(abortRect, "中断"))
             {
                 if (GatewayClient.IsReady)
-                    GatewayClient.AbortAgent();
+                    _ = GatewayClient.AbortAgent();
             }
 
             // 清空
