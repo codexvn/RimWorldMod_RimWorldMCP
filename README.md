@@ -123,7 +123,8 @@ RimWorldMCP/
 ├── Transport/                         # 传输层 (SSE, Streamable HTTP, stdio)
 ├── Mcp/                               # MCP 协议层 (JSON-RPC 调度)
 ├── Tools/                             # 39 个 Tool 实现 + 注册表
-├── Bridge/                            # OpenClaw Gateway 桥接（客户端 + 事件监控 + 消息队列）
+├── cc-companion/                      # Claude Code 伴随进程（TypeScript, tsx 运行时）
+├── Bridge/                            # CC 桥接生命周期 + WebSocket 客户端 + 事件转发
 ├── Skills/                            # 6 个领域知识 .md 文件 + 加载器
 ├── McpModSettings.cs                  # Mod 设置
 ├── McpLog.cs                          # 统一日志

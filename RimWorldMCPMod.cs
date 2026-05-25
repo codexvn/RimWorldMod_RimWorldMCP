@@ -25,7 +25,7 @@ namespace RimWorldMCP
         public override void DoSettingsWindowContents(Rect inRect)
         {
             float h = 600f;
-            h += Settings.CCAutoStart ? 230f : 170f;
+            h += Settings.CCAutoStart ? 430f : 170f;
             if (Settings.OssEnabled) h += 220f;
             if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
 
@@ -80,6 +80,16 @@ namespace RimWorldMCP
 
                 listing.Label("Token (可选)");
                 Settings.CCToken = listing.TextEntry(Settings.CCToken);
+
+                listing.Gap(6f);
+                listing.Label("API Key");
+                Settings.CCApiKey = listing.TextEntry(Settings.CCApiKey);
+
+                listing.Label("API 代理地址");
+                Settings.CCApiBaseUrl = listing.TextEntry(Settings.CCApiBaseUrl);
+
+                listing.Label("模型名称");
+                Settings.CCModelName = listing.TextEntry(Settings.CCModelName);
             }
 
             listing.Gap(6f);

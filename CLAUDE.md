@@ -40,10 +40,10 @@ RimWorldMCP/
 ├── McpOssConfig.cs                        # OSS 配置数据
 ├── cc-companion/                           # Claude Code 伴随进程（TypeScript, tsx 运行时）
 │   ├── companion.ts                       # 编排入口
-│   ├── config.ts                          # 配置解析
+│   ├── config.ts                          # 配置解析（CLI 参数、环境变量）
 │   ├── auth.ts                            # API 认证
 │   ├── sdk-loader.ts                      # SDK 加载
-│   ├── session.ts                         # SDK 会话管理
+│   ├── session.ts                         # SDK 会话管理（mcpServers、env、systemPrompt）
 │   ├── ws-server.ts                       # WebSocket Server
 │   ├── rimworld/context.ts                # 系统提示词加载
 │   └── Prompt.md                          # AI 行为提示词
@@ -99,6 +99,9 @@ RimWorld 返回主菜单时 `Game.Dispose()` 不通知 GameComponent，导致上
 | 自动启动 | 开启 | 游戏加载时自动 spawn Node.js 子进程 |
 | 本地监听端口 | 19999 | 本地 Companion WS 端口 |
 | Token | - | CC 桥接认证凭据 |
+| API Key | - | Anthropic API 认证 |
+| API 基础地址 | http://localhost:3000 | API 代理地址 |
+| 模型名称 | deepseek-v4-pro[1m] | SDK model ID，映射三个别名 |
 | OSS 上传 | 关闭 | 截图自动上传到阿里云 OSS |
 | OSS Endpoint/Bucket/Key | - | 阿里云 OSS 访问配置 |
 | 签名 URL | 开启 | 预签名 URL 有效期 24h |
@@ -128,6 +131,17 @@ RimWorld (C#)                  CC Companion (Node.js)       Claude API
 3. `StartCompanionProcess()` — spawn `node --import tsx/esm companion.ts`
 4. `CCClient.Connect()` — WebSocket 握手（hello/hello-ok）
 
+spawn 命令示例：
+```bash
+node --import tsx/esm companion.ts \
+  --port 19999 \
+  --mcp-config '{"rimworld":{"type":"http","url":"http://localhost:9877/mcp"}}' \
+  --project-path "publish/claude-sessions" \
+  --api-key "sk-xxx" \
+  --api-base-url "http://localhost:3000" \
+  --model-name "deepseek-v4-pro[1m]"
+```
+
 ### 事件推送
 
 `BridgeLifecycle.CCEventTick()` 每帧检查 `NotificationBus`，高危通知即时推送，普通通知每 120 tick 批量。事件格式化在 C# 端完成（`FormatGameEvent()`），companion 透传文本。
@@ -147,6 +161,8 @@ RimWorld (C#)                  CC Companion (Node.js)       Claude API
 ### CC Companion 自动管理
 
 设置面板可安装/卸载/重装 Claude Code 依赖（`npm install`），状态和日志实时显示。安装状态通过 `BridgeLifecycle.InstallStatus` 暴露，设置窗口每帧刷新。
+
+Companion 完整 CLI 参数见 `cc-companion/config.ts` 的 `printHelp()`，或用 `tsx companion.ts --help` 查看。
 
 ## OSS 截图上传
 

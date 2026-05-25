@@ -16,6 +16,9 @@ namespace RimWorldMCP
         public int LocalCCPort = 19999;
         public string CCToken = "";
         public bool CCAutoStart = true;
+        public string CCApiKey = "";
+        public string CCApiBaseUrl = "http://localhost:3000";
+        public string CCModelName = "deepseek-v4-pro[1m]";
 
         // OSS
         public bool OssEnabled = false;
@@ -40,6 +43,9 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref LocalCCPort, "localCCPort", 19999);
             Scribe_Values.Look(ref CCToken, "ccToken", "");
             Scribe_Values.Look(ref CCAutoStart, "ccAutoStart", true);
+            Scribe_Values.Look(ref CCApiKey, "ccApiKey", "");
+            Scribe_Values.Look(ref CCApiBaseUrl, "ccApiBaseUrl", "http://localhost:3000");
+            Scribe_Values.Look(ref CCModelName, "ccModelName", "deepseek-v4-pro[1m]");
             Scribe_Values.Look(ref OssEnabled, "ossEnabled", false);
             Scribe_Values.Look(ref OssServiceUrl, "ossServiceUrl", "");
             Scribe_Values.Look(ref OssBucketName, "ossBucketName", "");

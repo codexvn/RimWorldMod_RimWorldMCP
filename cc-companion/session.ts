@@ -50,45 +50,25 @@ export class AsyncStream<T = any> {
 
 // ========== SDK 会话 ==========
 
-function parseMcpHeaders(headersStr: string): Record<string, string> | undefined {
-  if (!headersStr) return undefined;
-  try {
-    const obj = JSON.parse(headersStr);
-    if (typeof obj === 'object' && !Array.isArray(obj)) return obj;
-  } catch {}
-  return undefined;
-}
-
 export function createSession(sdk: any, config: CompanionConfig) {
   const inputStream = new AsyncStream<any>();
 
-  const mcpServerConfig: any = {
-    type: config.mcpUrl.includes('/sse') ? 'sse' : 'http',
-    url: config.mcpUrl,
-  };
-  const headers = parseMcpHeaders(config.mcpHeaders);
-  if (headers) mcpServerConfig.headers = headers;
+  if (!config.mcpConfig) {
+    throw new Error('[cc-companion] 未提供 --mcp-config，请通过 CLI 参数或 CC_MCP_CONFIG 环境变量指定 MCP 服务配置');
+  }
+  const mcpServers: Record<string, any> = JSON.parse(config.mcpConfig);
 
   const options = {
     cwd: config.projectPath,
-    model: config.model,
     permissionMode: config.permissionMode,
     maxTurns: config.maxTurns,
     enableFileCheckpointing: true,
     env: {
       ...process.env,
-      CLAUDE_CODE_ENTRYPOINT: 'cli',
-      USER_TYPE: 'external',
     },
-    settingSources: ['user', 'project', 'local'],
-    permissions: {
-      deny: ['*'],
-      allow: ['mcp__*__*'],
-    },
-    mcpServers: {
-      rimworld: mcpServerConfig,
-    },
-    systemPrompt: buildSystemPrompt(config.mcpUrl),
+    settingSources: config.settingSources,
+    mcpServers,
+    systemPrompt: buildSystemPrompt(),
     stderr: (data: string | Buffer) => {
       const text = typeof data === 'string' ? data : data.toString();
       process.stderr.write(`[sdk] ${text}`);
@@ -96,7 +76,6 @@ export function createSession(sdk: any, config: CompanionConfig) {
   } as Options;
 
   console.log(`[cc-companion] 项目目录: ${config.projectPath}`);
-  console.log(`[cc-companion] MCP Server: ${config.mcpUrl}`);
   console.log(`[cc-companion] 会话将存储在: ${join(homedir(), '.claude', 'projects')}`);
 
   const queryIterator = sdk.query({ prompt: inputStream, options });

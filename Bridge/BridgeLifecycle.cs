@@ -328,13 +328,17 @@ namespace RimWorldMCP
 
             var settings = RimWorldMCPMod.Instance?.Settings;
             var mcpPort = settings?.McpPort ?? 9877;
+            var mcpConfig = $"{{\"rimworld\":{{\"type\":\"http\",\"url\":\"http://localhost:{mcpPort}/mcp\"}}}}";
 
             var args = $"--import tsx/esm companion.ts"
                 + $" --port {port}"
                 + $" --host 127.0.0.1"
-                + $" --mcp-url http://localhost:{mcpPort}/mcp"
+                + $" --mcp-config \"{mcpConfig}\""
                 + $" --project-path \"{sessionsDir}\"";
             if (!string.IsNullOrEmpty(token)) args += $" --token {token}";
+            if (!string.IsNullOrEmpty(settings?.CCApiKey)) args += $" --api-key {settings!.CCApiKey}";
+            if (!string.IsNullOrEmpty(settings?.CCApiBaseUrl)) args += $" --api-base-url {settings!.CCApiBaseUrl}";
+            if (!string.IsNullOrEmpty(settings?.CCModelName)) args += $" --model-name {settings!.CCModelName}";
 
             try
             {

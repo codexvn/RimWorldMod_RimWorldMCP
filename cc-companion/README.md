@@ -17,7 +17,6 @@ npm start            # tsx companion.ts
 cc-companion/
 ├── companion.ts          # 编排入口
 ├── config.ts             # 配置（CLI + 环境变量）
-├── auth.ts               # API 认证
 ├── sdk-loader.ts         # SDK 加载
 ├── session.ts            # SDK 会话 + AsyncStream + 响应广播
 ├── ws-server.ts          # WebSocket Server
@@ -51,16 +50,17 @@ RimWorld CCClient --WS--> companion.ts --SDK--> Claude API
 | `CC_HOST` | `--host` | `127.0.0.1` | WebSocket 监听地址 |
 | `CC_PORT` | `--port` | `19999` | WebSocket 监听端口 |
 | `CC_TOKEN` | `--token` | 无 | 客户端认证 token |
-| `CC_MODEL` | `--model` | `sonnet` | 模型名称 |
-| `MCP_URL` | `--mcp-url` | `http://localhost:9877/mcp` | MCP Server 地址 |
-| `MCP_HEADERS` | `--mcp-headers` | 无 | MCP 请求附加头 JSON |
-| `CC_CONNECT_TIMEOUT` | `--connect-timeout` | `300000` | 无连接超时退出（ms） |
-| - | `--no-connect-timeout` | - | 禁用连接超时 |
+| `CC_MCP_CONFIG` | `--mcp-config` | - | MCP 服务完整配置 JSON |
+| `CC_API_KEY` | `--api-key` | - | API Key 认证 |
+| `CC_API_BASE_URL` | `--api-base-url` | `http://localhost:3000` | API 代理地址 |
+| `CC_MODEL_NAME` | `--model-name` | `deepseek-v4-pro[1m]` | 模型名称 |
+| `CC_IDLE_TIMEOUT` | `--idle-timeout` | `300000` | 空闲超时自动退出（ms） |
+| - | `--no-idle-timeout` | - | 禁用空闲超时 |
 | `RIMWORLD_PROJECT_PATH` | `--project-path` | `process.cwd()` | 会话存储目录 |
 
 ## 认证
 
-优先级：env var → Mod 本地 `claude-settings.json` → `~/.claude/settings.json` → `~/.codemoss/config.json`
+通过 `--api-key` 或 `CC_API_KEY` 传递，SDK 通过 `ANTHROPIC_AUTH_TOKEN` 环境变量注入。
 
 ## 会话存储
 

@@ -9,7 +9,6 @@
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { CONFIG, parseArgs } from './config.js';
-import { setupApiAuth } from './auth.js';
 import { loadClaudeSdk } from './sdk-loader.js';
 import { createWSServer } from './ws-server.js';
 import { createSession, createResponseProcessor } from './session.js';
@@ -22,14 +21,12 @@ async function main(): Promise<void> {
   console.log('='.repeat(60));
   console.log(`CWD: ${process.cwd()}`);
   console.log(`ARGV: ${process.argv.slice(2).join(' ')}`);
-  console.log(`配置: host=${CONFIG.host} port=${CONFIG.port} model=${CONFIG.model} mcp=${CONFIG.mcpUrl}`);
+  const mcpUrl = (() => { try { const c = JSON.parse(CONFIG.mcpConfig); const s = Object.values(c)[0] as any; return s?.url || '?'; } catch { return '?'; } })();
+  console.log(`配置: host=${CONFIG.host} port=${CONFIG.port} mcp=${mcpUrl}`);
   console.log(`会话目录: ${CONFIG.projectPath}`);
   console.log('');
 
-  // 1. 认证
-  setupApiAuth();
-
-  // 2. 加载 SDK
+  // 1. 加载 SDK
   console.log('[cc-companion] 加载 Claude Agent SDK...');
   let sdk: any;
   try {
@@ -85,12 +82,12 @@ async function main(): Promise<void> {
 
   // 6. 连接超时
   let connectTimer: ReturnType<typeof setTimeout> | null = null;
-  if (CONFIG.connectTimeout > 0) {
+  if (CONFIG.idleTimeout > 0) {
     connectTimer = setTimeout(() => {
-      console.log(`[cc-companion] 超时：${CONFIG.connectTimeout / 1000}s 内无客户端连接，自动退出`);
+      console.log(`[cc-companion] 空闲超时：${CONFIG.idleTimeout / 1000}s 内无客户端连接，自动退出`);
       shutdown();
-    }, CONFIG.connectTimeout);
-    console.log(`[cc-companion] ${CONFIG.connectTimeout / 1000}s 内无客户端连接将自动退出（--no-connect-timeout 可关闭）`);
+    }, CONFIG.idleTimeout);
+    console.log(`[cc-companion] ${CONFIG.idleTimeout / 1000}s 内无客户端连接将自动退出（--no-idle-timeout 可关闭）`);
   }
 
   // 7. PID 文件
