@@ -31,12 +31,12 @@ namespace RimWorldMCP
         private static int _idleFrames;
         private const int IdleFramesBeforeSend = 30; // ~0.5s 窗口让同类消息覆盖
         private static int _postAbortUntilMs; // Environment.TickCount 时间戳，游戏加速不影响
-        private static int _lastSendTick;
+        private static int _lastSendRealMs;
         private static int _lastDailyDaySent = -1;
         private static bool _sessionPromptSent;
 
-        /// <summary>最后一次成功发送 agent 消息时的游戏 tick</summary>
-        public static int LastSendTick => _lastSendTick;
+        /// <summary>最后一次成功发送 agent 消息时的真实时间（ms）</summary>
+        public static int LastSendRealMs => _lastSendRealMs;
 
         public static void Enqueue(MessageCategory category, string text)
         {
@@ -123,7 +123,7 @@ namespace RimWorldMCP
             _sending = false;
             _abortSent = false;
             _postAbortUntilMs = 0;
-            _lastSendTick = 0;
+            _lastSendRealMs = 0;
             _lastDailyDaySent = -1;
             _sessionPromptSent = false;
         }
@@ -136,7 +136,7 @@ namespace RimWorldMCP
             try
             {
                 await GatewayClient.SendMessage(text);
-                _lastSendTick = Find.TickManager?.TicksGame ?? 0;
+                _lastSendRealMs = Environment.TickCount;
             }
             catch (Exception ex)
             {

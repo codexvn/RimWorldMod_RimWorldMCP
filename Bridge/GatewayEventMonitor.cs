@@ -14,7 +14,7 @@ namespace RimWorldMCP
         private static int _nextCheckTick;
         private const int CheckIntervalTicks = 120;
         private static int _lastColonistCount = -1;
-        private const int IdleTimeoutTicks = 6000;
+        private const int IdleTimeoutMs = 120000; // 2 分钟真实时间
         private static int _lastDialogCount;
         private static string _lastDialogKey = "";
 
@@ -159,8 +159,10 @@ namespace RimWorldMCP
                 }
             }
 
-            // === 5. 空闲兜底：长时间无 agent 消息时推送概览 ===
-            if (GatewayMessageQueue.LastSendTick > 0 && tick - GatewayMessageQueue.LastSendTick > IdleTimeoutTicks)
+            // === 5. 空闲兜底：长时间无交互时推送概览（真实时间，跳过活跃会话）
+            if (GatewayMessageQueue.LastSendRealMs > 0
+                && Environment.TickCount - GatewayMessageQueue.LastSendRealMs > IdleTimeoutMs
+                && !ChatDisplayState.IsBusy)
             {
                 var overview = BuildColonyOverview(map, colonists, colonistCount);
                 GatewayMessageQueue.Enqueue(MessageCategory.Alert, overview);

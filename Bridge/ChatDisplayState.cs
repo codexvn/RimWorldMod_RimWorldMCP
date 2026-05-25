@@ -38,6 +38,23 @@ namespace RimWorldMCP
         private static readonly List<ToolCallInfo> _toolCalls = new();
         private static readonly object _lock = new();
 
+        /// <summary>是否有活跃对话（流式输出或工具执行中），用于抑制空闲推送</summary>
+        public static bool IsBusy
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    if (_entries.Count > 0 && _entries[_entries.Count - 1].State == ChatState.Streaming)
+                        return true;
+                    foreach (var tc in _toolCalls)
+                        if (tc.Status == ToolStatus.Running)
+                            return true;
+                    return false;
+                }
+            }
+        }
+
         /// <summary>新消息事件（在主线程订阅）</summary>
         public static event Action? OnChanged;
 
