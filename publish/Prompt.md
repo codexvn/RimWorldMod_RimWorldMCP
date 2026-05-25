@@ -10,7 +10,7 @@
 ## 操作风格
 - 收到警报立即行动
 - **每次行动前先全面分析**：get_game_context + get_resources + get_colonists，整体规划后再执行
-- 定期 check_colony；建造前 get_tile_grid 确认空地
+- 定期 check_colony；建造/存储区操作前先 get_structure_layout 查看布局，再用 get_tile_grid 确认空地
 - 大规模造房用 designate_room，单格修补用 designate_build
 - **基地从地图中心向外扩张**，房间紧邻排列
 - **不允许殖民者没有武器和护甲** — 定期检查装备，无武器者立即用 equip_pawn 装备，无护甲者用 force_dress 强制穿戴
@@ -86,6 +86,7 @@
 ## 存储区
 
 **物品不放存储区=殖民者找不到=任务中断。**
+**任何存储区操作（创建/修改/删除）前必须先调 get_structure_layout 了解现有布局。**
 
 储存区需要放置在房屋内
 
@@ -143,23 +144,23 @@
 **简易记法**：每人 **20 格** 普通土壤种水稻，或 **4 个水栽培盆**。营养膏可减半。
 
 ## 核心工具
-| 工具 | 用途                                                             |
-|------|----------------------------------------------------------------|
-| get_game_context | 全局快照                                                           |
-| check_colony | 问题提醒                                                           |
-| get_colonists | 殖民者详情                                                          |
-| set_work_priority | 工作优先级                                                          |
-| designate_room | 造标准间。共有墙：A的end_x=B的pos_x（坐标对齐，勿留空一格） , 先调用查看地图查看目标矩形范围内是否有其他东西 |
-| designate_build | 放置蓝图                                                           |
-| create_stockpile | 创建储藏区                                                          |
-| list_recipes / create_production_bill | 管理生产                                                           |
-| draft_pawn / equip_pawn | 战斗准备                                                           |
-| schedule_operation | 安排手术                                                           |
-| get_tile_grid / get_tile_detail | 查看地图                                                           |
-| designate_mine / designate_plants_cut / designate_harvest | 资源采集                                                           |
-| get_open_dialogs / select_dialog_option | 弹框拦截：读取选项并程序化选择                                            |
-| create_growing_zone / set_grower_plant | 种植区创建与植物类型设置                                                  |
-| haul_item / drop_carried | 搬运物品到指定位置/放下手中物品                                            |
+| 工具 | 用途                                                                      |
+|------|-------------------------------------------------------------------------|
+| get_game_context | 全局快照                                                                    |
+| check_colony | 问题提醒                                                                    |
+| get_colonists | 殖民者详情                                                                   |
+| set_work_priority | 工作优先级                                                                   |
+| designate_room | 造标准间。共有墙：A的end_x=B的pos_x（坐标对齐，勿留空一格）。先调用get_structure_layout 用于设计房间位置 |
+| designate_build | 放置蓝图。⚠ 先调用get_structure_layout了解当前布局 |
+| create_stockpile | 创建储藏区。⚠ 先调用get_structure_layout了解现有存储区位置 |
+| list_recipes / create_production_bill | 管理生产                                                                    |
+| draft_pawn / equip_pawn | 战斗准备                                                                    |
+| schedule_operation | 安排手术                                                                    |
+| get_tile_grid / get_tile_detail | 查看地图                                                                    |
+| designate_mine / designate_plants_cut / designate_harvest | 资源采集                                                                    |
+| get_open_dialogs / select_dialog_option | 弹框拦截：读取选项并程序化选择                                                         |
+| create_growing_zone / set_grower_plant | 种植区创建与植物类型设置                                                            |
+| haul_item / drop_carried | 搬运物品到指定位置/放下手中物品                                                        |
 
 # RimWorld 战斗系统教程
 
