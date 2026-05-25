@@ -184,9 +184,11 @@ namespace RimWorldMCP
             {
                 var tc = toolCalls[i];
                 // 格式: "调用工具: xxx（参数）"
+                // Unity GUI.Label 会把 _ 当成键盘快捷键标记吃掉，双写 __ 可显示一个下划线
+                string displayName = tc.Name?.Replace("_", "__") ?? "";
                 string label = !string.IsNullOrEmpty(tc.Meta)
-                    ? $"调用工具: {tc.Name}（{tc.Meta}）"
-                    : $"调用工具: {tc.Name}";
+                    ? $"调用工具: {displayName}（{tc.Meta}）"
+                    : $"调用工具: {displayName}";
                 if (string.IsNullOrEmpty(label)) continue;
 
                 Color c;

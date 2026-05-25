@@ -58,12 +58,11 @@ namespace RimWorldMCP
 
                         if (hasEmergency && emLines.Count > 0)
                         {
-                            var sb = new StringBuilder();
-                            sb.AppendLine("## ⚠ 殖民地警报");
+                            var sb = new StringBuilder("插入一些通知：\n");
                             foreach (var line in emLines)
                                 sb.AppendLine($"- {line}");
-                            sb.Append(BuildColonySummary(emMap, emColonists, emColonists.Count));
-                            GatewayMessageQueue.Enqueue(MessageCategory.Alert, sb.ToString().TrimEnd());
+                            sb.Append("现在继续处理。");
+                            GatewayMessageQueue.Enqueue(MessageCategory.Alert, sb.ToString());
                         }
                     }
                 }
@@ -101,7 +100,7 @@ namespace RimWorldMCP
             if (countChanged)
             {
                 int diff = colonistCount - _lastColonistCount;
-                notifyLines.Add($"殖民者数量: {_lastColonistCount} → {colonistCount} ({(diff > 0 ? "+" : "")}{diff})");
+                notifyLines.Add($"殖民者 {_lastColonistCount}→{colonistCount} ({(diff > 0 ? "+" : "")}{diff})");
                 hasNotifications = true;
             }
             _lastColonistCount = colonistCount;
@@ -109,38 +108,33 @@ namespace RimWorldMCP
             // === 3. 推送综合警报 ===
             if (hasNotifications)
             {
-                var sb = new StringBuilder();
-                sb.AppendLine("## ⚠ 殖民地警报");
+                var sb = new StringBuilder("插入一些通知：\n");
                 foreach (var line in notifyLines)
                     sb.AppendLine($"- {line}");
-                sb.Append(BuildColonySummary(map, colonists, colonistCount));
-                GatewayMessageQueue.Enqueue(MessageCategory.Alert, sb.ToString().TrimEnd());
+                sb.Append("现在继续处理。");
+                GatewayMessageQueue.Enqueue(MessageCategory.Alert, sb.ToString());
             }
 
             // === 4. 弹框检测：检测 FloatMenu / Dialog 出现 ===
             if (GatewayClient.IsReady)
             {
-                var stack = Find.WindowStack;
-                if (stack != null)
+                var dialogs = RimWorldMCP.Helpers.DialogHelper.GetInteractableDialogs();
+                if (dialogs.Count > 0 || _lastDialogCount > 0)
                 {
-                    int dialogCount = 0;
+                    int dialogCount = dialogs.Count;
                     string dialogKey = "";
-                    foreach (var w in stack.Windows)
+                    foreach (var w in dialogs)
                     {
                         if (w is FloatMenu)
                         {
-                            dialogCount++;
-                            var optionsField = typeof(FloatMenu).GetField("options",
-                                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                            var options = optionsField?.GetValue(w) as List<FloatMenuOption>;
+                            var options = RimWorldMCP.Helpers.DialogHelper.FloatMenuOptionsField?.GetValue(w) as List<FloatMenuOption>;
                             if (options != null)
                             {
                                 dialogKey = "fm:" + string.Join("|", options.Take(10).Select(o => o.Label).OrderBy(s => s));
                             }
                         }
-                        if (w.layer == WindowLayer.Dialog && w is not FloatMenu)
+                        else
                         {
-                            dialogCount++;
                             dialogKey += w.GetType().Name;
                         }
                     }
@@ -310,19 +304,19 @@ namespace RimWorldMCP
         /// <summary>高危通知即时推送</summary>
         private static void PushEmergency(Notification n, Map map, List<Pawn> colonists, int count)
         {
-            string header, detail;
+            string label, detail;
             switch (n.Type)
             {
                 case NotificationType.Letter:
-                    header = $"## [{n.DangerLabel}] {n.Label}";
+                    label = $"[{n.DangerLabel}]{n.Label}";
                     detail = n.Text ?? "";
                     break;
                 case NotificationType.Message:
-                    header = $"## [{n.DangerLabel}] 紧急消息";
+                    label = $"[{n.DangerLabel}]消息";
                     detail = n.Text ?? "";
                     break;
                 case NotificationType.AlertStart:
-                    header = $"## [CRITICAL] {n.Label}";
+                    label = n.Label;
                     detail = n.Culprits != null && n.Culprits.Count > 0
                         ? string.Join(", ", n.Culprits.Take(5)) : "";
                     break;
@@ -330,12 +324,10 @@ namespace RimWorldMCP
                     return;
             }
 
-            var sb = new StringBuilder();
-            sb.AppendLine(header);
-            if (!string.IsNullOrEmpty(detail))
-                sb.AppendLine(detail);
-            sb.Append(BuildColonySummary(map, colonists, count));
-            GatewayMessageQueue.SendNow(MessageCategory.RaidStart, sb.ToString().TrimEnd());
+            var text = !string.IsNullOrEmpty(detail)
+                ? $"插入一些通知：{label}（{detail}）\n现在继续处理。"
+                : $"插入一些通知：{label}\n现在继续处理。";
+            GatewayMessageQueue.SendNow(MessageCategory.RaidStart, text);
         }
 
         /// <summary>通知格式化为告警行</summary>

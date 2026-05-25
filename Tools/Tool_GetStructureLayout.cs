@@ -129,7 +129,7 @@ namespace RimWorldMCP.Tools
                     sb.AppendLine($"## 建筑结构布局 ({minX},{minY}) ~ ({maxX},{maxY})  [{w}x{h}]");
 
                     if (!showGrid)
-                        sb.AppendLine($"> 全图模式：字符网格已省略（范围 {w}x{h} 超过 {MaxGridWidth}x{MaxGridHeight} 上限），使用墙段RLE+房间+门表达结构。");
+                        sb.AppendLine($"> 全图模式：字符网格已省略（范围 {w}x{h} 超过 {MaxGridWidth}x{MaxGridHeight} 上限），使用墙组件+房间+门+区域表达结构。");
 
                     sb.AppendLine();
 
@@ -156,8 +156,8 @@ namespace RimWorldMCP.Tools
                     int zoneCount = BuildZoneList(sb, minX, minY, maxX, maxY, map);
                     if (zoneCount > 0) sb.AppendLine();
 
-                    // 5. 墙段 RLE
-                    BuildWallRuns(sb, minX, minY, maxX, maxY, map, includeNaturalRock);
+                    // 5. 墙（连通分量）
+                    BuildWallComponents(sb, minX, minY, maxX, maxY, map, includeNaturalRock);
 
                     // 6. 图例（仅小范围模式）
                     if (showGrid)
@@ -460,66 +460,94 @@ namespace RimWorldMCP.Tools
             return matched.Count;
         }
 
-        private struct WallRun
+        private struct WallComponent
         {
             public int Id;
-            public int X1, Y, X2;
-            public bool IsNatural;
+            public int MinX, MinY, MaxX, MaxY;
+            public int CellCount;
         }
 
-        private static int BuildWallRuns(StringBuilder sb, int minX, int minY, int maxX, int maxY, Map map,
+        private static int BuildWallComponents(StringBuilder sb, int minX, int minY, int maxX, int maxY, Map map,
             bool includeNaturalRock)
         {
-            var allRuns = new List<WallRun>();
+            var visited = new HashSet<IntVec3>();
+            var components = new List<WallComponent>();
             int globalId = 0;
 
             for (int z = minY; z <= maxY; z++)
             {
-                int x = minX;
-                while (x <= maxX)
+                for (int x = minX; x <= maxX; x++)
                 {
-                    var ed = new IntVec3(x, 0, z).GetEdifice(map);
-                    if (ed != null && IsWallCell(ed, out bool isNatural))
-                    {
-                        // 过滤天然岩壁（默认不输出）
-                        if (isNatural && !includeNaturalRock)
-                        {
-                            x++;
-                            continue;
-                        }
+                    var pos = new IntVec3(x, 0, z);
+                    if (visited.Contains(pos)) continue;
 
-                        int startX = x;
-                        while (x + 1 <= maxX)
+                    var ed = pos.GetEdifice(map);
+                    if (ed == null || !IsWallCell(ed, out bool isNatural)) continue;
+
+                    if (isNatural && !includeNaturalRock) continue;
+
+                    // BFS 连通分量
+                    var queue = new Queue<IntVec3>();
+                    queue.Enqueue(pos);
+                    visited.Add(pos);
+                    var comp = new WallComponent
+                    {
+                        Id = ++globalId,
+                        MinX = x, MaxX = x,
+                        MinY = z, MaxY = z,
+                        CellCount = 0
+                    };
+
+                    while (queue.Count > 0)
+                    {
+                        var cur = queue.Dequeue();
+                        comp.MinX = Math.Min(comp.MinX, cur.x);
+                        comp.MaxX = Math.Max(comp.MaxX, cur.x);
+                        comp.MinY = Math.Min(comp.MinY, cur.z);
+                        comp.MaxY = Math.Max(comp.MaxY, cur.z);
+                        comp.CellCount++;
+
+                        foreach (var dir in GenAdj.CardinalDirections)
                         {
-                            var nextEd = new IntVec3(x + 1, 0, z).GetEdifice(map);
-                            if (nextEd == null || !IsWallCell(nextEd, out bool nextNatural) || nextNatural != isNatural)
-                                break;
-                            x++;
+                            var nb = cur + dir;
+                            if (visited.Contains(nb)) continue;
+                            if (nb.x < minX || nb.x > maxX || nb.z < minY || nb.z > maxY) continue;
+                            var nbEd = nb.GetEdifice(map);
+                            if (nbEd == null || !IsWallCell(nbEd, out bool nbNatural)) continue;
+                            if (nbNatural != isNatural) continue;
+                            visited.Add(nb);
+                            queue.Enqueue(nb);
                         }
-                        allRuns.Add(new WallRun { Id = ++globalId, X1 = startX, Y = z, X2 = x, IsNatural = isNatural });
                     }
-                    x++;
+
+                    components.Add(comp);
                 }
             }
 
-            sb.AppendLine($"### 墙段 ({globalId})");
+            // 按面积降序输出
+            components.Sort((a, b) => b.CellCount.CompareTo(a.CellCount));
 
-            if (globalId == 0) return 0;
+            sb.AppendLine($"### 墙 ({components.Count})");
+            if (components.Count == 0) return 0;
 
-            // 按行分组输出
-            var runsByRow = allRuns.GroupBy(r => r.Y).OrderBy(g => g.Key);
-            foreach (var group in runsByRow)
+            for (int i = 0; i < components.Count; i++)
             {
-                sb.Append($"行{group.Key}:");
-                foreach (var run in group)
-                {
-                    string prefix = run.IsNatural ? "R" : "";
-                    sb.Append($" {prefix}W{run.Id}[({run.X1},{run.Y})→({run.X2},{run.Y}) len={run.X2 - run.X1 + 1}]");
-                }
+                var c = components[i];
+                int w = c.MaxX - c.MinX + 1;
+                int h = c.MaxY - c.MinY + 1;
+                sb.Append($"[{i + 1}] ({c.MinX},{c.MinY})~({c.MaxX},{c.MaxY})  {c.CellCount}格");
+
+                if (w > 1 && h > 1)
+                    sb.Append($"  {w}x{h}区域");
+                else if (w > 1)
+                    sb.Append($"  水平");
+                else if (h > 1)
+                    sb.Append($"  垂直");
+
                 sb.AppendLine();
             }
 
-            return globalId;
+            return components.Count;
         }
     }
 }

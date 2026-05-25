@@ -24,10 +24,6 @@ namespace RimWorldMCP.Tools
             required = new[] { "dialog_index", "option_index" }
         });
 
-        // FloatMenu.options 是 protected
-        private static readonly FieldInfo? FloatMenuOptionsField =
-            typeof(FloatMenu).GetField("options", BindingFlags.Instance | BindingFlags.NonPublic);
-
         // DiaOption.Activate() 是 protected
         private static readonly MethodInfo? DiaOptionActivateMethod =
             typeof(DiaOption).GetMethod("Activate", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -44,22 +40,18 @@ namespace RimWorldMCP.Tools
             {
                 try
                 {
-                    var stack = Find.WindowStack;
-                    if (stack == null) return ToolResult.Error("WindowStack 不可用");
-
-                    var windows = stack.Windows;
+                    var dialogs = RimWorldMCP.Helpers.DialogHelper.GetInteractableDialogs();
 
                     // 遍历弹框，匹配 dialog_index
                     int curIdx = 0;
 
-                    // FloatMenu 优先
-                    foreach (var w in windows)
+                    foreach (var w in dialogs)
                     {
                         if (w is FloatMenu fm)
                         {
                             if (curIdx != dialogIdx) { curIdx++; continue; }
 
-                            var options = FloatMenuOptionsField?.GetValue(fm) as List<FloatMenuOption>;
+                            var options = RimWorldMCP.Helpers.DialogHelper.FloatMenuOptionsField?.GetValue(fm) as List<FloatMenuOption>;
                             if (options == null || optIdx < 0 || optIdx >= options.Count)
                                 return ToolResult.Error($"选项编号 {optIdx} 超出范围 (0~{(options?.Count ?? 0) - 1})");
 
@@ -72,12 +64,9 @@ namespace RimWorldMCP.Tools
                         }
                     }
 
-                    // Dialog 层
-                    foreach (var w in windows)
+                    foreach (var w in dialogs)
                     {
-                        if (w.layer != WindowLayer.Dialog) continue;
                         if (w is FloatMenu) continue;
-                        if (w.GetType().Name == "Dialog_AiChat") continue; // 跳过本 mod 自己的 AI 聊天窗
 
                         if (w is Dialog_MessageBox msgBox)
                         {
