@@ -45,18 +45,35 @@ namespace RimWorldMCP.Harmony
 
         internal static bool IsHighDanger(NotificationType type, string dangerLabel, int alertPriority)
         {
-            return type != NotificationType.AlertEnd;
+            switch (type)
+            {
+                case NotificationType.Letter:
+                    return dangerLabel is "大威胁" or "小威胁" or "死亡" or "负面";
+                case NotificationType.Message:
+                    return dangerLabel is "大威胁" or "小威胁" or "角色死亡" or "健康事件" or "游戏减速";
+                case NotificationType.AlertStart:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
-        /// <summary>游戏速度被强制降低时调用（供 Harmony Patch 使用）。</summary>
+        private static int _lastSpeedSlowdownTick;
+        private const int SpeedSlowdownThrottleTicks = 600; // 10 秒内不重复
+
+        /// <summary>游戏速度被强制降低时调用（供 Harmony Patch 使用），10 秒限流。</summary>
         public static void NotifySpeedSlowdown(string reason)
         {
+            var tick = Find.TickManager?.TicksGame ?? 0;
+            if (tick - _lastSpeedSlowdownTick < SpeedSlowdownThrottleTicks) return;
+            _lastSpeedSlowdownTick = tick;
+
             Pending.Enqueue(new Notification
             {
                 Type = NotificationType.Message,
                 DangerLabel = "游戏减速",
                 Text = reason,
-                Tick = Find.TickManager?.TicksGame ?? 0
+                Tick = tick
             });
             HighDangerPending = true;
         }

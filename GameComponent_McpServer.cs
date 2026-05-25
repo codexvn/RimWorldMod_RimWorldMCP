@@ -185,7 +185,6 @@ namespace RimWorldMCP
             registry.Register(new Tool_SetWorkPriority());
             registry.Register(new Tool_GetColonistHealth());
             registry.Register(new Tool_ScheduleOperation());
-            registry.Register(new Tool_ForceEquip());
             registry.Register(new Tool_EquipPawn());
             registry.Register(new Tool_DraftPawn());
             registry.Register(new Tool_GetDefenseStatus());
@@ -216,6 +215,7 @@ namespace RimWorldMCP
             registry.Register(new Tool_UninstallBuilding());
             registry.Register(new Tool_InstallMinifiedThing());
             registry.Register(new Tool_FindEnemies());
+            registry.Register(new Tool_GetStructureLayout());
             registry.Register(new Tool_AttackPawn());
             registry.Register(new Tool_ForceAttack());
         }

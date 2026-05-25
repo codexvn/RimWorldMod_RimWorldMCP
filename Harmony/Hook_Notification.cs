@@ -163,15 +163,6 @@ namespace RimWorldMCP.Harmony
             }
         }
 
-        [HarmonyPatch(typeof(TickManager), nameof(TickManager.Pause))]
-        public static class Patch_TickManager_Pause
-        {
-            static void Postfix()
-            {
-                NotificationBus.NotifySpeedSlowdown("游戏已暂停");
-            }
-        }
-
         // ========== 分类辅助 ==========
 
         private static string ClassifyLetter(LetterDef def)

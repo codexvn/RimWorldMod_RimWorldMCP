@@ -21,7 +21,7 @@ RimWorldMCP/
 ├── Mcp/                                   # MCP 协议层
 │   ├── McpServer.cs                       # JSON-RPC 调度：initialize/tools/list/tools/call/resources
 │   └── McpMessage.cs                      # 数据类型：请求/响应/Tool定义/资源
-├── Tools/                                 # 39 个 Tool（真实 RimWorld API 调用）
+├── Tools/                                 # 38 个 Tool（真实 RimWorld API 调用）
 │   ├── ITool.cs                           # Tool 接口 + ToolResult
 │   ├── ToolRegistry.cs                    # 注册表 + 执行调度 + 资源映射
 │   ├── ResourceCheckHelper.cs             # 建造资源检查辅助工具
@@ -157,10 +157,37 @@ GatewayClient 作为 WebSocket 客户端连接 OpenClaw Gateway（默认 `ws://1
 | 每早汇报 | 游戏时间每日 6 点汇总 | 含天气/殖民者/资源/电力/研究/财富 |
 
 消息分类：
-- `MessageCategory.RaidStart` — 大威胁立即发送
+- `MessageCategory.RaidStart` — 中断通知（chat.abort），高优先级立即发送
 - `MessageCategory.Alert` — 一般警报队列发送
 - `MessageCategory.DailyMorning` — 每日早报
 - `MessageCategory.SessionInit` — 连接后首次会话 Prompt
+
+### 中断通知（chat.abort）系统
+
+6 个 Harmony Patch 拦截游戏事件 → `NotificationBus` → `IsHighDanger` 过滤 → `PushEmergency`（每帧检查 `HighDangerPending`）→ `GatewayMessageQueue.SendNow(RaidStart)`。
+
+#### 触发中断的事件（Agent 应放弃当前任务优先处理）
+
+| 事件源 | 条件 | 实例 |
+|--------|------|------|
+| Letter: 大威胁 | `LetterDefOf.ThreatBig` | 袭击、虫害、猎杀人类包、异常实体群 |
+| Letter: 小威胁 | `LetterDefOf.ThreatSmall` | 单只发狂动物、越狱 |
+| Letter: 死亡 | `LetterDefOf.Death` | 殖民者/牵绊动物死亡 |
+| Letter: 负面 | `LetterDefOf.NegativeEvent` | 枯萎病、瘟疫、太阳耀斑、热浪、寒流 |
+| Message: 大威胁/小威胁 | `ThreatBig`/`ThreatSmall` | 袭击实时消息 |
+| Message: 角色死亡 | `PawnDeath` | 地圖上角色死亡 |
+| Message: 健康事件 | `NegativeHealthEvent` | 心脏病発作、伤口感染 |
+| Message: 游戏减速 | `TimeSlower.SignalForceNormalSpeed*` Patch | 战斗爆发、异常活动（限流 600 tick/10秒） |
+| AlertStart: 全部 | 饥饿、崩溃风险、需要治疗、裸奔、无武器等 | 所有原生警报变活跃 |
+
+#### 不触发中断的事件（走 120 tick 批量 Alert）
+
+| 事件 | 原因 |
+|------|------|
+| Letter: 正面/事件/通知 | 好事/中性/未分类，不紧急 |
+| Message: 正面/事件/完成/状态解除/拒绝/警告/消息 | 非紧急或高频噪声 |
+| AlertEnd: 全部 | 正向变化 |
+| `TickManager.Pause` | 对话框暂停不是危险信号（Letter 暂停已由 Letter Patch 覆盖） |
 
 ### 已验证
 
@@ -194,7 +221,7 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 
 游戏启动后，MCP 服务自动运行在 `http://localhost:9877`。
 
-## Tool 清单（39 个，真实 API）
+## Tool 清单（38 个，真实 API）
 
 ### 通用查询 (3)
 | Tool | 说明 | 数据源 |
@@ -256,11 +283,10 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 | `get_colonist_health` | 健康报告 | `pawn.health.hediffSet.hediffs` |
 | `schedule_operation` | 安排手术 | `billStack.AddBill(Bill_Medical)` (入队) |
 
-### 战斗 (4)
+### 战斗 (3)
 | Tool | 说明 | 数据源/操作 |
 |------|------|------------|
-| `equip_pawn` | 即时装备武器/衣物 | `pawn.equipment.AddEquipment()` / `pawn.apparel.Wear()` (入队) |
-| `force_equip` | 强制殖民者拾取并装备（Job 系统，自然走过去） | `JobDefOf.Equip` / `JobDefOf.Wear` (入队) |
+| `equip_pawn` | 强制殖民者拾取并装备（Job 系统，自然走过去） | `JobDefOf.Equip` / `JobDefOf.Wear` (入队) |
 | `draft_pawn` | 征召/解除征召 | `pawn.drafter.Drafted` (入队) |
 | `get_defense_status` | 防御状态报告 | `pawn.equipment.Primary`, `map.listerBuildings` |
 

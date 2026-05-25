@@ -12,7 +12,7 @@ namespace RimWorldMCP.Tools
     public class Tool_EquipPawn : ITool
     {
         public string Name => "equip_pawn";
-        public string Description => "给指定殖民者即时装备武器或衣物（直接装备，不需走路）。通过 thing_id 定位物品，由唯一 ID 精确定位。";
+        public string Description => "强制殖民者去拾取并装备武器或衣物（走过去自然拾取）。通过 thing_id 定位物品，由唯一 ID 精确定位。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
@@ -51,12 +51,6 @@ namespace RimWorldMCP.Tools
                     if (thing == null)
                         return ToolResult.Error($"找不到 ID={thingId} 的物品。");
 
-                    if (!pawn.CanReach(thing, PathEndMode.ClosestTouch, Danger.Deadly))
-                        return ToolResult.Error($"{pawn.Name.ToStringShort} 无法到达 {thing.Label}。");
-
-                    if (thing.IsBurning())
-                        return ToolResult.Error($"{thing.Label} 正在燃烧，无法装备。");
-
                     string qualityStr = "";
                     try
                     {
@@ -73,16 +67,21 @@ namespace RimWorldMCP.Tools
                         ThingWithComps? equipmentThing = thing as ThingWithComps;
                         if (equipmentThing == null)
                             return ToolResult.Error($"{thing.Label} 不是可装备物品。");
+
+                        if (pawn.WorkTagIsDisabled(WorkTags.Violent))
+                            return ToolResult.Error($"{pawn.Name.ToStringShort} 被禁止暴力，无法装备武器。");
+
+                        if (thing.def.IsRangedWeapon && pawn.WorkTagIsDisabled(WorkTags.Shooting))
+                            return ToolResult.Error($"{pawn.Name.ToStringShort} 被禁止射击，无法装备远程武器。");
+
+                        if (!pawn.health.capacities.CapableOf(PawnCapacityDefOf.Manipulation))
+                            return ToolResult.Error($"{pawn.Name.ToStringShort} 没有操作能力，无法装备。");
+
                         if (!EquipmentUtility.CanEquip(equipmentThing, pawn, out string r, false))
                             return ToolResult.Error($"无法装备: {r}");
 
-                        thing.SetForbidden(false, true);
-                        equipmentThing.holdingOwner?.Remove(equipmentThing);
-                        if (equipmentThing.Spawned)
-                            equipmentThing.DeSpawn(DestroyMode.Vanish);
-                        pawn.equipment.MakeRoomFor(equipmentThing);
-                        pawn.equipment.AddEquipment(equipmentThing);
-                        return ToolResult.Success($"{pawn.Name.ToStringShort} 已装备武器: {thing.Label}{qualityStr}。");
+                        if (EquipmentUtility.AlreadyBondedToWeapon(thing, pawn))
+                            return ToolResult.Error($"{pawn.Name.ToStringShort} 已与另一把灵能武器绑定。");
                     }
                     else
                     {
@@ -101,12 +100,20 @@ namespace RimWorldMCP.Tools
 
                         if (!EquipmentUtility.CanEquip(apparel, pawn, out string r, true))
                             return ToolResult.Error($"无法穿戴: {r}");
-
-                        thing.SetForbidden(false, true);
-                        apparel.holdingOwner?.Remove(apparel);
-                        pawn.apparel.Wear(apparel);
-                        return ToolResult.Success($"{pawn.Name.ToStringShort} 已穿戴: {thing.Label}{qualityStr}。");
                     }
+
+                    if (!pawn.CanReach(thing, PathEndMode.ClosestTouch, Danger.Deadly))
+                        return ToolResult.Error($"{pawn.Name.ToStringShort} 无法到达 {thing.Label}。");
+
+                    if (thing.IsBurning())
+                        return ToolResult.Error($"{thing.Label} 正在燃烧，无法装备。");
+
+                    thing.SetForbidden(false, true);
+                    Job job = JobMaker.MakeJob(isWeapon ? JobDefOf.Equip : JobDefOf.Wear, thing);
+                    pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+
+                    string typeLabel = isWeapon ? "武器" : "衣物";
+                    return ToolResult.Success($"{pawn.Name.ToStringShort} 已前往拾取并装备{typeLabel}: {thing.Label}{qualityStr}。");
                 }
                 catch (Exception ex) { return ToolResult.Error($"装备操作失败: {ex.Message}"); }
             });
