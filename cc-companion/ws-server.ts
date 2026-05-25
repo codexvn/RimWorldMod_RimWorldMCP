@@ -23,6 +23,7 @@ export interface StatusChange {
 
 type EventCallback = (msg: WsMessage) => void;
 type StatusCallback = (status: StatusChange) => void;
+type AbortCallback = () => void;
 
 export function createWSServer(
   port: number,
@@ -30,6 +31,7 @@ export function createWSServer(
   token: string,
   onEvent: EventCallback,
   onStatusChange: StatusCallback,
+  onAbort?: AbortCallback,
 ) {
   const httpServer = createServer();
   httpServer.on('error', (err: Error) => {
@@ -102,6 +104,16 @@ export function createWSServer(
 
         case 'ping':
           sendJson(ws, { type: 'pong' });
+          break;
+
+        case 'abort':
+          if (!authenticated) {
+            sendJson(ws, { type: 'error', error: 'not authenticated' });
+            return;
+          }
+          console.log('[cc-companion] 收到中断请求');
+          onAbort?.();
+          sendJson(ws, { type: 'aborted' });
           break;
 
         default:

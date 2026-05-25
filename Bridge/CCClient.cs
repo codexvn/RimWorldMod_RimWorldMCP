@@ -139,6 +139,21 @@ namespace RimWorldMCP
             });
         }
 
+        /// <summary>发送中断请求到 Companion，中止当前 AI 回复</summary>
+        internal static async Task SendAbort()
+        {
+            await _eventLock.WaitAsync();
+            try
+            {
+                await SendJson(new { type = "abort" });
+                McpLog.Info("[cc] 已发送中断请求");
+            }
+            finally
+            {
+                _eventLock.Release();
+            }
+        }
+
         // ========== WebSocket IO ==========
 
         private static async Task SendHello()

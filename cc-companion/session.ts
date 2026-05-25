@@ -50,7 +50,7 @@ export class AsyncStream<T = any> {
 
 // ========== SDK 会话 ==========
 
-export function createSession(sdk: any, config: CompanionConfig) {
+export function createSession(sdk: any, config: CompanionConfig, abortController?: AbortController) {
   const inputStream = new AsyncStream<any>();
 
   if (!config.mcpConfig) {
@@ -63,6 +63,7 @@ export function createSession(sdk: any, config: CompanionConfig) {
     permissionMode: config.permissionMode,
     maxTurns: config.maxTurns,
     enableFileCheckpointing: true,
+    abortController,
     env: {
       ...process.env,
     },

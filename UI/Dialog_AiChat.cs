@@ -66,8 +66,10 @@ namespace RimWorldMCP
             if (string.IsNullOrEmpty(text)) return;
 
             _inputText = "";
-            _ = CCClient.SendEventText("rimworld.chat", "UserMessage", text);
+            ChatDisplayState.Clear();
             ChatDisplayState.OnUserMessage(text);
+            _ = CCClient.SendAbort();
+            _ = CCClient.SendEventText("rimworld.chat", "UserMessage", text);
         }
 
         public override void DoWindowContents(Rect inRect)
@@ -85,7 +87,7 @@ namespace RimWorldMCP
             var entries = ChatDisplayState.Snapshot;
             var toolCalls = ChatDisplayState.ToolCallsSnapshot;
 
-            float toolStripH = toolCalls.Count > 0 ? 22f : 0f; // 工具状态条
+            float toolStripH = CalcToolStripHeight(toolCalls, inRect.width - 12f);
             float inputRowH = 28f;
             float footerHeight = 30f;
             float topMargin = 6f;
@@ -115,6 +117,10 @@ namespace RimWorldMCP
 
             Widgets.EndScrollView();
 
+            // 工具条出现后修正滚动位置，防止最后消息被遮挡
+            if (_scrollPos.y + scrollRect.height > viewRect.height)
+                _scrollPos.y = Mathf.Max(0f, viewRect.height - scrollRect.height);
+
             if (_scrollToBottom && entries.Count > 0)
             {
                 _scrollPos.y = Mathf.Max(0f, viewRect.height - scrollRect.height);
@@ -134,6 +140,31 @@ namespace RimWorldMCP
             DrawFooter(inRect, footerY, footerHeight);
         }
 
+        private static float CalcToolStripHeight(System.Collections.Generic.List<ToolCallInfo> toolCalls, float stripWidth)
+        {
+            if (toolCalls.Count == 0) return 0f;
+            if (stripWidth <= 0) stripWidth = 300f;
+
+            // 估算每个标签宽度 (Tiny 字体)
+            float gap = 6f;
+            float maxX = stripWidth - 4f;
+            float curX = 4f;
+            int rows = 1;
+            for (int i = 0; i < toolCalls.Count; i++)
+            {
+                string name = toolCalls[i].Name?.Replace("_", "__") ?? "";
+                if (string.IsNullOrEmpty(name)) continue;
+                float labelW = name.Length * 7f + gap; // Tiny 约 7px/字
+                if (curX + labelW > maxX && curX > 4f)
+                {
+                    rows++;
+                    curX = 4f;
+                }
+                curX += labelW;
+            }
+            return Mathf.Max(20f, rows * 18f);
+        }
+
         private void DrawToolStrip(Rect inRect, float y, float h, System.Collections.Generic.List<ToolCallInfo> toolCalls)
         {
             if (toolCalls.Count == 0) return;
@@ -146,17 +177,18 @@ namespace RimWorldMCP
                 new Color(0.1f, 0.1f, 0.15f, _alpha));
 
             Text.Font = GameFont.Tiny;
-            float curX = x + width - 4f;
-            for (int i = toolCalls.Count - 1; i >= 0; i--)
+            float maxX = x + width - 4f;
+            float curX = x + 4f;
+            float curY = y + 3f;
+            float lineH = 16f;
+            float gap = 6f;
+
+            for (int i = 0; i < toolCalls.Count; i++)
             {
                 var tc = toolCalls[i];
-                // 格式: "调用工具: xxx（参数）"
-                // Unity GUI.Label 会把 _ 当成键盘快捷键标记吃掉，双写 __ 可显示一个下划线
+                // Unity GUI.Label 把 _ 当作键盘快捷键标记吃掉，双写 __ 可正确显示
                 string displayName = tc.Name?.Replace("_", "__") ?? "";
-                string meta = tc.Meta?.Replace("_", "__") ?? "";
-                string label = !string.IsNullOrEmpty(meta)
-                    ? $"调用工具: {displayName}（{meta}）"
-                    : $"调用工具: {displayName}";
+                string label = displayName;
                 if (string.IsNullOrEmpty(label)) continue;
 
                 Color c;
@@ -167,14 +199,21 @@ namespace RimWorldMCP
                 else
                     c = new Color(0.3f, 1f, 0.3f, _alpha); // 绿色
 
-                float labelWidth = Text.CalcSize(label).x + 8f;
-                curX -= labelWidth;
-                if (curX < x + 4f) break;
+                float labelWidth = Text.CalcSize(label).x + gap;
+
+                // 换行：当前行放不下则折行
+                if (curX + labelWidth > maxX && curX > x + 4f)
+                {
+                    curX = x + 4f;
+                    curY += lineH;
+                    if (curY + lineH > y + h) break; // 超出高度
+                }
 
                 GUI.color = c;
-                Widgets.Label(new Rect(curX, y + 4f, labelWidth, 16f), label);
+                Widgets.Label(new Rect(curX, curY, labelWidth, lineH), label);
                 GUI.color = Color.white;
-                curX -= 4f;
+
+                curX += labelWidth;
             }
             Text.Font = GameFont.Small;
         }
@@ -232,6 +271,7 @@ namespace RimWorldMCP
             if (Widgets.ButtonText(abortRect, "中断"))
             {
                 ChatDisplayState.Clear();
+                _ = CCClient.SendAbort();
             }
 
             // 清空

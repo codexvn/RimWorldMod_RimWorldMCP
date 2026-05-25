@@ -39,7 +39,29 @@ async function main(): Promise<void> {
   // 3. 启动 WebSocket 服务器（先于 session，broadcast 需要引用）
   console.log('[cc-companion] 启动 WebSocket 服务器...');
 
-  let processResponses: () => Promise<void>;
+  let abortController = new AbortController();
+  let { inputStream, queryIterator } = createSession(sdk, CONFIG, abortController);
+  let currentProc = createResponseProcessor(
+    queryIterator,
+    CONFIG.projectPath,
+    (msg) => server.broadcast(JSON.stringify(msg)),
+  );
+  let processResponses = currentProc.process;
+
+  function startNewSession() {
+    abortController = new AbortController();
+    const result = createSession(sdk, CONFIG, abortController);
+    inputStream = result.inputStream;
+    queryIterator = result.queryIterator;
+    currentProc = createResponseProcessor(
+      queryIterator,
+      CONFIG.projectPath,
+      (msg) => server.broadcast(JSON.stringify(msg)),
+    );
+    processResponses = currentProc.process;
+    console.log('[cc-companion] 新会话已创建');
+  }
+
   const server = createWSServer(
     CONFIG.port,
     CONFIG.host,
@@ -62,20 +84,16 @@ async function main(): Promise<void> {
       } else if (status.status === 'disconnected') {
         console.log('[cc-companion] RimWorld 已断开');
       }
-    }
+    },
+    // onAbort
+    () => {
+      abortController.abort();
+      server.broadcast(JSON.stringify({ type: 'result', subtype: 'aborted' }));
+      startNewSession();
+    },
   );
 
-  // 4. 创建 SDK 会话
-  console.log('[cc-companion] 创建 Claude SDK 会话...');
-  const { inputStream, queryIterator } = createSession(sdk, CONFIG);
-
-  // 5. 启动后台响应处理——Claude 消息广播回 RimWorld 聊天窗
-  const proc = createResponseProcessor(
-    queryIterator,
-    CONFIG.projectPath,
-    (msg) => server.broadcast(JSON.stringify(msg)),
-  );
-  processResponses = proc.process;
+  // 启动首次处理
   processResponses().catch((err: any) => {
     console.error(`[cc-companion] SDK 处理异常: ${err.message}`);
   });
