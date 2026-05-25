@@ -7,6 +7,15 @@ namespace RimWorldMCP
     public enum ChatRole { User, Assistant }
     public enum ChatState { Streaming, Done, Error }
 
+    public enum ToolStatus { Running, Completed, Failed }
+    public class ToolCallInfo
+    {
+        public string ItemId = "";
+        public string Name = "";
+        public string Title = "";
+        public ToolStatus Status;
+    }
+
     public class ChatEntry
     {
         public ChatRole Role;
@@ -15,19 +24,26 @@ namespace RimWorldMCP
         public string RunId = "";
     }
 
-    /// <summary>线程安全的聊天状态管理器，接收 Gateway 的 "chat" 事件并累积对话历史</summary>
+    /// <summary>线程安全的聊天状态管理器，接收 Gateway 的 "chat" / "agent" 事件</summary>
     public static class ChatDisplayState
     {
         private static readonly List<ChatEntry> _entries = new();
+        private static readonly List<ToolCallInfo> _toolCalls = new();
         private static readonly object _lock = new();
 
-        /// <summary>新消息事件（在主线程订阅，调用 Window.Close() 强制刷新）</summary>
+        /// <summary>新消息事件（在主线程订阅）</summary>
         public static event Action? OnChanged;
 
-        /// <summary>线程安全快照</summary>
+        /// <summary>线程安全消息快照</summary>
         public static List<ChatEntry> Snapshot
         {
             get { lock (_lock) return new List<ChatEntry>(_entries); }
+        }
+
+        /// <summary>线程安全工具调用快照</summary>
+        public static List<ToolCallInfo> ToolCallsSnapshot
+        {
+            get { lock (_lock) return new List<ToolCallInfo>(_toolCalls); }
         }
 
         /// <summary>从 WebSocket 线程调用：处理 Gateway 广播的 "chat" 事件</summary>
@@ -144,9 +160,73 @@ namespace RimWorldMCP
             OnChanged?.Invoke();
         }
 
+        /// <summary>从 WebSocket 线程调用：处理 Gateway 广播的 "agent" 事件（工具调用/生命周期等）</summary>
+        public static void OnAgentEvent(JsonElement root)
+        {
+            var payload = root.TryGetProperty("payload", out var pl) ? pl : root;
+
+            if (!payload.TryGetProperty("stream", out var st)) return;
+            var stream = st.GetString();
+            if (stream != "tool") return;
+
+            string? sessionKey = null;
+            if (payload.TryGetProperty("sessionKey", out var sk))
+                sessionKey = sk.GetString();
+            if (!string.IsNullOrEmpty(sessionKey) && sessionKey != GatewayClient.SessionKey)
+                return;
+
+            if (!payload.TryGetProperty("data", out var data)) return;
+            var itemId = data.TryGetProperty("itemId", out var iid) ? iid.GetString() ?? "" : "";
+            var name = data.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "";
+            var title = data.TryGetProperty("title", out var ttl) ? ttl.GetString() ?? name : name;
+            var phase = data.TryGetProperty("phase", out var ph) ? ph.GetString() ?? "" : "";
+            var status = data.TryGetProperty("status", out var stt) ? stt.GetString() ?? "" : "";
+
+            lock (_lock)
+            {
+                ToolCallInfo? existing = null;
+                for (int i = 0; i < _toolCalls.Count; i++)
+                {
+                    if (_toolCalls[i].ItemId == itemId)
+                    { existing = _toolCalls[i]; break; }
+                }
+
+                if (phase == "start" || (existing == null && !string.IsNullOrEmpty(name)))
+                {
+                    if (existing == null)
+                    {
+                        existing = new ToolCallInfo { ItemId = itemId };
+                        _toolCalls.Add(existing);
+                    }
+                    existing.Name = name;
+                    existing.Title = title;
+                    existing.Status = ToolStatus.Running;
+                }
+                else if (existing != null)
+                {
+                    if (phase == "end" || status == "completed")
+                        existing.Status = ToolStatus.Completed;
+                    else if (status == "failed")
+                        existing.Status = ToolStatus.Failed;
+                    else if (!string.IsNullOrEmpty(title))
+                        existing.Title = title;
+                }
+
+                // 保留最近 20 个工具调用
+                while (_toolCalls.Count > 20)
+                    _toolCalls.RemoveAt(0);
+            }
+
+            OnChanged?.Invoke();
+        }
+
         public static void Clear()
         {
-            lock (_lock) _entries.Clear();
+            lock (_lock)
+            {
+                _entries.Clear();
+                _toolCalls.Clear();
+            }
             OnChanged?.Invoke();
         }
 

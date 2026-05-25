@@ -61,11 +61,14 @@ namespace RimWorldMCP
             Widgets.DrawBoxSolid(inRect, new Color(0.05f, 0.05f, 0.05f, _alpha));
 
             var entries = ChatDisplayState.Snapshot;
+            var toolCalls = ChatDisplayState.ToolCallsSnapshot;
 
-            // 底部控制栏占高
+            float toolStripH = toolCalls.Count > 0 ? 22f : 0f; // 工具状态条
             float footerHeight = 30f;
-            Rect scrollRect = new Rect(inRect.x + 6f, inRect.y + 6f,
-                inRect.width - 12f, inRect.height - footerHeight - 12f);
+            float topMargin = 6f;
+
+            Rect scrollRect = new Rect(inRect.x + 6f, inRect.y + topMargin,
+                inRect.width - 12f, inRect.height - toolStripH - footerHeight - topMargin - 4f);
 
             // 计算消息列表总高度
             float contentWidth = scrollRect.width - 8f;
@@ -92,9 +95,60 @@ namespace RimWorldMCP
                 _scrollToBottom = false;
             }
 
+            // 工具调用状态条（动态刷新）
+            float stripY = scrollRect.yMax + 2f;
+            DrawToolStrip(inRect, stripY, toolStripH, toolCalls);
+
             // 底部控制栏
             float footerY = inRect.height - footerHeight;
             DrawFooter(inRect, footerY, footerHeight);
+        }
+
+        private void DrawToolStrip(Rect inRect, float y, float h, System.Collections.Generic.List<ToolCallInfo> toolCalls)
+        {
+            if (toolCalls.Count == 0) return;
+
+            float x = inRect.x + 6f;
+            float width = inRect.width - 12f;
+
+            // 半透明背景条
+            Widgets.DrawBoxSolid(new Rect(x, y, width, h),
+                new Color(0.1f, 0.1f, 0.15f, _alpha));
+
+            Text.Font = GameFont.Tiny;
+            // 从最后开始绘制，最新的在最右边
+            float curX = x + width - 4f;
+            for (int i = toolCalls.Count - 1; i >= 0; i--)
+            {
+                var tc = toolCalls[i];
+                string label;
+                Color c;
+                if (tc.Status == ToolStatus.Running)
+                {
+                    label = tc.Name + " …";
+                    c = new Color(1f, 0.8f, 0.3f, _alpha); // 黄色
+                }
+                else if (tc.Status == ToolStatus.Failed)
+                {
+                    label = tc.Name + " ✗";
+                    c = new Color(1f, 0.3f, 0.3f, _alpha); // 红色
+                }
+                else
+                {
+                    label = tc.Name + " ✓";
+                    c = new Color(0.3f, 1f, 0.3f, _alpha); // 绿色
+                }
+
+                float labelWidth = Text.CalcSize(label).x + 8f;
+                curX -= labelWidth;
+                if (curX < x + 4f) break; // 超出空间不绘制
+
+                GUI.color = c;
+                Widgets.Label(new Rect(curX, y + 4f, labelWidth, 16f), label);
+                GUI.color = Color.white;
+                curX -= 4f; // 间距
+            }
+            Text.Font = GameFont.Small;
         }
 
         private void DrawFooter(Rect inRect, float y, float h)

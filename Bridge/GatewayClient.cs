@@ -274,6 +274,10 @@ namespace RimWorldMCP
             {
                 ChatDisplayState.OnChatEvent(root);
             }
+            else if (evt == "agent")
+            {
+                ChatDisplayState.OnAgentEvent(root);
+            }
         }
 
         private static void HandleResponseFrame(JsonElement root)
