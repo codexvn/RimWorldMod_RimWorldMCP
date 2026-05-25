@@ -13,6 +13,7 @@ namespace RimWorldMCP
         public string ItemId = "";
         public string Name = "";
         public string Title = "";
+        public string Meta = "";
         public ToolStatus Status;
     }
 
@@ -212,6 +213,7 @@ namespace RimWorldMCP
             var itemId = data.TryGetProperty("itemId", out var iid) ? iid.GetString() ?? "" : "";
             var name = data.TryGetProperty("name", out var nm) ? nm.GetString() ?? "" : "";
             var title = data.TryGetProperty("title", out var ttl) ? ttl.GetString() ?? name : name;
+            var meta = data.TryGetProperty("meta", out var mt) ? mt.GetString() ?? "" : "";
             var phase = data.TryGetProperty("phase", out var ph) ? ph.GetString() ?? "" : "";
             var status = data.TryGetProperty("status", out var stt) ? stt.GetString() ?? "" : "";
 
@@ -233,6 +235,7 @@ namespace RimWorldMCP
                     }
                     existing.Name = name;
                     existing.Title = title;
+                    existing.Meta = meta;
                     existing.Status = ToolStatus.Running;
                 }
                 else if (existing != null)
@@ -241,8 +244,10 @@ namespace RimWorldMCP
                         existing.Status = ToolStatus.Completed;
                     else if (status == "failed")
                         existing.Status = ToolStatus.Failed;
-                    else if (!string.IsNullOrEmpty(title))
+                    if (!string.IsNullOrEmpty(title))
                         existing.Title = title;
+                    if (!string.IsNullOrEmpty(meta))
+                        existing.Meta = meta;
                 }
 
                 // 保留最近 20 个工具调用

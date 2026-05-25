@@ -116,37 +116,32 @@ namespace RimWorldMCP
                 new Color(0.1f, 0.1f, 0.15f, _alpha));
 
             Text.Font = GameFont.Tiny;
-            // 从最后开始绘制，最新的在最右边
             float curX = x + width - 4f;
             for (int i = toolCalls.Count - 1; i >= 0; i--)
             {
                 var tc = toolCalls[i];
-                string label;
+                // 格式: "调用工具: xxx (参数)"
+                string label = !string.IsNullOrEmpty(tc.Meta)
+                    ? $"{tc.Title} ({tc.Meta})"
+                    : tc.Title;
+                if (string.IsNullOrEmpty(label)) continue;
+
                 Color c;
                 if (tc.Status == ToolStatus.Running)
-                {
-                    label = tc.Name + " …";
                     c = new Color(1f, 0.8f, 0.3f, _alpha); // 黄色
-                }
                 else if (tc.Status == ToolStatus.Failed)
-                {
-                    label = tc.Name + " ✗";
                     c = new Color(1f, 0.3f, 0.3f, _alpha); // 红色
-                }
                 else
-                {
-                    label = tc.Name + " ✓";
                     c = new Color(0.3f, 1f, 0.3f, _alpha); // 绿色
-                }
 
                 float labelWidth = Text.CalcSize(label).x + 8f;
                 curX -= labelWidth;
-                if (curX < x + 4f) break; // 超出空间不绘制
+                if (curX < x + 4f) break;
 
                 GUI.color = c;
                 Widgets.Label(new Rect(curX, y + 4f, labelWidth, 16f), label);
                 GUI.color = Color.white;
-                curX -= 4f; // 间距
+                curX -= 4f;
             }
             Text.Font = GameFont.Small;
         }
