@@ -85,7 +85,11 @@ namespace RimWorldMCP
 
         // ========== 业务 API ==========
 
-        /// <summary>发送消息到 Agent（sessions.steer 服务端处理 abort+wait+send），等待 agent 处理完成</summary>
+        /// <summary>
+        /// 原子发送消息到 Agent。内部使用 _messageLock 确保同一时刻只有一个 send 进行。
+        /// sessions.steer 服务端处理 abort + wait(embedded runner exit) + send。
+        /// 调用方可直接 fire-and-forget，无需额外并发控制。
+        /// </summary>
         public static async Task SendMessage(string text)
         {
             if (!IsReady) return;
@@ -98,10 +102,10 @@ namespace RimWorldMCP
                 return;
             }
 
-            IsSendingMessage = true;
             await _messageLock.WaitAsync();
             try
             {
+                IsSendingMessage = true;
                 ChatDisplayState.OnUserMessage(text);
                 var resp = await Request("sessions.steer", new
                 {
@@ -118,8 +122,8 @@ namespace RimWorldMCP
             }
             finally
             {
-                _messageLock.Release();
                 IsSendingMessage = false;
+                _messageLock.Release();
             }
         }
 

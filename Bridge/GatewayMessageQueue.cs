@@ -21,12 +21,10 @@ namespace RimWorldMCP
         public string Text;
     }
 
-    /// <summary>消息队列 — 同类覆盖 + 等 agent stream 完成才发下一条</summary>
+    /// <summary>消息队列 — 同类覆盖 + SendMessage 统一并发控制</summary>
     public static class GatewayMessageQueue
     {
         private static readonly Dictionary<MessageCategory, PendingMessage> _pending = new();
-        private static bool _sending;
-        private static MessageCategory _currentSendingCategory;
         private static int _lastSendRealMs;
         private static int _lastDailyDaySent = -1;
         private static bool _sessionPromptSent;
@@ -40,20 +38,14 @@ namespace RimWorldMCP
             _pending[category] = new PendingMessage { Category = category, Text = text };
         }
 
-        /// <summary>每帧调用</summary>
+        /// <summary>每帧调用 — 有通知且正在发送时打断，空闲时发送下一条</summary>
         public static void Tick()
         {
-            if (!GatewayClient.IsConnected)
-            {
-                _sending = false;
-                return;
-            }
-
             if (!GatewayClient.IsReady) return;
 
-            // 正在发送中——有通知即打断（sessions.steer 服务端处理 abort+wait）
-            if (_sending || GatewayClient.IsSendingMessage)
+            if (GatewayClient.IsSendingMessage)
             {
+                // 正在发送中——有通知即打断当前 agent
                 if (_pending.Count > 0)
                     GatewayClient.AbortAgent();
                 return;
@@ -61,25 +53,30 @@ namespace RimWorldMCP
 
             if (_pending.Count == 0) return;
 
-            // 取最高优先级发送（SendMessage 内部统一 abort）
+            // 取最高优先级，SendMessage 内部 _messageLock + sessions.steer 保证原子性
             var bestMsg = _pending.Values.OrderByDescending(m => (int)m.Category).First();
             _pending.Remove(bestMsg.Category);
-            _ = DoSend(bestMsg.Category, bestMsg.Text);
+            SendPending(bestMsg.Category, bestMsg.Text);
         }
 
         public static void SendNow(MessageCategory category, string text)
         {
             if (!GatewayClient.IsReady) return;
 
-            if (!_sending)
-            {
-                _ = DoSend(category, text);
-                return;
-            }
+            if (GatewayClient.IsSendingMessage)
+                GatewayClient.AbortAgent();
 
-            // 正在发送中——有通知即打断
-            GatewayClient.AbortAgent();
             _pending[category] = new PendingMessage { Category = category, Text = text };
+
+            // 如果当前没有发送中，立即发
+            if (!GatewayClient.IsSendingMessage)
+            {
+                if (_pending.TryGetValue(category, out var pm) && pm.Text == text)
+                {
+                    _pending.Remove(category);
+                    SendPending(pm.Category, pm.Text);
+                }
+            }
         }
 
         public static void MarkDailySent(int day) => _lastDailyDaySent = day;
@@ -90,17 +87,13 @@ namespace RimWorldMCP
         public static void Reset()
         {
             _pending.Clear();
-            _sending = false;
             _lastSendRealMs = 0;
             _lastDailyDaySent = -1;
             _sessionPromptSent = false;
         }
 
-        private static async System.Threading.Tasks.Task DoSend(MessageCategory category, string text)
+        private static async void SendPending(MessageCategory category, string text)
         {
-            if (!GatewayClient.IsReady) return;
-            _sending = true;
-            _currentSendingCategory = category;
             try
             {
                 await GatewayClient.SendMessage(text);
@@ -109,10 +102,6 @@ namespace RimWorldMCP
             catch (Exception ex)
             {
                 McpLog.Warn($"[queue] 发送失败 ({category}): {ex.Message}");
-            }
-            finally
-            {
-                _sending = false;
             }
         }
     }
