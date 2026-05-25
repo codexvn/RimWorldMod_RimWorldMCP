@@ -198,11 +198,19 @@ namespace RimWorldMCP
         {
             if (!IsReady) return;
 
+            // abort 耗时较长，暂停游戏防意外事件
+            await McpCommandQueue.DispatchAsync<bool>(() =>
+            {
+                Find.TickManager?.Pause();
+                return true;
+            });
+
             var tcs = new TaskCompletionSource<bool>();
             _abortCompleteTcs = tcs;
 
             try
             {
+                await Task.Delay(1000);
                 var resp = await Request("chat.abort", new { sessionKey = SessionKey });
                 McpLog.Info("[ws] ← chat.abort 已确认");
 
@@ -229,6 +237,11 @@ namespace RimWorldMCP
             }
             finally
             {
+                await McpCommandQueue.DispatchAsync<bool>(() =>
+                {
+                    Find.TickManager?.TogglePaused();
+                    return true;
+                });
                 _abortCompleteTcs = null;
             }
         }
@@ -243,7 +256,6 @@ namespace RimWorldMCP
             try
             {
                 IsSendingMessage = true;
-                await Task.Delay(1000);
                 await AbortAgentInternal();
             }
             finally
