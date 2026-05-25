@@ -44,16 +44,18 @@ namespace RimWorldMCP.Tools
                         return ToolResult.Success("地图上没有发现敌对目标。");
 
                     var sb = new StringBuilder();
-                    sb.AppendLine($"## 敌对目标 ({enemies.Count})");
-                    sb.AppendLine("| thingIDNumber | 名称 | 类型 | 坐标 | 状态 |");
-                    sb.AppendLine("|---|---:|---:|---|");
-                    foreach (var e in enemies)
+                    sb.AppendLine($"## 战场态势");
+
+                    // 敌人紧凑编号列表 [1] 名称 类型 (x,z) 状态
+                    sb.AppendLine($"### 敌人 ({enemies.Count})");
+                    for (int i = 0; i < enemies.Count; i++)
                     {
+                        var e = enemies[i];
                         string status = e.Downed ? "倒地"
                             : IsFleeing(e) ? "逃跑中"
                             : e.Drafted ? "征召"
                             : "活跃";
-                        sb.AppendLine($"| {e.thingIDNumber} | {e.LabelShort} | {e.KindLabel} | ({e.Position.x},{e.Position.z}) | {status} |");
+                        sb.AppendLine($"[{i + 1}] {e.LabelShort} | {e.KindLabel} | ({e.Position.x},{e.Position.z}) | {status} | ID:{e.thingIDNumber}");
                     }
 
                     // 已征召殖民者的攻击范围覆盖
@@ -64,11 +66,7 @@ namespace RimWorldMCP.Tools
                     if (drafted.Count > 0)
                     {
                         sb.AppendLine();
-                        sb.AppendLine("## 已征召殖民者 → 可攻击目标");
-                        sb.AppendLine();
-                        sb.AppendLine("| 殖民者 (ID) | 武器 | 类型 | 射程 | 可攻击 (ID) | 当前攻击 |");
-                        sb.AppendLine("|---|---:|---:|---|---|");
-
+                        sb.AppendLine("### 攻击覆盖");
                         foreach (var d in drafted)
                         {
                             var verb = d.CurrentEffectiveVerb;
@@ -79,32 +77,31 @@ namespace RimWorldMCP.Tools
                             if (d.equipment?.Primary != null)
                                 weaponLabel = d.equipment.Primary.Label;
                             else if (isMelee)
-                                weaponLabel = "空手/近战";
+                                weaponLabel = "空手";
                             else
                                 weaponLabel = "无武器";
 
                             string atkType = isMelee ? "近战" : "远程";
+                            string rangeStr = isMelee ? "" : effectiveRange.ToString("F0");
 
-                            // 找出可攻击的敌人
-                            var inRange = enemies
-                                .Where(e =>
-                                {
-                                    float distSq = d.Position.DistanceToSquared(e.Position);
-                                    float rangeSq = effectiveRange * effectiveRange;
-                                    return distSq <= rangeSq;
-                                })
-                                .Select(e => e.thingIDNumber.ToString())
-                                .ToList();
+                            // 找出可攻击的敌人编号 [1,2,3]
+                            var inRangeIdx = new List<int>();
+                            for (int i = 0; i < enemies.Count; i++)
+                            {
+                                float distSq = d.Position.DistanceToSquared(enemies[i].Position);
+                                if (distSq <= effectiveRange * effectiveRange)
+                                    inRangeIdx.Add(i + 1);
+                            }
 
-                            string rangeDisplay = isMelee ? "邻接" : effectiveRange.ToString("F0");
-                            string targetsDisplay = inRange.Count > 0
-                                ? string.Join(", ", inRange)
-                                : "-";
+                            string rangeDisplay = isMelee ? "近战" : $"远程{rangeStr}";
+                            string targetsDisplay = inRangeIdx.Count > 0
+                                ? $"[{string.Join(",", inRangeIdx)}]"
+                                : "[-]";
 
-                            // 正在攻击谁
-                            string attackingDisplay = GetAttackingTarget(d, enemies);
+                            // 正在攻击谁（用编号）
+                            string attackingDisplay = GetAttackingTargetIndex(d, enemies);
 
-                            sb.AppendLine($"| {d.LabelShort} ({d.thingIDNumber}) | {weaponLabel} | {atkType} | {rangeDisplay} | {targetsDisplay} | {attackingDisplay} |");
+                            sb.AppendLine($"{d.LabelShort}({d.thingIDNumber}) {weaponLabel} {rangeDisplay} → {targetsDisplay}{attackingDisplay}");
                         }
                     }
 
@@ -117,21 +114,21 @@ namespace RimWorldMCP.Tools
             });
         }
 
-        private static string GetAttackingTarget(Pawn pawn, List<Pawn> enemies)
+        private static string GetAttackingTargetIndex(Pawn pawn, List<Pawn> enemies)
         {
             var job = pawn.CurJob;
-            if (job == null) return "-";
+            if (job == null) return "";
             bool isAttackJob = job.def == JobDefOf.AttackStatic || job.def == JobDefOf.AttackMelee;
-            if (!isAttackJob) return "-";
+            if (!isAttackJob) return "";
 
             var target = job.targetA.Thing as Pawn;
-            if (target == null || target.Dead || target.Destroyed) return "-";
+            if (target == null || target.Dead || target.Destroyed) return "";
 
-            // 确认目标是敌人
-            if (!enemies.Any(e => e.thingIDNumber == target.thingIDNumber))
-                return $"?{target.LabelShort}";
+            for (int i = 0; i < enemies.Count; i++)
+                if (enemies[i].thingIDNumber == target.thingIDNumber)
+                    return $" ▸{i + 1}";
 
-            return $"→ {target.thingIDNumber}";
+            return "";
         }
 
         private static bool IsFleeing(Pawn pawn)
