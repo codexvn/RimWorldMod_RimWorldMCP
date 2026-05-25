@@ -147,6 +147,7 @@ namespace RimWorldMCP
                 }
                 else
                 {
+                    _sessionInitialized = true;
                     await FirstSend(text);
                 }
             }
