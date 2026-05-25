@@ -190,6 +190,64 @@ GatewayClient 作为 WebSocket 客户端连接 OpenClaw Gateway（默认 `ws://1
 | AlertEnd: 全部 | 正向变化 |
 | `TickManager.Pause` | 对话框暂停不是危险信号（Letter 暂停已由 Letter Patch 覆盖） |
 
+### SendMessage / AbortAgent 并发模型
+
+`SendMessage` 分两阶段，只有 Phase 1 持有 `_messageLock`，Phase 2 无锁：
+
+```
+Phase 1 (加锁): _messageLock.WaitAsync()
+  → IsSendingMessage = true
+  → ChatDisplayState.OnUserMessage(text)
+  → AbortAgentInternal()  ← sessions.abort + lifecycle 等待
+  → _messageLock.Release()
+
+Phase 2 (无锁):
+  → sessions.send 或 agent RPC
+  → IsSendingMessage = false
+```
+
+- `_messageLock` 只序列化 abort，不阻塞 send。用户点"中断"时 `AbortAgent()` 可获取锁执行 abort，不会等 AI 回复完成
+- `IsSendingMessage` 阻止 GatewayMessageQueue 在 send 期间并发推送
+- `AbortAgent()` 保存/恢复 `IsSendingMessage` 旧值，防止在 SendMessage Phase 2 期间误清标志
+
+### sessions.send / sessions.abort 响应格式
+
+**sessions.send** 只返回即时 ack（`{ runId, status: "started" }`），AI 文本通过广播 `"chat"` 事件异步推送：
+```json
+{"type":"event","event":"chat","payload":{"state":"delta"|"final","message":{"content":[...]}}}
+```
+→ `ChatDisplayState.OnChatEvent()` 处理流式输出。
+→ **不要对 sessions.send 用 `expectFinal: true`**（只跳过 `status: "accepted"`，对 `"started"` 无效，死代码）。
+
+**agent RPC**（FirstSend）发两段响应：先 `{ status: "accepted" }`，再最终结果。`expectFinal: true` 必要。
+
+**sessions.abort** 返回 `{ ok, abortedRunId, status }`：
+| status | 含义 |
+|--------|------|
+| `"aborted"` | 有活跃 run 被中断，需等待 lifecycle 确认 |
+| `"no-active-run"` | 无活跃 run，跳过等待 |
+
+### abort lifecycle 事件（TryHandleAbortLifecycle 匹配规则）
+
+`sessions.abort` 后，服务端 `abortChatRunById()` 同步广播事件，TCP 保序保证事件先于 RPC 响应到达：
+
+| # | 事件类型 | 内容 |
+|---|---------|------|
+| 1 | `"chat"` broadcast | `state: "aborted"`, `stopReason: "rpc"` |
+| 2 | `"agent"` broadcast | `stream: "lifecycle"`, `data: { phase: "end", status: "cancelled" }` |
+| 3 | RPC 响应 | `sessions.abort` 返回 |
+
+`TryHandleAbortLifecycle` 匹配事件 2，4 个字段按短路顺序：
+
+| 字段 | 值 | 原因 |
+|------|-----|------|
+| `payload.stream` | `"lifecycle"` | 排除 tool/compaction 事件 |
+| `payload.sessionKey` | `== SessionKey` | 排除其他 agent 事件 |
+| `payload.data.phase` | `"end"` | lifecycle 结束 |
+| `payload.data.status` | `"cancelled"` | **唯一标志**——正常完成 lifecycle 无 status 字段，abort 独有 |
+
+`status: "cancelled"` 只在 `chat-abort.ts:209` 产生，无其他值。正常完成 `emit("end")` 无 status，异常 `emit("error")` 有 `error` 字段无 status。
+
 ### 已验证
 
 Gateway 2026.5.22 + ED25519 V3 签名握手已通过。

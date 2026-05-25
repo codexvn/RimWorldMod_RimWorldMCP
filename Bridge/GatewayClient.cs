@@ -102,8 +102,8 @@ namespace RimWorldMCP
         // ========== 业务 API ==========
 
         /// <summary>
-        /// 发送消息到 Agent。内部使用 _messageLock 确保同一时刻只有一个 send 进行。
-        /// 先阻塞 abort 清理活跃 run，再 sessions.send（不 interrupt）。
+        /// 发送消息到 Agent。_messageLock 只覆盖 abort 阶段，send 阶段无锁。
+        /// 先阻塞 abort 清理活跃 run（~1-2s），再 sessions.send（不 interrupt，等完整响应）。
         /// </summary>
         public static async Task SendMessage(string text)
         {
@@ -117,15 +117,19 @@ namespace RimWorldMCP
                 return;
             }
 
+            // Phase 1: abort（持有 _messageLock，阻止并发 abort/send）
             await _messageLock.WaitAsync();
             try
             {
                 IsSendingMessage = true;
                 ChatDisplayState.OnUserMessage(text);
-
-                // 阻塞等待 abort 完成（~1-2s），再发送新消息
                 await AbortAgentInternal();
+            }
+            finally { _messageLock.Release(); }
 
+            // Phase 2: send（无锁，不阻塞其他 abort；IsSendingMessage 保持 true 阻止队列并发）
+            try
+            {
                 if (_sessionInitialized)
                 {
                     await Request("sessions.send", new
@@ -140,11 +144,7 @@ namespace RimWorldMCP
                     await FirstSend(text);
                 }
             }
-            finally
-            {
-                IsSendingMessage = false;
-                _messageLock.Release();
-            }
+            finally { IsSendingMessage = false; }
         }
 
         /// <summary>首条消息：agent 发送（自动创建 session）</summary>
@@ -155,7 +155,7 @@ namespace RimWorldMCP
                 message = text,
                 sessionKey = SessionKey,
                 idempotencyKey = Guid.NewGuid().ToString("N")
-            });
+            }, expectFinal: true);
 
             _sessionInitialized = true;
             McpLog.Info("[ws] FirstSend 完成，session 已初始化");
@@ -174,7 +174,7 @@ namespace RimWorldMCP
                 await SendJson(new { type = "ping" });
         }
 
-        /// <summary>内层 abort：chat.abort + lifecycle 等待，不加锁（调用方持有 _messageLock）</summary>
+        /// <summary>内层 abort：sessions.abort + lifecycle 等待，不加锁（调用方持有 _messageLock）</summary>
         private static async Task AbortAgentInternal()
         {
             if (!IsReady) return;
@@ -184,12 +184,14 @@ namespace RimWorldMCP
 
             try
             {
-                var resp = await Request("chat.abort", new { sessionKey = SessionKey });
-                McpLog.Info("[ws] ← chat.abort 已确认");
+                var resp = await Request("sessions.abort", new { key = SessionKey });
+                McpLog.Info("[ws] ← sessions.abort 已确认");
 
+                // sessions.abort 返回 { ok, abortedRunId, status }
+                // status: "aborted" | "no-active-run"
                 var aborted = resp.TryGetProperty("payload", out var pl)
-                    && pl.TryGetProperty("aborted", out var a)
-                    && a.GetBoolean();
+                    && pl.TryGetProperty("status", out var st)
+                    && st.GetString() == "aborted";
 
                 if (!aborted)
                 {
@@ -206,7 +208,7 @@ namespace RimWorldMCP
             }
             catch (Exception ex)
             {
-                McpLog.Warn($"[ws] chat.abort 失败: {ex.Message}");
+                McpLog.Warn($"[ws] sessions.abort 失败: {ex.Message}");
             }
             finally
             {
@@ -219,6 +221,7 @@ namespace RimWorldMCP
         {
             if (!IsReady) return;
 
+            var wasSending = IsSendingMessage;
             await _messageLock.WaitAsync();
             try
             {
@@ -227,7 +230,7 @@ namespace RimWorldMCP
             }
             finally
             {
-                IsSendingMessage = false;
+                IsSendingMessage = wasSending;
                 _messageLock.Release();
             }
         }
@@ -392,10 +395,17 @@ namespace RimWorldMCP
             var tcs = _abortCompleteTcs;
             if (tcs == null) return;
 
+            // lifecycle 事件结构: payload.stream="lifecycle", payload.data.{ phase, status }
+            // 必须匹配自己的 sessionKey，避免其他 agent 的事件误触发
             if (root.TryGetProperty("payload", out var payload)
-                && payload.TryGetProperty("phase", out var phase)
+                && payload.TryGetProperty("stream", out var stream)
+                && stream.GetString() == "lifecycle"
+                && payload.TryGetProperty("sessionKey", out var sk)
+                && sk.GetString() == SessionKey
+                && payload.TryGetProperty("data", out var data)
+                && data.TryGetProperty("phase", out var phase)
                 && phase.GetString() == "end"
-                && payload.TryGetProperty("status", out var status)
+                && data.TryGetProperty("status", out var status)
                 && status.GetString() == "cancelled")
             {
                 tcs.TrySetResult(true);
