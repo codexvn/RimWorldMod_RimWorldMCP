@@ -27,6 +27,7 @@ namespace RimWorldMCP
         public override void StartedNewGame()
         {
             base.StartedNewGame();
+            GatewayClient.AbortSession();
             _sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
             _sessionKey = "agent:main:rimworld-" + Guid.NewGuid().ToString("N").Substring(0, 12);
             StartMcpService();
@@ -36,6 +37,7 @@ namespace RimWorldMCP
         public override void LoadedGame()
         {
             base.LoadedGame();
+            GatewayClient.AbortSession();
             _sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
             StartMcpService();
             AttachMapUI();
@@ -44,6 +46,19 @@ namespace RimWorldMCP
         public override void GameComponentUpdate()
         {
             base.GameComponentUpdate();
+
+            // 进入游戏自动打开对话窗口（延迟到 WindowStack 就绪）
+            if (AutoOpenChat)
+            {
+                AutoOpenChat = false;
+                try
+                {
+                    if (Find.CurrentMap != null && !Find.WindowStack.IsOpen<Dialog_AiChat>())
+                        Find.WindowStack.Add(new Dialog_AiChat());
+                }
+                catch { /* 窗口创建失败不影响游戏 */ }
+            }
+
             McpLog.Flush();
             McpCommandQueue.ProcessPending();
             BridgeLifecycle.Tick();

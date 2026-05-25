@@ -15,14 +15,6 @@ namespace RimWorldMCP
             base.MapComponentOnGUI();
             if (Find.CurrentMap == null) return;
 
-            // 进入游戏自动打开对话窗口
-            if (GameComponent_McpServer.AutoOpenChat)
-            {
-                GameComponent_McpServer.AutoOpenChat = false;
-                if (!Find.WindowStack.IsOpen<Dialog_AiChat>())
-                    Find.WindowStack.Add(new Dialog_AiChat());
-            }
-
             // 放在时间控件上方，对齐原版 ToggleableIcon 大小
             float btnSize = 24f;
             float x = UI.screenWidth - 162f;
