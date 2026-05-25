@@ -13,10 +13,10 @@ namespace RimWorldMCP
             base.MapComponentOnGUI();
             if (Find.CurrentMap == null) return;
 
-            // 放在时间控件上方
-            float btnSize = 32f;
-            float x = UI.screenWidth - 170f;
-            float y = UI.screenHeight - 75f;
+            // 放在时间控件上方，对齐原版 ToggleableIcon 大小
+            float btnSize = 24f;
+            float x = UI.screenWidth - 162f;
+            float y = UI.screenHeight - 72f;
             Rect btnRect = new Rect(x, y, btnSize, btnSize);
 
             bool isOpen = Find.WindowStack.IsOpen<Dialog_AiChat>();
@@ -42,7 +42,7 @@ namespace RimWorldMCP
 
             if (isOpen)
             {
-                Rect markerRect = new Rect(btnRect.xMax - 8f, btnRect.yMax - 8f, 6f, 6f);
+                Rect markerRect = new Rect(btnRect.xMax - 6f, btnRect.yMax - 6f, 4f, 4f);
                 Widgets.DrawBoxSolid(markerRect, Color.green);
             }
 

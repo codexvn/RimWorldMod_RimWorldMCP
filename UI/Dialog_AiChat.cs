@@ -70,8 +70,8 @@ namespace RimWorldMCP
             Rect scrollRect = new Rect(inRect.x + 6f, inRect.y + topMargin,
                 inRect.width - 12f, inRect.height - toolStripH - footerHeight - topMargin - 4f);
 
-            // 计算消息列表总高度
-            float contentWidth = scrollRect.width - 8f;
+            // 内容宽 = 可视区 - 垂直滚动条宽度(16) - 边距，避免横向滚动条
+            float contentWidth = scrollRect.width - 16f - 4f;
             float totalH = 4f;
             foreach (var entry in entries)
                 totalH += CalcEntryHeight(entry, contentWidth) + 8f;
