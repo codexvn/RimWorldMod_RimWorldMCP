@@ -40,6 +40,7 @@ namespace RimWorldMCP
         private static TaskCompletionSource<bool>? _helloOk;
         private static int _tickIntervalMs = 30000;
         private static DateTime _lastTick = DateTime.MinValue;
+        private static string? _currentRunId;
         private static int _reconnectDelayMs = 5000;
         private static int _reconnectAttempts = 0;
         private static bool _reconnecting = false;
@@ -54,6 +55,9 @@ namespace RimWorldMCP
 
         /// <summary>当前存档的会话 ID，持久化在 ExposeData 中。</summary>
         public static string SessionId { get; set; } = "rimworld";
+
+        /// <summary>持久化会话路由键，格式 agent:&lt;id&gt;:&lt;name&gt;</summary>
+        public static string SessionKey { get; set; } = "agent:main:main";
 
         // ========== 通用 RPC 调用（Vantix request() 模式） ==========
 
@@ -77,6 +81,7 @@ namespace RimWorldMCP
             await Request("agent", new
             {
                 message = text,
+                sessionKey = SessionKey,
                 sessionId = SessionId,
                 idempotencyKey = Guid.NewGuid().ToString("N")
             }, expectFinal: true);
@@ -93,6 +98,14 @@ namespace RimWorldMCP
         {
             if (_ws?.State == WebSocketState.Open)
                 await SendJson(new { type = "ping" });
+        }
+
+        /// <summary>中止当前 agent run（chat.abort sessionKey + runId），不等待响应</summary>
+        public static void AbortAgent()
+        {
+            if (!IsReady) return;
+            _ = Request("chat.abort", new { sessionKey = SessionKey, runId = _currentRunId });
+            McpLog.Info($"[ws] → chat.abort sessionKey={SessionKey} runId={_currentRunId}");
         }
 
         // ========== 连接管理 ==========
@@ -144,6 +157,7 @@ namespace RimWorldMCP
             _shuttingDown = true;
             _cts?.Cancel();
             _state = ClientState.Disconnected;
+            _currentRunId = null;
             FlushPending(new Exception("disconnected"));
             try { _ws?.Dispose(); } catch { }
             _ws = null;
@@ -286,7 +300,11 @@ namespace RimWorldMCP
                 status = stElem.GetString() ?? "ok";
 
             if (pr.ExpectFinal && status == "accepted")
+            {
+                if (resPl.TryGetProperty("runId", out var runIdElem))
+                    _currentRunId = runIdElem.GetString();
                 return; // 跳过中间 ack，等最终响应
+            }
 
             _pending.TryRemove(id, out _);
 

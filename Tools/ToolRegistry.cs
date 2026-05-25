@@ -63,42 +63,6 @@ namespace RimWorldMCP.Tools
             return _resources;
         }
 
-        private static async Task<string> BuildGameMessageSuffixAsync()
-        {
-            var buffered = new List<string>();
-            // 从 Tick() 推送的格式化队列中取
-            while (GatewayEventMonitor.RecentNotifications.TryDequeue(out var msg))
-                buffered.Add(msg);
-
-            // 取走 Tick 周期间 Harmony Patch 拦截但尚未格式化的通知
-            string? unprocessed = null;
-            try
-            {
-                unprocessed = await McpCommandQueue.DispatchAsync(
-                    () => NotificationBus.DrainFormatted());
-            }
-            catch { /* 调度失败不影响工具结果 */ }
-
-            if (buffered.Count == 0 && string.IsNullOrEmpty(unprocessed)) return "";
-
-            var sb = new StringBuilder();
-            sb.AppendLine();
-            sb.AppendLine("---");
-            sb.AppendLine("### 游戏消息");
-            foreach (var m in buffered)
-                sb.AppendLine($"- {m}");
-            if (!string.IsNullOrEmpty(unprocessed))
-            {
-                foreach (var line in unprocessed.Split('\n'))
-                {
-                    if (!string.IsNullOrWhiteSpace(line))
-                        sb.AppendLine(line);
-                }
-            }
-
-            return sb.ToString();
-        }
-
         public string? ReadResource(string uri)
         {
             return _resources.Any(r => r.Uri == uri)
@@ -114,14 +78,21 @@ namespace RimWorldMCP.Tools
                 {
                     var result = await tool.ExecuteAsync(args);
 
-                    // 捕获工具调用间隙的游戏内消息
-                    var gameMessages = await BuildGameMessageSuffixAsync();
+                    // 工具结束时补推剩余通知（非高危）
+                    try
+                    {
+                        var remaining = await McpCommandQueue.DispatchAsync(
+                            () => NotificationBus.DrainFormatted());
+                        if (!string.IsNullOrEmpty(remaining))
+                            GatewayMessageQueue.Enqueue(MessageCategory.Alert, remaining);
+                    }
+                    catch { /* 调度失败不影响工具结果 */ }
 
                     return new ToolCallResult
                     {
                         Content = new List<ContentItem>
                         {
-                            new() { Type = "text", Text = result.Text + gameMessages }
+                            new() { Type = "text", Text = result.Text }
                         },
                         IsError = result.IsError
                     };

@@ -74,8 +74,8 @@ namespace RimWorldMCP.Tools
                         return ToolResult.Error($"{pawn.Name.ToStringShort} 无法到达 {target.Label}。");
 
                     // 验证：任务相关（仅活体）
-                    Pawn targetPawn = target as Pawn;
-                    if (targetPawn != null && targetPawn.HasExtraHomeFaction((Quest)null))
+                    Pawn? targetPawn = target as Pawn;
+                    if (targetPawn != null && targetPawn.HasExtraHomeFaction((Quest)null!))
                         return ToolResult.Error($"{target.Label} 与任务相关，无法剥除。");
 
                     // 执行剥除

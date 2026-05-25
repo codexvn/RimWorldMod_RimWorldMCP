@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Verse;
 
 namespace RimWorldMCP
 {
@@ -24,10 +25,16 @@ namespace RimWorldMCP
     {
         private static readonly Dictionary<MessageCategory, PendingMessage> _pending = new();
         private static bool _sending;
+        private static MessageCategory _currentSendingCategory;
+        private static bool _abortSent;
         private static int _idleFrames;
         private const int IdleFramesBeforeSend = 30; // ~0.5s 窗口让同类消息覆盖
+        private static int _lastSendTick;
         private static int _lastDailyDaySent = -1;
         private static bool _sessionPromptSent;
+
+        /// <summary>最后一次成功发送 agent 消息时的游戏 tick</summary>
+        public static int LastSendTick => _lastSendTick;
 
         public static void Enqueue(MessageCategory category, string text)
         {
@@ -42,17 +49,28 @@ namespace RimWorldMCP
         {
             if (!GatewayClient.IsConnected)
             {
-                _pending.Clear();
                 _sending = false;
-                _lastDailyDaySent = -1;
-                _sessionPromptSent = false;
+                _abortSent = false;
                 return;
             }
 
             if (!GatewayClient.IsReady) return;
 
-            // 正在发消息，等 SendMessage 完成
-            if (_sending) return;
+            // 正在发送中——检测是否需要打断
+            if (_sending)
+            {
+                if (_pending.Count > 0 && !_abortSent)
+                {
+                    var best = _pending.Values.OrderByDescending(m => (int)m.Category).First();
+                    if ((int)best.Category > (int)_currentSendingCategory)
+                    {
+                        GatewayClient.AbortAgent();
+                        _abortSent = true;
+                    }
+                }
+                return;
+            }
+
             if (_pending.Count == 0) return;
 
             // 短暂稳定窗口让同类消息覆盖
@@ -63,15 +81,35 @@ namespace RimWorldMCP
             }
 
             // 取最高优先级发送
-            var best = _pending.Values.OrderByDescending(m => (int)m.Category).First();
-            _pending.Remove(best.Category);
-            _ = DoSend(best.Category, best.Text);
+            var bestMsg = _pending.Values.OrderByDescending(m => (int)m.Category).First();
+            _pending.Remove(bestMsg.Category);
+            _ = DoSend(bestMsg.Category, bestMsg.Text);
         }
 
         public static void SendNow(MessageCategory category, string text)
         {
-            if (!GatewayClient.IsReady || _sending) return;
-            _ = DoSend(category, text);
+            if (!GatewayClient.IsReady) return;
+
+            if (!_sending)
+            {
+                _ = DoSend(category, text);
+                return;
+            }
+
+            // 正在发送中——比较优先级决定是否打断（仅首次）
+            if ((int)category > (int)_currentSendingCategory)
+            {
+                if (!_abortSent)
+                {
+                    GatewayClient.AbortAgent();
+                    _abortSent = true;
+                }
+                _pending[category] = new PendingMessage { Category = category, Text = text };
+            }
+            else
+            {
+                _pending[category] = new PendingMessage { Category = category, Text = text };
+            }
         }
 
         public static void MarkDailySent(int day) => _lastDailyDaySent = day;
@@ -83,6 +121,8 @@ namespace RimWorldMCP
         {
             _pending.Clear();
             _sending = false;
+            _abortSent = false;
+            _lastSendTick = 0;
             _lastDailyDaySent = -1;
             _sessionPromptSent = false;
         }
@@ -91,9 +131,11 @@ namespace RimWorldMCP
         {
             if (!GatewayClient.IsReady) return;
             _sending = true;
+            _currentSendingCategory = category;
             try
             {
                 await GatewayClient.SendMessage(text);
+                _lastSendTick = Find.TickManager?.TicksGame ?? 0;
             }
             catch (Exception ex)
             {
@@ -102,6 +144,7 @@ namespace RimWorldMCP
             finally
             {
                 _sending = false;
+                _abortSent = false;
             }
         }
     }

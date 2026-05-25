@@ -29,11 +29,31 @@ namespace RimWorldMCP.Harmony
         private const int MaxNotifiedMessages = 2000;
         private static readonly HashSet<string> NotifiedMessages = new();
 
+        /// <summary>高危通知标记 — GatewayEventMonitor.Tick() 每帧检查</summary>
+        public static volatile bool HighDangerPending;
+
         // ========== 供 Patch 调用 ==========
 
         public static void Enqueue(Notification n)
         {
             Pending.Enqueue(n);
+            McpLog.Info($"[notify] + {n.Type} danger={n.DangerLabel} pri={n.Priority} label={n.Label}");
+            if (!HighDangerPending && IsHighDanger(n.Type, n.DangerLabel, n.Priority))
+                HighDangerPending = true;
+        }
+
+        internal static bool IsHighDanger(NotificationType type, string dangerLabel, int alertPriority)
+        {
+            switch (type)
+            {
+                case NotificationType.Letter:
+                case NotificationType.Message:
+                    return dangerLabel is "大威胁" or "小威胁" or "死亡" or "角色死亡" or "健康事件";
+                case NotificationType.AlertStart:
+                    return alertPriority >= 2;
+                default:
+                    return false;
+            }
         }
 
         public static bool IsLetterNotified(int letterId) => NotifiedLetters.Contains(letterId);
@@ -57,19 +77,15 @@ namespace RimWorldMCP.Harmony
         /// <summary>警报变为活跃：存入镜像（不持 Alert 引用）。</summary>
         public static void OnAlertStarted(string key, string label, int priority, string?[] culprits)
         {
-            ActiveAlerts[key] = new AlertInfo
-            {
-                Key = key,
-                Label = label,
-                Priority = priority,
-                Culprits = culprits
-            };
+            ActiveAlerts[key] = new AlertInfo { Key = key, Label = label, Priority = priority, Culprits = culprits };
+            McpLog.Info($"[notify] alert+ pri={priority} key={key} label={label}");
         }
 
         /// <summary>警报解除：从镜像移除。</summary>
         public static void OnAlertEnded(string key)
         {
             ActiveAlerts.Remove(key);
+            McpLog.Info($"[notify] alert- key={key}");
         }
 
         /// <summary>获取上次解禁警报的标签。</summary>
@@ -86,6 +102,8 @@ namespace RimWorldMCP.Harmony
             var list = new List<Notification>();
             while (Pending.TryDequeue(out var n))
                 list.Add(n);
+            if (list.Count > 0)
+                McpLog.Info($"[notify] drain {list.Count}件, 队列剩余 {Pending.Count}");
             return list;
         }
 
@@ -131,10 +149,16 @@ namespace RimWorldMCP.Harmony
         /// <summary>清空所有状态（新游戏开始时调用）。</summary>
         public static void Reset()
         {
+            var pendingCount = Pending.Count;
+            var alertCount = ActiveAlerts.Count;
+            var letterCount = NotifiedLetters.Count;
+            var msgCount = NotifiedMessages.Count;
             NotifiedLetters.Clear();
             NotifiedMessages.Clear();
             ActiveAlerts.Clear();
+            HighDangerPending = false;
             while (Pending.TryDequeue(out _)) { }
+            McpLog.Info($"[notify] reset — 清空 pending={pendingCount} alerts={alertCount} letters={letterCount} msgs={msgCount}");
         }
     }
 }

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,19 +14,58 @@ namespace RimWorldMCP
         private static int _nextCheckTick;
         private const int CheckIntervalTicks = 120;
         private static int _lastColonistCount = -1;
-
-        /// <summary>近期通知（供 Tool 执行后附加到响应中）。</summary>
-        public static readonly ConcurrentQueue<string> RecentNotifications = new();
+        private const int IdleTimeoutTicks = 6000;
 
         public static void Reset()
         {
             NotificationBus.Reset();
-            while (RecentNotifications.TryDequeue(out _)) { }
         }
 
         public static void Tick()
         {
             if (!GatewayClient.IsConnected) return;
+
+            // === 每帧：高危通知即时处理 ===
+            if (NotificationBus.HighDangerPending && GatewayClient.IsReady)
+            {
+                NotificationBus.HighDangerPending = false;
+                var emergencyList = NotificationBus.Drain();
+                if (emergencyList.Count > 0)
+                {
+                    var emMap = Find.CurrentMap;
+                    if (emMap != null)
+                    {
+                        var emColonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                        var emLines = new List<string>();
+                        bool hasEmergency = false;
+
+                        foreach (var n in emergencyList)
+                        {
+                            if (NotificationBus.IsHighDanger(n.Type, n.DangerLabel, n.Priority))
+                            {
+                                PushEmergency(n, emMap, emColonists, emColonists.Count);
+                                hasEmergency = true;
+                            }
+                            else
+                            {
+                                AddNotifyLine(n, emLines);
+                            }
+                        }
+
+                        if (hasEmergency && emLines.Count > 0)
+                        {
+                            var sb = new StringBuilder();
+                            sb.AppendLine("## ⚠ 殖民地警报");
+                            foreach (var line in emLines)
+                                sb.AppendLine($"- {line}");
+                            sb.Append(BuildColonySummary(emMap, emColonists, emColonists.Count));
+                            GatewayMessageQueue.Enqueue(MessageCategory.Alert, sb.ToString().TrimEnd());
+                        }
+                    }
+                }
+            }
+
+            // === 120 tick 定时：普通通知 + 殖民者 + 早报 ===
             var tick = Find.TickManager?.TicksGame ?? 0;
             if (tick < _nextCheckTick) return;
             _nextCheckTick = tick + CheckIntervalTicks;
@@ -42,43 +80,16 @@ namespace RimWorldMCP
             var notifications = NotificationBus.Drain();
             bool hasNotifications = notifications.Count > 0;
 
-            // 格式化通知文本
+            // 格式化通知文本 + 高危事件即时推送
             var notifyLines = new List<string>();
             foreach (var n in notifications)
             {
-                switch (n.Type)
+                if (NotificationBus.IsHighDanger(n.Type, n.DangerLabel, n.Priority))
                 {
-                    case NotificationType.Letter:
-                        var letterSb = new StringBuilder();
-                        letterSb.Append($"[{n.DangerLabel}] {n.Label}");
-                        if (!string.IsNullOrEmpty(n.Text))
-                            letterSb.Append($" — {n.Text}");
-                        notifyLines.Add(letterSb.ToString());
-                        // 大威胁立即发送
-                        if (n.DangerLabel == "大威胁")
-                        {
-                            var alertSb = new StringBuilder();
-                            alertSb.AppendLine($"## [{n.DangerLabel}] {n.Label}");
-                            if (!string.IsNullOrEmpty(n.Text))
-                                alertSb.AppendLine(n.Text);
-                            alertSb.Append(BuildColonySummary(map, colonists, colonistCount));
-                            GatewayMessageQueue.SendNow(MessageCategory.RaidStart, alertSb.ToString().TrimEnd());
-                            hasNotifications = true;
-                        }
-                        break;
-                    case NotificationType.Message:
-                        notifyLines.Add($"[{n.DangerLabel}] {n.Text}");
-                        RecentNotifications.Enqueue($"[{n.DangerLabel}] {n.Text}");
-                        break;
-                    case NotificationType.AlertStart:
-                        var culprits = n.Culprits != null && n.Culprits.Count > 0
-                            ? $": {string.Join(", ", n.Culprits.Take(5))}" : "";
-                        notifyLines.Add($"[{n.PriorityLabel}] {n.Label}{culprits}");
-                        break;
-                    case NotificationType.AlertEnd:
-                        notifyLines.Add($"   [{n.Label} 已解除]");
-                        break;
+                    PushEmergency(n, map, colonists, colonistCount);
+                    hasNotifications = true;
                 }
+                AddNotifyLine(n, notifyLines);
             }
 
             // === 2. 殖民者数量变化 ===
@@ -102,7 +113,14 @@ namespace RimWorldMCP
                 GatewayMessageQueue.Enqueue(MessageCategory.Alert, sb.ToString().TrimEnd());
             }
 
-            // === 4. 早报（游戏时间每天早上 6 点） ===
+            // === 4. 空闲兜底：长时间无 agent 消息时推送概览 ===
+            if (GatewayMessageQueue.LastSendTick > 0 && tick - GatewayMessageQueue.LastSendTick > IdleTimeoutTicks)
+            {
+                var overview = BuildColonyOverview(map, colonists, colonistCount);
+                GatewayMessageQueue.Enqueue(MessageCategory.Alert, overview);
+            }
+
+            // === 5. 早报（游戏时间每天早上 6 点） ===
             int hour = GenLocalDate.HourOfDay(map);
             int day = tick / 60000;
             if (hour == 6 && !GatewayMessageQueue.WasDailySentToday(day))
@@ -188,6 +206,34 @@ namespace RimWorldMCP
             return sb.ToString().TrimEnd();
         }
 
+        /// <summary>轻量殖民地概览（空闲兜底推送）</summary>
+        private static string BuildColonyOverview(Map map, List<Pawn> colonists, int colonistCount)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("## 殖民地概览");
+
+            var weather = map.weatherManager?.curWeather;
+            float temp = map.mapTemperature?.OutdoorTemp ?? 0f;
+            sb.AppendLine($"天气: {weather?.label ?? "?"}, 室外 {temp:F0}°C");
+
+            float avgMood = colonists.Count > 0
+                ? colonists.Average(c => c.needs?.mood?.CurLevelPercentage ?? 0.5f) * 100f
+                : 0f;
+            sb.AppendLine($"殖民者: {colonistCount} 人 | 平均心情 {avgMood:F0}%");
+
+            sb.Append(BuildColonySummary(map, colonists, colonistCount));
+
+            var nativeLines = NativeAlertHelper.BuildAlertLines(NativeAlertHelper.GetActiveAlerts());
+            if (nativeLines.Count > 0)
+            {
+                sb.AppendLine("警报:");
+                foreach (var a in nativeLines)
+                    sb.AppendLine($"  - {a}");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
         /// <summary>殖民地概要（附加在消息末尾）</summary>
         private static string BuildColonySummary(Map map, List<Pawn> colonists, int colonistCount)
         {
@@ -208,6 +254,63 @@ namespace RimWorldMCP
         }
 
         // ========== 工具方法 ==========
+
+        /// <summary>高危通知即时推送</summary>
+        private static void PushEmergency(Notification n, Map map, List<Pawn> colonists, int count)
+        {
+            string header, detail;
+            switch (n.Type)
+            {
+                case NotificationType.Letter:
+                    header = $"## [{n.DangerLabel}] {n.Label}";
+                    detail = n.Text ?? "";
+                    break;
+                case NotificationType.Message:
+                    header = $"## [{n.DangerLabel}] 紧急消息";
+                    detail = n.Text ?? "";
+                    break;
+                case NotificationType.AlertStart:
+                    header = $"## [CRITICAL] {n.Label}";
+                    detail = n.Culprits != null && n.Culprits.Count > 0
+                        ? string.Join(", ", n.Culprits.Take(5)) : "";
+                    break;
+                default:
+                    return;
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine(header);
+            if (!string.IsNullOrEmpty(detail))
+                sb.AppendLine(detail);
+            sb.Append(BuildColonySummary(map, colonists, count));
+            GatewayMessageQueue.SendNow(MessageCategory.RaidStart, sb.ToString().TrimEnd());
+        }
+
+        /// <summary>通知格式化为告警行</summary>
+        private static void AddNotifyLine(Notification n, List<string> lines)
+        {
+            switch (n.Type)
+            {
+                case NotificationType.Letter:
+                    var letterLine = new StringBuilder();
+                    letterLine.Append($"[{n.DangerLabel}] {n.Label}");
+                    if (!string.IsNullOrEmpty(n.Text))
+                        letterLine.Append($" — {n.Text}");
+                    lines.Add(letterLine.ToString());
+                    break;
+                case NotificationType.Message:
+                    lines.Add($"[{n.DangerLabel}] {n.Text}");
+                    break;
+                case NotificationType.AlertStart:
+                    var culprits = n.Culprits != null && n.Culprits.Count > 0
+                        ? $": {string.Join(", ", n.Culprits.Take(5))}" : "";
+                    lines.Add($"[{n.PriorityLabel}] {n.Label}{culprits}");
+                    break;
+                case NotificationType.AlertEnd:
+                    lines.Add($"   [{n.Label} 已解除]");
+                    break;
+            }
+        }
 
         private static int GetCountByDefName(Map map, string defName)
         {

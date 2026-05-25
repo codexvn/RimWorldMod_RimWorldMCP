@@ -16,6 +16,7 @@ namespace RimWorldMCP
         private CancellationTokenSource? _cts;
         private static ITransport? s_activeTransport;
         private string _sessionId = "";
+        private string _sessionKey = "";
         private const int DefaultPort = 9877;
         private const string DefaultHost = "0.0.0.0";
 
@@ -26,13 +27,15 @@ namespace RimWorldMCP
         public override void StartedNewGame()
         {
             base.StartedNewGame();
-            _sessionId = "rimworld-" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            _sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
+            _sessionKey = "agent:main:rimworld-" + Guid.NewGuid().ToString("N").Substring(0, 12);
             StartMcpService();
         }
 
         public override void LoadedGame()
         {
             base.LoadedGame();
+            _sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
             StartMcpService();
         }
 
@@ -49,20 +52,20 @@ namespace RimWorldMCP
         public override void ExposeData()
         {
             base.ExposeData();
-            Scribe_Values.Look(ref _sessionId, "mcpSessionId", "");
+            Scribe_Values.Look(ref _sessionKey, "mcpSessionKey", "");
             // 旧存档没有此字段时自动生成
-            if (Scribe.mode == LoadSaveMode.LoadingVars && string.IsNullOrEmpty(_sessionId))
-                _sessionId = "rimworld-" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            if (Scribe.mode == LoadSaveMode.LoadingVars && string.IsNullOrEmpty(_sessionKey))
+                _sessionKey = "agent:main:rimworld-" + Guid.NewGuid().ToString("N").Substring(0, 12);
         }
 
         public override void FinalizeInit()
         {
             base.FinalizeInit();
-            // 如果 ExposeData 在 StartMcpService 之后才还原 _sessionId，在这里补同步
-            if (!string.IsNullOrEmpty(_sessionId) && GatewayClient.SessionId != _sessionId)
+            // 如果 ExposeData 在 StartMcpService 之后才还原 _sessionKey，在这里补同步
+            if (!string.IsNullOrEmpty(_sessionKey) && GatewayClient.SessionKey != _sessionKey)
             {
-                GatewayClient.SessionId = _sessionId;
-                McpLog.Info($"[session] FinalizeInit 同步 ID = {_sessionId}");
+                GatewayClient.SessionKey = _sessionKey;
+                McpLog.Info($"[session] FinalizeInit 同步 Key = {_sessionKey}");
             }
         }
 
@@ -114,7 +117,8 @@ namespace RimWorldMCP
 
                 // 同步存档会话 ID 到 Gateway
                 GatewayClient.SessionId = _sessionId;
-                McpLog.Info($"[session] ID = {_sessionId}");
+                GatewayClient.SessionKey = _sessionKey;
+                McpLog.Info($"[session] Key = {_sessionKey}, ID = {_sessionId}");
 
                 // 新游戏/加载游戏时重置事件监控的已见 Letter 列表
                 GatewayEventMonitor.Reset();

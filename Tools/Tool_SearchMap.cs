@@ -50,7 +50,7 @@ namespace RimWorldMCP.Tools
             bool hasCenter = args != null
                 && args.Value.TryGetProperty("pos_x", out var px) && px.TryGetInt32(out cx)
                 && args.Value.TryGetProperty("pos_y", out var py) && py.TryGetInt32(out cz);
-            if (hasCenter && args.Value.TryGetProperty("radius", out var r))
+            if (hasCenter && args!.Value.TryGetProperty("radius", out var r))
                 r.TryGetSingle(out radius);
 
             string category = "all";

@@ -1,3 +1,4 @@
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -7,6 +8,7 @@ namespace RimWorldMCP
     {
         public static RimWorldMCPMod Instance { get; private set; } = null!;
         public McpModSettings Settings { get; private set; }
+        private Vector2 _scrollPos;
 
         public RimWorldMCPMod(ModContentPack content) : base(content)
         {
@@ -22,8 +24,15 @@ namespace RimWorldMCP
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
+            float h = 600f;
+            if (Settings.BridgeType > 0) h += 200f;
+            if (Settings.OssEnabled) h += 220f;
+            if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
+
+            Rect viewRect = new Rect(0f, 0f, inRect.width - 16f, h);
+            Widgets.BeginScrollView(inRect, ref _scrollPos, viewRect);
             var listing = new Listing_Standard();
-            listing.Begin(inRect);
+            listing.Begin(viewRect);
 
             // ====== 日志级别 ======
             listing.Label($"日志级别: {McpModSettings.LogLevelLabels[(int)Settings.LogLevel]}");
@@ -71,6 +80,15 @@ namespace RimWorldMCP
 
                 listing.Label("Password");
                 Settings.BridgePassword = listing.TextEntry(Settings.BridgePassword);
+
+                listing.Gap(12f);
+                if (listing.ButtonText("中断 Agent（chat.abort）"))
+                {
+                    if (GatewayClient.IsReady)
+                        GatewayClient.AbortAgent();
+                    else
+                        Messages.Message("Gateway 未连接", MessageTypeDefOf.RejectInput, false);
+                }
             }
 
             listing.Gap(24f);
@@ -110,6 +128,7 @@ namespace RimWorldMCP
             }
 
             listing.End();
+            Widgets.EndScrollView();
         }
     }
 }
