@@ -26,7 +26,7 @@ namespace RimWorldMCP
         {
             float h = 600f;
             if (Settings.BridgeType == 1) h += 200f;
-            else if (Settings.BridgeType == 2) h += 130f;
+            else if (Settings.BridgeType == 2) h += 160f;
             if (Settings.OssEnabled) h += 220f;
             if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
 
@@ -83,15 +83,20 @@ namespace RimWorldMCP
             }
             else if (Settings.BridgeType == 2) // CC
             {
-                listing.Label("CC Companion WebSocket 地址");
-                listing.Label("默认: ws://127.0.0.1:19999/rimworld，可改为远程地址");
+                listing.Label("连接地址 (WebSocket URL)");
+                listing.Label("本地: ws://127.0.0.1:19999/rimworld，远程: ws://IP:端口/rimworld");
                 Settings.CCUrl = listing.TextEntry(Settings.CCUrl);
 
                 listing.Gap(6f);
                 listing.CheckboxLabeled("自动启动本地 Companion", ref Settings.CCAutoStart,
-                    "开启后，游戏加载时自动 spawn Node.js 子进程。连接远程 Companion 时请关闭。");
+                    "开启后，游戏加载时自动 spawn Node.js 子进程，监听下方端口。");
 
-                listing.Label("Token (可选，与 CC Companion --token 一致)");
+                listing.Label("本地监听端口");
+                var ccPortStr = listing.TextEntry(Settings.LocalCCPort.ToString());
+                if (int.TryParse(ccPortStr, out int ccPort) && ccPort > 0 && ccPort <= 65535)
+                    Settings.LocalCCPort = ccPort;
+
+                listing.Label("Token (可选)");
                 Settings.CCToken = listing.TextEntry(Settings.CCToken);
             }
 

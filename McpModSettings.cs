@@ -19,6 +19,7 @@ namespace RimWorldMCP
 
         // CC 桥接
         public string CCUrl = "ws://127.0.0.1:19999/rimworld";
+        public int LocalCCPort = 19999;
         public string CCToken = "";
         public bool CCAutoStart = true;
 
@@ -47,6 +48,7 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref BridgeToken, "bridgeToken", "");
             Scribe_Values.Look(ref BridgePassword, "bridgePassword", "");
             Scribe_Values.Look(ref CCUrl, "ccUrl", "ws://127.0.0.1:19999/rimworld");
+            Scribe_Values.Look(ref LocalCCPort, "localCCPort", 19999);
             Scribe_Values.Look(ref CCToken, "ccToken", "");
             Scribe_Values.Look(ref CCAutoStart, "ccAutoStart", true);
             Scribe_Values.Look(ref OssEnabled, "ossEnabled", false);

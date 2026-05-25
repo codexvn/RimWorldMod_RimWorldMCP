@@ -20,7 +20,7 @@
  *   RIMWORLD_PROJECT_PATH — 会话存储的项目路径 (默认 ~/rimworld)
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { loadClaudeSdk } from './sdk-loader.js';
@@ -36,6 +36,8 @@ const CONFIG = {
   projectPath: process.env.RIMWORLD_PROJECT_PATH || join(homedir(), 'rimworld'),
   permissionMode: process.env.CC_PERMISSION_MODE || 'bypassPermissions',
   maxTurns: parseInt(process.env.CC_MAX_TURNS || '500'),
+  connectTimeout: process.env.CC_CONNECT_TIMEOUT !== undefined
+    ? parseInt(process.env.CC_CONNECT_TIMEOUT) : 300000,
 };
 
 // 解析命令行参数
@@ -45,6 +47,8 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (arg === '--token' && process.argv[i + 1]) CONFIG.token = process.argv[++i];
   else if (arg === '--model' && process.argv[i + 1]) CONFIG.model = process.argv[++i];
   else if (arg === '--mcp-port' && process.argv[i + 1]) CONFIG.mcpPort = parseInt(process.argv[++i]);
+  else if (arg === '--connect-timeout' && process.argv[i + 1]) CONFIG.connectTimeout = parseInt(process.argv[++i]);
+  else if (arg === '--no-connect-timeout') CONFIG.connectTimeout = 0;
   else if (arg === '--help') { printHelp(); process.exit(0); }
 }
 
@@ -360,15 +364,34 @@ async function main() {
     (status) => {
       if (status.status === 'connected') {
         console.log(`[cc-companion] RimWorld 已连接: ${status.client?.name || 'unknown'}`);
+        // 清除连接超时计时器
+        if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
       } else if (status.status === 'disconnected') {
         console.log('[cc-companion] RimWorld 已断开');
       }
     }
   );
 
-  // 7. 优雅关闭
+  // 7. 连接超时：启动后 N 毫秒内无客户端连接则自动退出
+  let connectTimer = null;
+  if (CONFIG.connectTimeout > 0) {
+    connectTimer = setTimeout(() => {
+      console.log(`[cc-companion] ${CONFIG.connectTimeout / 1000}s 内无客户端连接，自动退出`);
+      shutdown();
+    }, CONFIG.connectTimeout);
+    console.log(`[cc-companion] 连接超时: ${CONFIG.connectTimeout / 1000}s (--no-connect-timeout 禁用)`);
+  }
+
+  // 8. PID 文件
+  const pidFile = join(process.cwd(), '.pid');
+  writeFileSync(pidFile, String(process.pid));
+  console.log(`[cc-companion] PID ${process.pid} → ${pidFile}`);
+
+  // 8. 优雅关闭
   function shutdown() {
     console.log('\n[cc-companion] 正在关闭...');
+    if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+    try { unlinkSync(pidFile); } catch {}
     inputStream.done();
     server.close();
     setTimeout(() => process.exit(0), 2000);
@@ -389,11 +412,13 @@ CC Companion — RimWorldMCP Claude Code 伴随进程
 用法: node companion.js [选项]
 
 选项:
-  --port <port>       WebSocket 端口 (默认 19999, 环境变量 CC_PORT)
-  --token <token>     认证 token (可选, 环境变量 CC_TOKEN)
-  --model <model>     模型名称 (默认 sonnet, 环境变量 CC_MODEL)
-  --mcp-port <port>   RimWorldMCP MCP 端口 (默认 9877, 环境变量 MCP_PORT)
-  --help              显示帮助
+  --port <port>            WebSocket 端口 (默认 19999, 环境变量 CC_PORT)
+  --token <token>          认证 token (可选, 环境变量 CC_TOKEN)
+  --model <model>          模型名称 (默认 sonnet, 环境变量 CC_MODEL)
+  --mcp-port <port>        RimWorldMCP MCP 端口 (默认 9877, 环境变量 MCP_PORT)
+  --connect-timeout <ms>   无客户端连接超时自动退出 (默认 60000, 环境变量 CC_CONNECT_TIMEOUT)
+  --no-connect-timeout     禁用连接超时，永远等待
+  --help                   显示帮助
 
 环境变量:
   ANTHROPIC_API_KEY        API Key 认证

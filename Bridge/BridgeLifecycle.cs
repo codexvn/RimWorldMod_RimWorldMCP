@@ -15,6 +15,7 @@ namespace RimWorldMCP
     {
         private static int _nextCCEventTick;
         private const int CCEventCheckInterval = 120;
+
         private static Process? _companionProcess;
 
         public static async Task StartAsync()
@@ -36,13 +37,11 @@ namespace RimWorldMCP
             {
                 if (string.IsNullOrEmpty(settings.CCUrl)) return;
 
-                // 自动启动本地 Companion
                 if (settings.CCAutoStart)
                 {
                     StopCompanionProcess();
-                    var port = ExtractPortFromUrl(settings.CCUrl);
-                    StartCompanionProcess(port, settings.CCToken);
-                    // 等待 Companion 启动（SDK 加载需要时间）
+                    KillStaleByPidFile();
+                    StartCompanionProcess(settings.LocalCCPort, settings.CCToken);
                     await Task.Delay(2000);
                 }
 
@@ -50,10 +49,6 @@ namespace RimWorldMCP
                 if (CCClient.IsReady)
                 {
                     McpLog.Info($"[bridge] 已连接到 CC Companion: {settings.CCUrl}");
-                }
-                else if (settings.CCAutoStart)
-                {
-                    McpLog.Warn("[bridge] CC Companion 连接失败，请检查 Node.js 和 SDK 是否已安装");
                 }
                 else
                 {
@@ -286,17 +281,6 @@ namespace RimWorldMCP
             return null;
         }
 
-        private static int ExtractPortFromUrl(string url)
-        {
-            try
-            {
-                var uri = new Uri(url);
-                if (uri.Port > 0) return uri.Port;
-            }
-            catch { }
-            return 19999;
-        }
-
         private static string? FindCompanionDir()
         {
             var modRoot = FindModRoot();
@@ -328,6 +312,32 @@ namespace RimWorldMCP
 
             McpLog.Error("[cc] 找不到 cc-companion 目录");
             return null;
+        }
+
+        private static void KillStaleByPidFile()
+        {
+            var dir = FindCompanionDir();
+            if (dir == null) return;
+            var pidFile = Path.Combine(dir, ".pid");
+            if (!File.Exists(pidFile)) return;
+
+            try
+            {
+                var pidText = File.ReadAllText(pidFile).Trim();
+                if (int.TryParse(pidText, out int pid))
+                {
+                    try
+                    {
+                        using var proc = Process.GetProcessById(pid);
+                        McpLog.Info($"[cc] 清理残留进程 PID={pid}");
+                        proc.Kill();
+                        proc.WaitForExit(3000);
+                    }
+                    catch { /* 进程已不存在 */ }
+                }
+            }
+            catch { }
+            finally { try { File.Delete(pidFile); } catch { } }
         }
 
         private static void StartCompanionProcess(int port, string token)
