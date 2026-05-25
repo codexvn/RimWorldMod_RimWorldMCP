@@ -29,7 +29,7 @@ namespace RimWorldMCP
             base.StartedNewGame();
             _ = GatewayClient.AbortAgent();
             _sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
-            _sessionKey = "agent:main:rimworld-" + Guid.NewGuid().ToString("N").Substring(0, 12);
+            _sessionKey = "agent:main:rimworld-" + _sessionId;
             StartMcpService();
             AttachMapUI();
         }

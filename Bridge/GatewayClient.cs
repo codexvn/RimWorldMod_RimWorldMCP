@@ -64,11 +64,27 @@ namespace RimWorldMCP
         /// <summary>AbortAgent 等待 lifecycle 事件完成的信号</summary>
         private static TaskCompletionSource<bool>? _abortCompleteTcs;
 
+        /// <summary>当前 session 是否已初始化（首条消息已发送）</summary>
+        private static volatile bool _sessionInitialized;
+
         /// <summary>当前存档的会话 ID</summary>
         public static string SessionId { get; set; } = "rimworld";
 
         /// <summary>持久化会话路由键，格式 agent:&lt;id&gt;:&lt;name&gt;</summary>
-        public static string SessionKey { get; set; } = "agent:main:main";
+        public static string SessionKey
+        {
+            get => _sessionKey;
+            set
+            {
+                if (_sessionKey != value)
+                {
+                    _sessionInitialized = false;
+                    McpLog.Info($"[ws] SessionKey 变更 -> {value}");
+                }
+                _sessionKey = value;
+            }
+        }
+        private static string _sessionKey = "agent:main:main";
 
         // ========== 通用 RPC 调用（Vantix request() 模式） ==========
 
@@ -86,9 +102,8 @@ namespace RimWorldMCP
         // ========== 业务 API ==========
 
         /// <summary>
-        /// 原子发送消息到 Agent。内部使用 _messageLock 确保同一时刻只有一个 send 进行。
-        /// sessions.steer 服务端处理 abort + wait(embedded runner exit) + send。
-        /// 调用方可直接 fire-and-forget，无需额外并发控制。
+        /// 发送消息到 Agent。内部使用 _messageLock 确保同一时刻只有一个 send 进行。
+        /// 首条消息用 sessions.send（服务端自动创建 session），后续用 sessions.steer（原子 abort+send）。
         /// </summary>
         public static async Task SendMessage(string text)
         {
@@ -107,17 +122,25 @@ namespace RimWorldMCP
             {
                 IsSendingMessage = true;
                 ChatDisplayState.OnUserMessage(text);
-                var resp = await Request("sessions.steer", new
-                {
-                    key = SessionKey,
-                    message = text,
-                    idempotencyKey = Guid.NewGuid().ToString("N")
-                }, expectFinal: true);
 
-                if (resp.TryGetProperty("interruptedActiveRun", out var interrupted)
-                    && interrupted.GetBoolean())
+                if (_sessionInitialized)
                 {
-                    McpLog.Info("[ws] sessions.steer 已中断上一个活跃 run");
+                    var resp = await Request("sessions.steer", new
+                    {
+                        key = SessionKey,
+                        message = text,
+                        idempotencyKey = Guid.NewGuid().ToString("N")
+                    }, expectFinal: true);
+
+                    if (resp.TryGetProperty("interruptedActiveRun", out var interrupted)
+                        && interrupted.GetBoolean())
+                    {
+                        McpLog.Info("[ws] sessions.steer 已中断上一个活跃 run");
+                    }
+                }
+                else
+                {
+                    await FirstSend(text);
                 }
             }
             finally
@@ -125,6 +148,23 @@ namespace RimWorldMCP
                 IsSendingMessage = false;
                 _messageLock.Release();
             }
+        }
+
+        /// <summary>首条消息：abort 清理残留 → agent 发送（自动创建 session）</summary>
+        private static async Task FirstSend(string text)
+        {
+            // 先清理旧 session 的残留 run（无视错误）
+            try { await Request("chat.abort", new { sessionKey = SessionKey }); } catch { }
+
+            await Request("agent", new
+            {
+                message = text,
+                sessionKey = SessionKey,
+                idempotencyKey = Guid.NewGuid().ToString("N")
+            }, expectFinal: true);
+
+            _sessionInitialized = true;
+            McpLog.Info("[ws] FirstSend 完成，session 已初始化");
         }
 
         /// <summary>发送 RPC，不等待最终结果</summary>
