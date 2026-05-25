@@ -1,0 +1,13 @@
+{
+  "name": "cc-companion",
+  "version": "1.0.0",
+  "description": "RimWorldMCP Claude Code Companion — WebSocket server that bridges game events to Claude via the Agent SDK",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "scripts": {
+    "start": "node companion.js",
+    "dev": "node --watch companion.js"
+  }
+}

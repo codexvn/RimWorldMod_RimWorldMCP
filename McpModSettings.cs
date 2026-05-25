@@ -12,10 +12,15 @@ namespace RimWorldMCP
         public int McpPort = 9877;
 
         // 桥接器
-        public int BridgeType = 0; // 0=无, 1=OpenClaw
+        public int BridgeType = 0; // 0=无, 1=OpenClaw, 2=CC
         public string BridgeUrl = "";
         public string BridgeToken = "";
         public string BridgePassword = "";
+
+        // CC 桥接
+        public string CCUrl = "ws://127.0.0.1:19999/rimworld";
+        public string CCToken = "";
+        public bool CCAutoStart = true;
 
         // OSS
         public bool OssEnabled = false;
@@ -26,7 +31,7 @@ namespace RimWorldMCP
         public bool OssUseSignedUrl = true;
         public int OssSignedUrlExpiryHours = 24;
 
-        public static readonly string[] BridgeTypeLabels = { "无", "OpenClaw" };
+        public static readonly string[] BridgeTypeLabels = { "无", "OpenClaw", "CC" };
         public static readonly string[] LogLevelLabels = { "Debug", "Info", "Warn", "Error" };
 
         public override void ExposeData()
@@ -41,6 +46,9 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref BridgeUrl, "bridgeUrl", "");
             Scribe_Values.Look(ref BridgeToken, "bridgeToken", "");
             Scribe_Values.Look(ref BridgePassword, "bridgePassword", "");
+            Scribe_Values.Look(ref CCUrl, "ccUrl", "ws://127.0.0.1:19999/rimworld");
+            Scribe_Values.Look(ref CCToken, "ccToken", "");
+            Scribe_Values.Look(ref CCAutoStart, "ccAutoStart", true);
             Scribe_Values.Look(ref OssEnabled, "ossEnabled", false);
             Scribe_Values.Look(ref OssServiceUrl, "ossServiceUrl", "");
             Scribe_Values.Look(ref OssBucketName, "ossBucketName", "");

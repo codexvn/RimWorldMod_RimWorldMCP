@@ -25,7 +25,8 @@ namespace RimWorldMCP
         public override void DoSettingsWindowContents(Rect inRect)
         {
             float h = 600f;
-            if (Settings.BridgeType > 0) h += 200f;
+            if (Settings.BridgeType == 1) h += 200f;
+            else if (Settings.BridgeType == 2) h += 130f;
             if (Settings.OssEnabled) h += 220f;
             if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
 
@@ -68,9 +69,8 @@ namespace RimWorldMCP
                 Settings.BridgeType = (Settings.BridgeType + 1) % McpModSettings.BridgeTypeLabels.Length;
             }
 
-            if (Settings.BridgeType > 0)
+            if (Settings.BridgeType == 1) // OpenClaw
             {
-                // OpenClaw
                 listing.Label("Gateway WebSocket URL");
                 listing.Label("示例: ws://127.0.0.1:18789");
                 Settings.BridgeUrl = listing.TextEntry(Settings.BridgeUrl);
@@ -80,6 +80,19 @@ namespace RimWorldMCP
 
                 listing.Label("Password");
                 Settings.BridgePassword = listing.TextEntry(Settings.BridgePassword);
+            }
+            else if (Settings.BridgeType == 2) // CC
+            {
+                listing.Label("CC Companion WebSocket 地址");
+                listing.Label("默认: ws://127.0.0.1:19999/rimworld，可改为远程地址");
+                Settings.CCUrl = listing.TextEntry(Settings.CCUrl);
+
+                listing.Gap(6f);
+                listing.CheckboxLabeled("自动启动本地 Companion", ref Settings.CCAutoStart,
+                    "开启后，游戏加载时自动 spawn Node.js 子进程。连接远程 Companion 时请关闭。");
+
+                listing.Label("Token (可选，与 CC Companion --token 一致)");
+                Settings.CCToken = listing.TextEntry(Settings.CCToken);
             }
 
             listing.Gap(24f);
