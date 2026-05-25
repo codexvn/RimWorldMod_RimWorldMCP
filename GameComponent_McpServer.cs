@@ -218,6 +218,8 @@ namespace RimWorldMCP
             registry.Register(new Tool_GetStructureLayout());
             registry.Register(new Tool_AttackPawn());
             registry.Register(new Tool_ForceAttack());
+            registry.Register(new Tool_GetOpenDialogs());
+            registry.Register(new Tool_SelectDialogOption());
         }
 
         private static string FindSkillsDirectory()
