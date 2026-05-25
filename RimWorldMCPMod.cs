@@ -26,7 +26,7 @@ namespace RimWorldMCP
         {
             float h = 600f;
             if (Settings.BridgeType == 1) h += 200f;
-            else if (Settings.BridgeType == 2) h += 160f;
+            else if (Settings.BridgeType == 2) h += Settings.CCAutoStart ? 160f : 100f;
             if (Settings.OssEnabled) h += 220f;
             if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
 
@@ -84,20 +84,23 @@ namespace RimWorldMCP
             else if (Settings.BridgeType == 2) // CC
             {
                 listing.Label("连接地址 (WebSocket URL)");
-                listing.Label("本地: ws://127.0.0.1:19999/rimworld，远程: ws://IP:端口/rimworld");
+                listing.Label("本地: ws://127.0.0.1:19999，远程: ws://IP:端口");
                 Settings.CCUrl = listing.TextEntry(Settings.CCUrl);
 
                 listing.Gap(6f);
                 listing.CheckboxLabeled("自动启动本地 Companion", ref Settings.CCAutoStart,
-                    "开启后，游戏加载时自动 spawn Node.js 子进程，监听下方端口。");
+                    "开启后，游戏加载时自动 spawn Node.js 子进程。");
 
-                listing.Label("本地监听端口");
-                var ccPortStr = listing.TextEntry(Settings.LocalCCPort.ToString());
-                if (int.TryParse(ccPortStr, out int ccPort) && ccPort > 0 && ccPort <= 65535)
-                    Settings.LocalCCPort = ccPort;
+                if (Settings.CCAutoStart)
+                {
+                    listing.Label("本地监听端口");
+                    var ccPortStr = listing.TextEntry(Settings.LocalCCPort.ToString());
+                    if (int.TryParse(ccPortStr, out int ccPort) && ccPort > 0 && ccPort <= 65535)
+                        Settings.LocalCCPort = ccPort;
 
-                listing.Label("Token (可选)");
-                Settings.CCToken = listing.TextEntry(Settings.CCToken);
+                    listing.Label("Token (可选)");
+                    Settings.CCToken = listing.TextEntry(Settings.CCToken);
+                }
             }
 
             listing.Gap(24f);

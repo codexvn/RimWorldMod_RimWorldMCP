@@ -115,7 +115,8 @@ export function createResponseProcessor(queryIterator: AsyncIterable<any>, cwd: 
   let processing = false;
 
   async function process(): Promise<void> {
-    if (processing) return;
+    if (processing) { console.log('[cc-companion] processResponses 已在运行中，跳过'); return; }
+    console.log('[cc-companion] processResponses 开始');
     processing = true;
     try {
       for await (const message of queryIterator) {
@@ -155,6 +156,7 @@ export function createResponseProcessor(queryIterator: AsyncIterable<any>, cwd: 
       console.error(`[cc-companion] SDK 响应处理错误: ${err.message}`);
     }
     processing = false;
+    console.log('[cc-companion] processResponses 结束');
   }
 
   return { process, getSessionId: () => sessionId };

@@ -69,8 +69,7 @@
     </ItemGroup>
     <Message Text="[cc] 复制 Companion 到 $(CompanionDest)" Importance="high" />
     <Copy SourceFiles="@(CompanionFiles)" DestinationFolder="$(CompanionDest)%(RecursiveDir)" SkipUnchangedFiles="true" />
-    <Exec Command="npm install" WorkingDirectory="$(CompanionDest)" ContinueOnError="true"
-          Condition="!Exists('$(CompanionDest)node_modules\@anthropic-ai\claude-agent-sdk')" />
+    <Exec Command="npm install" WorkingDirectory="$(CompanionDest)" ContinueOnError="true" />
     <Message Text="[cc] Companion 就绪" Importance="high" />
   </Target>
 

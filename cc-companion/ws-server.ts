@@ -3,6 +3,7 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
+import { createServer } from 'http';
 import type { IncomingMessage } from 'http';
 
 export interface WsMessage {
@@ -30,7 +31,21 @@ export function createWSServer(
   onEvent: EventCallback,
   onStatusChange: StatusCallback,
 ) {
-  const wss = new WebSocketServer({ port, host });
+  const httpServer = createServer();
+  httpServer.on('error', (err: Error) => {
+    console.error(`[cc-companion] HTTP 服务器错误: ${err.message}`);
+  });
+  httpServer.on('listening', () => {
+    // 设置 SO_REUSEADDR 允许 TIME_WAIT 端口立即重用
+    const addr = httpServer.address();
+    if (addr && typeof addr === 'object') {
+      console.log(`[cc-companion] WebSocket 服务器已启动: ws://${addr.address}:${addr.port}`);
+    }
+    onStatusChange?.({ status: 'listening', port });
+  });
+
+  const wss = new WebSocketServer({ server: httpServer });
+  httpServer.listen(port, host);
 
   wss.on('listening', () => {
     console.log(`[cc-companion] WebSocket 服务器已启动: ws://${host}:${port}`);

@@ -48,13 +48,13 @@ namespace RimWorldMCP.Transport
             {
                 var diagnostic = ex.ErrorCode switch
                 {
-                    5  => $"拒绝访问 — 端口 {_port} 需要管理员权限或 URL ACL 注册。使用管理员运行或执行: netsh http add urlacl url=http://{_prefixHost}:{_port}/ user=Everyone",
-                    183 => $"端口 {_port} 已被占用 (Address Already In Use)。请关闭占用该端口的程序，或执行: netsh http delete urlacl url=http://{_prefixHost}:{_port}/",
-                    32  => $"端口 {_port} 共享冲突 — 正被其他进程使用",
+                    5  => $"拒绝访问 — 端口 {_port} 需要管理员权限",
+                    183 => $"端口 {_port} 已被占用 (Address Already In Use)",
+                    32  => $"端口 {_port} 共享冲突",
                     87  => "URL 前缀格式无效",
                     _   => $"http.sys 错误 {ex.ErrorCode}"
                 };
-                McpLog.Error($"[sse] 启动失败 [{ex.ErrorCode}]: {diagnostic}。原始错误: {ex.Message}");
+                McpLog.Error($"[sse] 启动失败 [{ex.ErrorCode}]: {diagnostic}。{ex.Message}");
                 throw;
             }
 

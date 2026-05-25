@@ -39,10 +39,18 @@ namespace RimWorldMCP
 
                 if (settings.CCAutoStart)
                 {
+                    McpLog.Info("[bridge] CCAutoStart=开启");
+                    McpLog.Info("[bridge] 步骤1: 停止当前进程...");
                     StopCompanionProcess();
+                    McpLog.Info("[bridge] 步骤2: 清理残留 PID 文件...");
                     KillStaleByPidFile();
+                    McpLog.Info("[bridge] 步骤3: 启动 Companion 进程...");
                     StartCompanionProcess(settings.LocalCCPort, settings.CCToken);
                     await Task.Delay(2000);
+                }
+                else
+                {
+                    McpLog.Info("[bridge] CCAutoStart=关闭，仅连接远程 Companion");
                 }
 
                 await CCClient.Connect(settings.CCUrl, settings.CCToken);
@@ -52,7 +60,7 @@ namespace RimWorldMCP
                 }
                 else
                 {
-                    McpLog.Warn($"[bridge] CC Companion 连接失败: {settings.CCUrl}");
+                    McpLog.Error($"[bridge] CC Companion 连接失败: {settings.CCUrl}");
                 }
             }
         }
@@ -302,24 +310,36 @@ namespace RimWorldMCP
             var dir = FindCompanionDir();
             if (dir == null) return;
             var pidFile = Path.Combine(dir, ".pid");
-            if (!File.Exists(pidFile)) return;
+            if (!File.Exists(pidFile))
+            {
+                McpLog.Info("[cc] 无残留 PID 文件，跳过清理");
+                return;
+            }
 
             try
             {
                 var pidText = File.ReadAllText(pidFile).Trim();
+                McpLog.Info($"[cc] 发现残留 PID 文件: {pidFile} (PID={pidText})");
                 if (int.TryParse(pidText, out int pid))
                 {
                     try
                     {
                         using var proc = Process.GetProcessById(pid);
-                        McpLog.Info($"[cc] 清理残留进程 PID={pid}");
+                        McpLog.Info($"[cc] 正在杀死残留进程 PID={pid} ({proc.ProcessName})");
                         proc.Kill();
                         proc.WaitForExit(3000);
+                        McpLog.Info($"[cc] 残留进程 PID={pid} 已终止");
                     }
-                    catch { /* 进程已不存在 */ }
+                    catch (ArgumentException)
+                    {
+                        McpLog.Info($"[cc] PID={pid} 进程已不存在，仅清理 PID 文件");
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                McpLog.Warn($"[cc] 读取/清理 PID 文件失败: {ex.Message}");
+            }
             finally { try { File.Delete(pidFile); } catch { } }
         }
 
@@ -337,12 +357,21 @@ namespace RimWorldMCP
                 ? Path.Combine(modRoot, "claude-sessions")
                 : Path.Combine(companionDir, "..", "claude-sessions");
 
-            var args = $"--import tsx/esm companion.ts --port {port} --project-path \"{sessionsDir}\"";
+            var settings = RimWorldMCPMod.Instance?.Settings;
+            var mcpPort = settings?.McpPort ?? 9877;
+
+            var args = $"--import tsx/esm companion.ts"
+                + $" --port {port}"
+                + $" --host 127.0.0.1"
+                + $" --mcp-url http://localhost:{mcpPort}/mcp"
+                + $" --project-path \"{sessionsDir}\"";
             if (!string.IsNullOrEmpty(token))
                 args += $" --token {token}";
 
             try
             {
+                McpLog.Info($"[cc] 启动 Companion: {nodeExe} {args}");
+
                 var psi = new ProcessStartInfo
                 {
                     FileName = nodeExe,
@@ -361,6 +390,13 @@ namespace RimWorldMCP
                     return;
                 }
 
+                _companionProcess.EnableRaisingEvents = true;
+                _companionProcess.Exited += (_, _) =>
+                {
+                    var exitCode = _companionProcess?.ExitCode;
+                    McpLog.Warn($"[cc] Companion 进程已退出 (PID: {_companionProcess?.Id}, 退出码: {exitCode})");
+                };
+
                 _companionProcess.OutputDataReceived += (_, e) =>
                 {
                     if (!string.IsNullOrEmpty(e.Data))
@@ -374,7 +410,7 @@ namespace RimWorldMCP
                 _companionProcess.BeginOutputReadLine();
                 _companionProcess.BeginErrorReadLine();
 
-                McpLog.Info($"[cc] Companion 进程已启动 (PID: {_companionProcess.Id})");
+                McpLog.Info($"[cc] Companion 进程已启动 (PID: {_companionProcess.Id}, CWD: {companionDir})");
             }
             catch (Exception ex)
             {
@@ -384,7 +420,11 @@ namespace RimWorldMCP
 
         private static void StopCompanionProcess()
         {
-            if (_companionProcess == null) return;
+            if (_companionProcess == null)
+            {
+                McpLog.Info("[cc] 无需停止：无当前进程引用");
+                return;
+            }
 
             try
             {
@@ -394,6 +434,10 @@ namespace RimWorldMCP
                     _companionProcess.Kill();
                     _companionProcess.WaitForExit(5000);
                     McpLog.Info("[cc] Companion 进程已停止");
+                }
+                else
+                {
+                    McpLog.Info($"[cc] Companion 进程已退出 (PID: {_companionProcess.Id})");
                 }
             }
             catch (Exception ex)

@@ -93,14 +93,12 @@ async function main(): Promise<void> {
   writeFileSync(pidFile, String(process.pid));
   console.log(`[cc-companion] PID ${process.pid} → ${pidFile}`);
 
-  // 8. 优雅关闭
+  // 8. 关闭——直接 exit 走 RST，不产生 TIME_WAIT
   function shutdown() {
     console.log('\n[cc-companion] 正在关闭...');
     if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
     try { unlinkSync(pidFile); } catch {}
-    inputStream.done();
-    server.close();
-    setTimeout(() => process.exit(0), 2000);
+    process.exit(0);
   }
 
   process.on('SIGINT', shutdown);

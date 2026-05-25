@@ -78,13 +78,13 @@ namespace RimWorldMCP
                 }
                 else
                 {
-                    McpLog.Warn("[cc] 握手超时(10s)");
+                    McpLog.Error("[cc] 握手超时(10s)");
                 }
             }
             catch (Exception ex)
             {
                 _state = CCClientState.Disconnected;
-                McpLog.Warn($"[cc] 连接失败: {ex.Message}");
+                McpLog.Error($"[cc] 连接失败: {ex.Message}");
             }
         }
 
@@ -203,7 +203,7 @@ namespace RimWorldMCP
 
                             case "error":
                                 var err = root.TryGetProperty("error", out var e) ? e.GetString() : "unknown";
-                                McpLog.Warn($"[cc] 服务器错误: {err}");
+                                McpLog.Error($"[cc] 服务器错误: {err}");
                                 break;
 
                             case "pong":
@@ -215,7 +215,7 @@ namespace RimWorldMCP
                 }
             }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { McpLog.Warn($"[cc] 接收异常: {ex.Message}"); }
+            catch (Exception ex) { McpLog.Error($"[cc] 接收异常: {ex.Message}"); }
 
             _state = CCClientState.Disconnected;
 
@@ -242,7 +242,7 @@ namespace RimWorldMCP
             // 检查 pong 超时
             if (_lastPong != DateTime.MinValue && (now - _lastPong).TotalMilliseconds > PongTimeoutMs)
             {
-                McpLog.Warn("[cc] pong 超时，断开连接");
+                McpLog.Error("[cc] pong 超时，断开连接");
                 Disconnect();
             }
         }
