@@ -73,6 +73,7 @@ namespace RimWorldMCP.Tools
                     {
                         if (w.layer != WindowLayer.Dialog) continue;
                         if (w is FloatMenu) continue; // 已处理
+                        if (w.GetType().Name == "Dialog_AiChat") continue; // 跳过本 mod 自己的 AI 聊天窗
 
                         if (w is Dialog_MessageBox msgBox)
                         {
@@ -102,7 +103,7 @@ namespace RimWorldMCP.Tools
                             }
                             dialogIdx++;
                         }
-                        else if (w.GetType().Name == "Dialog_NodeTree")
+                        else if (w is Dialog_NodeTree)  // 匹配基类，子类也会匹配
                         {
                             try
                             {
