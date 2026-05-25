@@ -279,6 +279,9 @@ namespace RimWorldMCP
             return "Skills";
         }
 
+        /// <summary>新游戏/加载后自动打开对话窗口</summary>
+        internal static bool AutoOpenChat;
+
         private static void AttachMapUI()
         {
             var map = Find.CurrentMap;
@@ -287,6 +290,7 @@ namespace RimWorldMCP
             foreach (var c in map.components)
                 if (c is MapComponent_McpUI) return;
             map.components.Add(new MapComponent_McpUI(map));
+            AutoOpenChat = true;
         }
 
     }
