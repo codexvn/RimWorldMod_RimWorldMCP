@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -13,94 +13,102 @@ namespace RimWorldMCP.Tools
     public class Tool_ActivateSettlement : ITool
     {
         public string Name => "activate_settlement_goods";
-        public string Description => "激活定居点的商品库存缓存。首次调用触发生成（RegenerateStock），之后反复读取不重复生成。支持按名称激活或从殖民地按距离扩散。";
+        public string Description => "激活一个定居点的商品库存缓存（触发生成）。无参数时激活距离殖民地最近的未激活定居点。指定 settlement_name 则激活特定定居点，指定 faction_name 则激活该派系最近未激活的。已激活的自动跳过。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
             properties = new
             {
-                settlement_name = new { type = "string", description = "定居点名称（与 faction_name / radius 三选一）" },
-                faction_name = new { type = "string", description = "派系名称（激活该派系所有定居点，与 settlement_name / radius 三选一）" },
-                radius = new { type = "integer", description = "距殖民地半径（tile，与 settlement_name / faction_name 三选一，激活范围内所有定居点）" },
-                max_count = new { type = "integer", description = "最大激活数量（配合 radius 使用），默认 10", @default = 10 }
+                settlement_name = new { type = "string", description = "定居点名称（可选）" },
+                faction_name = new { type = "string", description = "派系名称（可选）" }
             }
         });
+
+        private static readonly FieldInfo _stockField = typeof(Settlement_TraderTracker)
+            .GetField("stock", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new Exception("stock field not found");
+
+        private static bool IsActivated(Settlement s)
+        {
+            try
+            {
+                var trader = s.trader;
+                if (trader == null) return false;
+                return (_stockField.GetValue(trader) as ThingOwner<Thing>)?.Count > 0;
+            }
+            catch { return false; }
+        }
 
         public Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             string? sn = null, fn = null;
-            int radius = 0, maxCount = 10;
             if (args != null)
             {
                 if (args.Value.TryGetProperty("settlement_name", out var jSn))
                     sn = jSn.GetString();
                 if (args.Value.TryGetProperty("faction_name", out var jFn))
                     fn = jFn.GetString();
-                if (args.Value.TryGetProperty("radius", out var jR) && jR.TryGetInt32(out var r))
-                    radius = r;
-                if (args.Value.TryGetProperty("max_count", out var jMc) && jMc.TryGetInt32(out var mc) && mc > 0)
-                    maxCount = mc;
             }
-
-            if (string.IsNullOrWhiteSpace(sn) && string.IsNullOrWhiteSpace(fn) && radius <= 0)
-                return Task.FromResult(ToolResult.Error("需要 settlement_name / faction_name / radius 之一"));
 
             return McpCommandQueue.DispatchAsync(() =>
             {
                 try
                 {
-                    var settlements = Find.World.worldObjects.Settlements
+                    var all = Find.World.worldObjects.Settlements
                         .Where(s => s.CanTradeNow)
                         .ToList();
 
-                    IEnumerable<Settlement> targets;
+                    Settlement? target;
+                    string info;
 
                     if (!string.IsNullOrWhiteSpace(sn))
                     {
-                        targets = settlements.Where(s => s.Name.ToLowerInvariant().Contains(sn.ToLowerInvariant())).ToList();
-                        if (!targets.Any())
+                        // 指定定居点：强制激活（即使已激活）
+                        target = all.FirstOrDefault(s => s.Name.ToLowerInvariant().Contains(sn.ToLowerInvariant()));
+                        if (target == null)
                             return ToolResult.Error($"找不到定居点: {sn}");
-                    }
-                    else if (!string.IsNullOrWhiteSpace(fn))
-                    {
-                        var faction = Find.FactionManager.AllFactionsVisible
-                            .FirstOrDefault(f => f.Name.ToLowerInvariant().Contains(fn.ToLowerInvariant()) && !f.IsPlayer && !f.temporary);
-                        if (faction == null) return ToolResult.Error($"找不到派系: {fn}");
-                        targets = settlements.Where(s => s.Faction == faction).ToList();
+                        info = IsActivated(target) ? "（已激活，刷新库存）" : "";
                     }
                     else
                     {
+                        // 只找未激活的
+                        var candidates = all.Where(s => !IsActivated(s));
+
+                        if (!string.IsNullOrWhiteSpace(fn))
+                        {
+                            var faction = Find.FactionManager.AllFactionsVisible
+                                .FirstOrDefault(f => f.Name.ToLowerInvariant().Contains(fn.ToLowerInvariant()) && !f.IsPlayer && !f.temporary);
+                            if (faction == null) return ToolResult.Error($"找不到派系: {fn}");
+                            candidates = candidates.Where(s => s.Faction == faction);
+                        }
+
                         int homeTile = Find.CurrentMap?.Tile ?? -1;
-                        if (homeTile < 0) return ToolResult.Error("当前无殖民地地图");
-                        int capR = radius;
-                        targets = settlements
-                            .Where(s => Find.WorldGrid.TraversalDistanceBetween(homeTile, s.Tile, false, capR) <= capR)
-                            .OrderBy(s => Find.WorldGrid.TraversalDistanceBetween(homeTile, s.Tile, false, int.MaxValue))
-                            .Take(maxCount)
-                            .ToList();
-                    }
-
-                    if (!targets.Any()) return ToolResult.Error("没有匹配的定居点");
-
-                    var sb = new StringBuilder();
-                    int activated = 0;
-                    foreach (var s in targets)
-                    {
-                        var goods = s.Goods?.ToList(); // 触发生成
-                        if (goods != null && goods.Count > 0)
-                        {
-                            int kinds = goods.Select(t => t.def).Distinct().Count();
-                            int total = goods.Sum(t => t.stackCount);
-                            sb.AppendLine($"- {s.Name} ({s.Faction?.Name}): {goods.Count} 项, {kinds} 种, {total} 件");
-                            activated++;
-                        }
+                        if (homeTile < 0)
+                            target = candidates.FirstOrDefault();
                         else
+                            target = candidates.OrderBy(s =>
+                                Find.WorldGrid.TraversalDistanceBetween(homeTile, s.Tile, false, int.MaxValue))
+                                .FirstOrDefault();
+
+                        if (target == null)
                         {
-                            sb.AppendLine($"- {s.Name}: 无商品");
+                            string scope = string.IsNullOrWhiteSpace(fn) ? "殖民地周围" : fn;
+                            return ToolResult.Success($"没有未激活的定居点（{scope}）。用 get_faction_relations 查看已激活列表。");
                         }
+                        info = "";
                     }
 
-                    sb.Insert(0, $"已激活 {activated}/{targets.Count()} 个定居点:\n");
+                    var goods = target.Goods?.ToList(); // 触发生成
+                    if (goods == null || goods.Count == 0)
+                        return ToolResult.Error($"{target.Name} 激活后无商品");
+
+                    int kinds = goods.Select(t => t.def).Distinct().Count();
+                    int total = goods.Sum(t => t.stackCount);
+                    var sb = new StringBuilder();
+                    sb.AppendLine($"{target.Name} ({target.Faction?.Name}) 库存已激活{info}:");
+                    sb.AppendLine($"- {goods.Count} 项, {kinds} 种, {total} 件");
+                    sb.AppendLine($"- TraderKind: {target.TraderKind?.label ?? "?"}");
+                    sb.AppendLine($"- 用 get_settlement_goods(settlement_name: \"{target.Name}\") 查看详情");
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }
                 catch (Exception ex) { return ToolResult.Error($"激活失败: {ex.Message}"); }
