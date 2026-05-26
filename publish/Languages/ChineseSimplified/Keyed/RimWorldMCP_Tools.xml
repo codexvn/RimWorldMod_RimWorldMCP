@@ -97,4 +97,36 @@
   <!-- Skill -->
   <RimWorldMCP_Tool_get_skills>领域技能</RimWorldMCP_Tool_get_skills>
   <RimWorldMCP_Tool_active_skill>激活技能</RimWorldMCP_Tool_active_skill>
+
+  <!-- 研究 -->
+  <RimWorldMCP_Tool_stop_research>停止研究</RimWorldMCP_Tool_stop_research>
+  <RimWorldMCP_Tool_get_research_speed>研究速度</RimWorldMCP_Tool_get_research_speed>
+
+  <!-- 医疗 -->
+  <RimWorldMCP_Tool_tend_now>立即治疗</RimWorldMCP_Tool_tend_now>
+  <RimWorldMCP_Tool_force_surgery>强制手术</RimWorldMCP_Tool_force_surgery>
+  <RimWorldMCP_Tool_get_available_surgeries>可用手术（分页）</RimWorldMCP_Tool_get_available_surgeries>
+
+  <!-- 区域 -->
+  <RimWorldMCP_Tool_expand_zone>扩展区域</RimWorldMCP_Tool_expand_zone>
+  <RimWorldMCP_Tool_set_bed_owner_type>床位归属</RimWorldMCP_Tool_set_bed_owner_type>
+  <RimWorldMCP_Tool_set_temp_control>温度控制</RimWorldMCP_Tool_set_temp_control>
+
+  <!-- 反馈 -->
+  <RimWorldMCP_Tool_submit_feedback>提交反馈</RimWorldMCP_Tool_submit_feedback>
+
+  <!-- 地图 -->
+  <RimWorldMCP_Tool_regenerate_map>重新生成地图</RimWorldMCP_Tool_regenerate_map>
+
+  <!-- 腐坏追踪 -->
+  <RimWorldMCP_Tool_get_deteriorating_items>腐坏物品</RimWorldMCP_Tool_get_deteriorating_items>
+
+  <!-- TODO 系统 -->
+  <RimWorldMCP_Tool_todo_add>添加任务</RimWorldMCP_Tool_todo_add>
+  <RimWorldMCP_Tool_todo_delete>删除任务</RimWorldMCP_Tool_todo_delete>
+  <RimWorldMCP_Tool_todo_query>查询任务</RimWorldMCP_Tool_todo_query>
+
+  <!-- 基地模板 -->
+  <RimWorldMCP_Tool_list_base_templates>基地模板</RimWorldMCP_Tool_list_base_templates>
+  <RimWorldMCP_Tool_apply_base_template>应用模板</RimWorldMCP_Tool_apply_base_template>
 </LanguageData>

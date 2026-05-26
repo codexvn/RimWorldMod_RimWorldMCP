@@ -447,3 +447,13 @@ Skill 是领域知识文件（Markdown + YAML frontmatter），存放在 `Skills
 - 目标/物品：`map.mapPawns.AllPawnsSpawned.FirstOrDefault(p => p.thingIDNumber == id)` 或 `map.listerThings.AllThings.FirstOrDefault(t => t.thingIDNumber == id)`
 - 工具之间传递引用时优先输出 `thingIDNumber`，让 LLM 在后续调用中精确回传
 - 参考实现：`Tool_ArrestPawn.cs`、`Tool_AttackPawn.cs`、`Tool_EquipPawn.cs`
+
+**5. 关注 LLM 缓存命中率**
+
+Tool 的返回内容直接影响 prompt caching 的存活时间。大段返回会挤掉上下文中缓存的 system prompt，导致下次请求 cache miss，重新计费。
+
+- **List 工具必须分页**：数据量可能超过 20 条的工具，提供 `page`/`page_size` 参数，默认每页 10。AI 按需翻页，不是一次性灌入
+- **精简输出格式**：用表格而非段落，省略无意义的装饰文本。只输出 AI 决策必需的信息
+- **查询类工具设计为「按需获取」**：如 `get_colonists` 返回摘要列表（名称+ID+心情），详细信息（健康/需求）由单独工具按 ID 查询
+- **避免在结果中重复描述 Tool 自身的用法**：AI 已从 InputSchema 知道参数含义
+- **价格判断**：一次 cache miss 相当于几千 token 的额外开销。如果一个 Tool 返回 2000 token，每次调用都可能触发 cache eviction，比翻 10 页（每页 200 token）的总成本更高
