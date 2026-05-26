@@ -111,6 +111,7 @@ namespace RimWorldMCP
         public static bool DangerPaused { get; private set; }
         public static string DangerSummary { get; private set; } = "";
         private static bool _dangerShouldResume;
+        private static TimeSpeed _savedSpeed;
 
         private static void AutoPauseGuard()
         {
@@ -125,7 +126,7 @@ namespace RimWorldMCP
                 DangerSummary = "";
                 if (_dangerShouldResume)
                 {
-                    Find.TickManager!.CurTimeSpeed = TimeSpeed.Normal;
+                    Find.TickManager!.CurTimeSpeed = _savedSpeed;
                     _dangerShouldResume = false;
                 }
             }
@@ -141,7 +142,8 @@ namespace RimWorldMCP
             DangerSummary = BuildDangerSummary(drained);
             if (Find.TickManager?.Paused != true)
             {
-                Find.TickManager!.CurTimeSpeed = TimeSpeed.Paused;
+                _savedSpeed = Find.TickManager!.CurTimeSpeed;
+                Find.TickManager.CurTimeSpeed = TimeSpeed.Paused;
                 _dangerShouldResume = true;
             }
             McpLog.Info($"[cc] 事件暂停 → {DangerSummary}");
