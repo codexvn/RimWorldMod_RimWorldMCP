@@ -119,7 +119,9 @@ namespace RimWorldMCP
             {
                 _entries.Clear();
                 _toolCalls.Clear();
+                _streamingEntry = null;
             }
+            _deltaAccum = "";
             OnChanged?.Invoke();
         }
 
@@ -134,13 +136,17 @@ namespace RimWorldMCP
         {
             lock (_lock)
             {
-                if (_entries.Count > 0 && _entries[_entries.Count - 1].State == ChatState.Streaming)
+                if (_streamingEntry != null)
                 {
-                    _entries[_entries.Count - 1].State = ChatState.Done;
-                    if (string.IsNullOrEmpty(_entries[_entries.Count - 1].Text))
-                        _entries[_entries.Count - 1].Text = "（已中断）";
+                    _streamingEntry.State = ChatState.Done;
+                    if (string.IsNullOrEmpty(_streamingEntry.Text))
+                        _streamingEntry.Text = "（已中断）";
+                    else
+                        _streamingEntry.Text += "（已中断）";
+                    _streamingEntry = null;
                 }
             }
+            _deltaAccum = "";
             OnChanged?.Invoke();
         }
 
@@ -150,58 +156,171 @@ namespace RimWorldMCP
             var message = sdkMsg.TryGetProperty("message", out var msg) ? msg : sdkMsg;
             var role = message.TryGetProperty("role", out var r) ? r.GetString() : "assistant";
 
+            // SDK 回显的 user 消息不创建流式条目
+            if (role == "user") return;
+
             // 提取子代理信息
             var agentId = sdkMsg.TryGetProperty("agent_id", out var aid) ? aid.GetString() ?? "" : "";
             var agentType = sdkMsg.TryGetProperty("agent_type", out var at) ? at.GetString() ?? "" : "";
 
-            if (!message.TryGetProperty("content", out var content)
-                || content.ValueKind != JsonValueKind.Array) return;
+            // content 可能是数组或纯文本字符串
+            if (!message.TryGetProperty("content", out var content)) return;
 
-            foreach (var block in content.EnumerateArray())
+            string? streamingText = null;
+
+            if (content.ValueKind == JsonValueKind.String)
             {
-                var blockType = block.TryGetProperty("type", out var bt) ? bt.GetString() : "";
-                if (blockType == "text")
+                streamingText = content.GetString() ?? "";
+                _deltaAccum = streamingText;
+                _deltaIsThinking = false;
+            }
+            else if (content.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var block in content.EnumerateArray())
                 {
-                    var text = block.TryGetProperty("text", out var tt) ? tt.GetString() ?? "" : "";
-                    lock (_lock)
+                    var blockType = block.TryGetProperty("type", out var bt) ? bt.GetString() : "";
+                    if (blockType == "text")
                     {
-                        _entries.Add(new ChatEntry
-                        {
-                            Role = role == "user" ? ChatRole.User : ChatRole.Assistant,
-                            Text = text,
-                            State = ChatState.Done,
-                            AgentId = agentId,
-                            AgentType = agentType,
-                        });
-                        TrimEntries();
+                        streamingText = block.TryGetProperty("text", out var tt) ? tt.GetString() ?? "" : "";
+                        _deltaAccum = streamingText;
+                        _deltaIsThinking = false;
                     }
-                    OnChanged?.Invoke();
-                }
-                else if (blockType == "tool_use")
-                {
-                    var name = block.TryGetProperty("name", out var tn) ? tn.GetString() ?? "" : "";
-                    var itemId = block.TryGetProperty("id", out var iid) ? iid.GetString() ?? "" : "";
-                    lock (_lock)
+                    else if (blockType == "thinking")
                     {
-                        // 去重：同一工具 ID 不重复添加
-                        bool exists = false;
-                        for (int i = 0; i < _toolCalls.Count; i++)
+                        var thinking = block.TryGetProperty("thinking", out var th) ? th.GetString() ?? "" : "";
+                        if (!string.IsNullOrEmpty(thinking))
                         {
-                            if (_toolCalls[i].ItemId == itemId) { exists = true; break; }
+                            streamingText = "思考中: " + thinking;
+                            _deltaAccum = thinking;
+                            _deltaIsThinking = true;
                         }
-                        if (!exists)
+                    }
+                    else if (blockType == "tool_use")
+                    {
+                        var name = block.TryGetProperty("name", out var tn) ? tn.GetString() ?? "" : "";
+                        var itemId = block.TryGetProperty("id", out var iid) ? iid.GetString() ?? "" : "";
+                        lock (_lock)
                         {
-                            _toolCalls.Add(new ToolCallInfo
+                            bool exists = false;
+                            for (int i = 0; i < _toolCalls.Count; i++)
                             {
-                                ItemId = itemId, Name = name, Title = name,
-                                Status = ToolStatus.Running
-                            });
-                            while (_toolCalls.Count > 20) _toolCalls.RemoveAt(0);
+                                if (_toolCalls[i].ItemId == itemId) { exists = true; break; }
+                            }
+                            if (!exists)
+                            {
+                                _toolCalls.Add(new ToolCallInfo
+                                {
+                                    ItemId = itemId, Name = name, Title = name,
+                                    Status = ToolStatus.Running
+                                });
+                                while (_toolCalls.Count > 20) _toolCalls.RemoveAt(0);
+                            }
                         }
                     }
-                    OnChanged?.Invoke();
                 }
             }
+
+            if (!string.IsNullOrEmpty(streamingText))
+            {
+                UpsertStreaming(streamingText!, agentId, agentType);
+            }
+
+            // tool_use 变更也需要刷新 UI
+            if (streamingText == null)
+                OnChanged?.Invoke();
+        }
+
+        // ========== 流式输出 ==========
+
+        private static ChatEntry? _streamingEntry;
+
+        private static void UpsertStreaming(string text, string agentId, string agentType)
+        {
+            lock (_lock)
+            {
+                if (_streamingEntry == null)
+                {
+                    _streamingEntry = new ChatEntry
+                    {
+                        Role = ChatRole.Assistant,
+                        Text = text,
+                        State = ChatState.Streaming,
+                        AgentId = agentId,
+                        AgentType = agentType,
+                    };
+                    _entries.Add(_streamingEntry);
+                }
+                else
+                {
+                    _streamingEntry.Text = text;
+                    _streamingEntry.AgentId = agentId;
+                    _streamingEntry.AgentType = agentType;
+                    _streamingEntry.CachedHeight = 0f;
+                }
+                TrimEntries();
+            }
+            OnChanged?.Invoke();
+        }
+
+        // ========== stream_event 增量流式 ==========
+
+        private static string _deltaAccum = "";
+        private static bool _deltaIsThinking;
+
+        /// <summary>处理 stream_event 消息（content_block_delta 增量更新）</summary>
+        public static void OnStreamEvent(JsonElement sdkMsg)
+        {
+            if (!sdkMsg.TryGetProperty("event", out var evt)) return;
+            var eventType = evt.TryGetProperty("type", out var et) ? et.GetString() : "";
+
+            if (eventType == "content_block_start")
+            {
+                var block = evt.TryGetProperty("content_block", out var cb) ? cb : default;
+                var blockType = block.TryGetProperty("type", out var bt) ? bt.GetString() : "";
+                _deltaIsThinking = blockType == "thinking";
+                _deltaAccum = "";
+                // 立即显示空条目 + 光标，UI 可见 AI 正在响应
+                UpsertStreaming(_deltaIsThinking ? "思考中: " : "", "", "");
+            }
+            else if (eventType == "content_block_delta")
+            {
+                if (!evt.TryGetProperty("delta", out var delta)) return;
+                var deltaType = delta.TryGetProperty("type", out var dt) ? dt.GetString() : "";
+
+                if (deltaType == "text_delta")
+                {
+                    var text = delta.TryGetProperty("text", out var tt) ? tt.GetString() ?? "" : "";
+                    if (_deltaIsThinking) { _deltaIsThinking = false; _deltaAccum = ""; }
+                    _deltaAccum += text;
+                    UpsertStreaming(_deltaAccum, "", "");
+                }
+                else if (deltaType == "thinking_delta")
+                {
+                    var thinking = delta.TryGetProperty("thinking", out var th) ? th.GetString() ?? "" : "";
+                    if (!_deltaIsThinking) { _deltaIsThinking = true; _deltaAccum = ""; }
+                    _deltaAccum += thinking;
+                    UpsertStreaming("思考中: " + _deltaAccum, "", "");
+                }
+                else if (deltaType == "input_json_delta")
+                {
+                    // tool_use 参数增量 — tool_use block 单独处理
+                }
+            }
+        }
+
+        /// <summary>结束当前流式条目（result / 新用户消息时调用）</summary>
+        public static void FinalizeStreaming()
+        {
+            lock (_lock)
+            {
+                if (_streamingEntry != null)
+                {
+                    _streamingEntry.State = ChatState.Done;
+                    _streamingEntry = null;
+                }
+            }
+            _deltaAccum = "";
+            OnChanged?.Invoke();
         }
 
     }

@@ -226,9 +226,26 @@ namespace RimWorldMCP
                                 ChatDisplayState.OnSdkMessage(root);
                                 break;
 
+                            case "stream_event":
+                                ChatDisplayState.OnStreamEvent(root);
+                                break;
+
                             case "result":
-                                // Tool 执行结果 → 清理工具调用状态
+                                // Tool 执行结果 → 清理工具调用状态 + 结束流式
+                                ChatDisplayState.FinalizeStreaming();
                                 ChatDisplayState.ClearToolCalls();
+
+                                // 提取 Token 用量
+                                if (root.TryGetProperty("usage", out var usageEl))
+                                {
+                                    long inputTok = 0, outputTok = 0, cacheRead = 0, cacheCreate = 0, durationMs = 0;
+                                    if (usageEl.TryGetProperty("input_tokens", out var it)) inputTok = it.GetInt64();
+                                    if (usageEl.TryGetProperty("output_tokens", out var ot)) outputTok = ot.GetInt64();
+                                    if (usageEl.TryGetProperty("cache_read_input_tokens", out var cr)) cacheRead = cr.GetInt64();
+                                    if (usageEl.TryGetProperty("cache_creation_input_tokens", out var cc)) cacheCreate = cc.GetInt64();
+                                    if (root.TryGetProperty("duration_ms", out var dms)) durationMs = dms.GetInt64();
+                                    TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, durationMs);
+                                }
                                 break;
 
                             case "aborted":

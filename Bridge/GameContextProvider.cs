@@ -153,6 +153,9 @@ namespace RimWorldMCP
             }
 
             sb.AppendLine();
+            sb.Append(TokenUsageTracker.GetSummary());
+            sb.AppendLine();
+            sb.AppendLine();
             sb.AppendLine("## 天气与环境");
             if (map != null)
             {

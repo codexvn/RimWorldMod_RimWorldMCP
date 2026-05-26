@@ -318,6 +318,13 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   .msg-result .result-label.error { color: var(--red); border-color: rgba(244,75,75,0.25); }
   .msg-result .result-label.warn { color: var(--amber); border-color: rgba(240,168,64,0.25); }
 
+  /* Token usage */
+  .msg-usage {
+    font-family: var(--mono); font-size: 11px; line-height: 1.6;
+    color: var(--muted); text-align: center;
+    margin: 0 8px 4px; white-space: pre-wrap;
+  }
+
   /* --- Typing indicator --- */
   .typing-indicator {
     align-self: flex-start; display: flex; align-items: center; gap: 4px;
@@ -613,7 +620,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
                      : '✗ Failed';
         const cls = sub === 'success' ? 'ok' : sub === 'aborted' ? 'warn' : 'error';
         hideReading();
-        addResult(cls, label);
+        addResult(cls, label, msg._usageText);
         break;
       }
     }
@@ -815,13 +822,22 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
 
   // ===== Result divider =====
-  function addResult(cls, label) {
+  function addResult(cls, label, usageText) {
     var div = document.createElement('div');
     div.className = 'msg-result';
     div.innerHTML = '<span class="result-line"></span>'
       + '<span class="result-label ' + cls + '">' + label + '</span>'
       + '<span class="result-line"></span>';
     messagesEl.appendChild(div);
+
+    // Token 消耗信息
+    if (usageText) {
+      var usageDiv = document.createElement('div');
+      usageDiv.className = 'msg-usage';
+      usageDiv.textContent = usageText;
+      messagesEl.appendChild(usageDiv);
+    }
+
     checkScroll();
   }
 

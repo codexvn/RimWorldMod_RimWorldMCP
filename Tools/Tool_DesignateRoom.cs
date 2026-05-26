@@ -30,7 +30,8 @@ namespace RimWorldMCP.Tools
                 door_defName = new { type = "string", description = "门的 DefName，默认 Door", @default = "Door" },
                 floor_defName = new { type = "string", description = "地板 DefName，可选" },
                 force = new { type = "boolean", description = "跳过资源检查强制建造（默认 false）", @default = false },
-                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" }
+                ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" },
+                ignore_overwrite = new { type = "boolean", description = "跳过内部人造墙体冲突检测（默认 false）。默认会检查房间内部是否有其他人造墙体（坐标交叉错误），检测到则拒绝建造。设为 true 可强制覆盖。天然岩壁始终忽略。" }
             },
             required = new[] { "pos_x", "pos_y", "end_x", "end_y" }
         });
@@ -66,6 +67,9 @@ namespace RimWorldMCP.Tools
             bool ignore_unreachable = false;
             if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
                 ignore_unreachable = true;
+            bool ignore_overwrite = false;
+            if (args.Value.TryGetProperty("ignore_overwrite", out var jIgnoreOver) && jIgnoreOver.ValueKind == JsonValueKind.True)
+                ignore_overwrite = true;
 
             // 计算房间几何（不涉及游戏状态，可在任意线程执行）
             int minX = Math.Min(rawStartX, rawEndX);
@@ -171,6 +175,43 @@ namespace RimWorldMCP.Tools
                     int mapW = map.Size.x, mapH = map.Size.z;
                     if (minX < 0 || minZ < 0 || maxX >= mapW || maxZ >= mapH)
                         return ToolResult.Error($"房间范围 ({minX}~{maxX}, {minZ}~{maxZ}) 超出地图边界 (0~{mapW - 1}, 0~{mapH - 1})。请调整坐标。");
+
+                    // 检查房间整体区域内是否存在人造墙体冲突（默认启用，ignore_overwrite=true 跳过）
+                    if (!ignore_overwrite)
+                    {
+                        var conflictWalls = new List<string>();
+                        // 扫描整个矩形区域（包含边界和内部），找人造墙体
+                        for (int x = minX; x <= maxX; x++)
+                        {
+                            for (int z = minZ; z <= maxZ; z++)
+                            {
+                                var cell = new IntVec3(x, 0, z);
+                                Building edifice = cell.GetEdifice(map);
+                                if (edifice == null) continue;
+                                // 自然岩壁忽略（isNaturalRock=true 或可开采）
+                                if (edifice.def.building?.isNaturalRock == true) continue;
+                                if (edifice.def.mineable) continue;
+                                // 人造墙体才纳入冲突检测
+                                if (!edifice.def.IsWall) continue;
+
+                                bool onPerimeter = (z == minZ || z == maxZ || x == minX || x == maxX);
+                                if (onPerimeter) continue; // 边界上的墙可复用（共用墙），不算冲突
+
+                                conflictWalls.Add($"({x},{z}) {edifice.def.label}");
+                            }
+                        }
+                        if (conflictWalls.Count > 0)
+                        {
+                            var sb2 = new StringBuilder();
+                            sb2.AppendLine($"⚠ 房间区域内发现 {conflictWalls.Count} 处人造墙体，坐标可能与已有建筑交叉：");
+                            foreach (var w in conflictWalls.Take(8))
+                                sb2.AppendLine($"  - {w}");
+                            if (conflictWalls.Count > 8)
+                                sb2.AppendLine($"  ... 及其他 {conflictWalls.Count - 8} 处");
+                            sb2.Append("传 ignore_overwrite=true 可跳过检测强制建造。");
+                            return ToolResult.Error(sb2.ToString().TrimEnd());
+                        }
+                    }
 
                     if (Faction.OfPlayer == null)
                         return ToolResult.Error("玩家派系不存在");

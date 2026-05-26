@@ -49,6 +49,7 @@ namespace RimWorldMCP
             base.ExposeData();
             Scribe_Values.Look(ref _sessionId, "mcpSessionId", "");
             TodoManager.ExposeData();
+            TokenUsageTracker.ExposeData();
         }
 
         private static string GenerateSessionId()

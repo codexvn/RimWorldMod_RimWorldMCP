@@ -60,6 +60,7 @@ export function createSession(sdk: any, config: CompanionConfig, abortController
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
     disallowedTools: ['Bash', 'FileWrite', 'FileEdit', 'Read', 'Glob', 'Grep', 'NotebookEdit', 'WebFetch', 'EnterWorktree', 'ExitWorktree'],
+    includePartialMessages: true,
     settingSources: config.settingSources,
     systemPrompt: [buildSystemPrompt(), SYSTEM_PROMPT_DYNAMIC_BOUNDARY],
     stderr: (data: string | Buffer) => {
@@ -117,7 +118,7 @@ export function createResponseProcessor(
           }
         }
 
-        if (msgType === 'assistant' || msgType === 'user') {
+        if (msgType === 'assistant' || msgType === 'user' || msgType === 'stream_event') {
           onMessage?.(message);
           const content = message.message?.content;
           if (Array.isArray(content)) {
@@ -133,10 +134,29 @@ export function createResponseProcessor(
         }
 
         if (msgType === 'result') {
+          const usage = message.usage;
+          const durationMs = message.duration_ms;
+          if (usage) {
+            const inputTokens = usage.input_tokens ?? 0;
+            const outputTokens = usage.output_tokens ?? 0;
+            const cacheRead = usage.cache_read_input_tokens ?? 0;
+            const cacheCreate = usage.cache_creation_input_tokens ?? 0;
+            const totalTokens = inputTokens + outputTokens;
+            const cacheHitRate = inputTokens > 0 ? (cacheRead / inputTokens * 100).toFixed(1) : '0.0';
+            const durationSec = durationMs ? (durationMs / 1000).toFixed(1) : '?';
+            console.log(`[result] 耗时 ${durationSec}s | 输入 ${inputTokens} (缓存命中 ${cacheRead}, ${cacheHitRate}%) | 输出 ${outputTokens} | 合计 ${totalTokens}`);
+            // 附加格式化后的 usage 到消息里，供 chat page 直接渲染
+            (message as any)._usageText = [
+              `耗时 ${durationSec}s | Token 合计 ${totalTokens}`,
+              `输入 ${inputTokens} (缓存命中 ${cacheRead} · ${cacheHitRate}% · 新建 ${cacheCreate})`,
+              `输出 ${outputTokens}`,
+            ].join('\n');
+          } else {
+            const summary = message.subtype === 'success'
+              ? '执行成功' : `执行失败: ${message.errors?.join(', ') || 'unknown'}`;
+            console.log(`[result] ${summary}`);
+          }
           onMessage?.(message);
-          const summary = message.subtype === 'success'
-            ? '执行成功' : `执行失败: ${message.errors?.join(', ') || 'unknown'}`;
-          console.log(`[result] ${summary}`);
         }
       }
     } catch (err: any) {

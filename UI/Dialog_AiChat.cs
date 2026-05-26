@@ -481,14 +481,28 @@ namespace RimWorldMCP
             // 工具计数
             float toolsX = statusX + 72f;
             var toolCount = ChatDisplayState.ToolCallsSnapshot.Count;
-            Rect toolsRect = new Rect(toolsX, y, 80f, btnH);
+            Rect toolsRect = new Rect(toolsX, y, 70f, btnH);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(0.6f, 0.6f, 0.6f, _alpha);
             Widgets.Label(toolsRect, $"Tools: {toolCount}");
             GUI.color = Color.white;
 
-            // 透明度
-            float alphaLabelX = toolsX + 75f;
+            // Token 消耗
+            string tokenText = TokenUsageTracker.GetCompactDisplay();
+            float tokenDisplayW = 0f;
+            if (tokenText.Length > 0)
+            {
+                float tokenX = toolsX + 72f;
+                tokenDisplayW = Text.CalcSize(tokenText).x + 8f;
+                Rect tokenRect = new Rect(tokenX, y, tokenDisplayW, btnH);
+                Text.Font = GameFont.Tiny;
+                GUI.color = new Color(0.45f, 0.75f, 0.9f, _alpha);
+                Widgets.Label(tokenRect, tokenText);
+                GUI.color = Color.white;
+            }
+
+            // 透明度（紧接 token 显示或工具箱之后）
+            float alphaLabelX = toolsX + 72f + tokenDisplayW + 4f;
             Rect alphaLabel = new Rect(alphaLabelX, y, 40f, btnH);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(0.5f, 0.5f, 0.5f, _alpha);

@@ -34,21 +34,23 @@ namespace RimWorldMCP.Tools
                 {
                     try
                     {
-                        float progress = Math.Min(1f, researchManager.GetProgress(currentProj));
-                        int pct = (int)(progress * 100f);
+                        float progressReal = researchManager.GetProgress(currentProj);
+                        float cost = currentProj.Cost;
+                        float pct = currentProj.ProgressPercent;
+
                         sb.AppendLine("### 当前研究");
                         sb.AppendLine($"- **{currentProj.label}** ({currentProj.defName})");
-                        sb.AppendLine($"- 进度: {pct}%");
+                        sb.AppendLine($"- 进度: {progressReal:F0} / {cost:F0} ({(int)(pct * 100f)}%)");
 
                         // 进度条
-                        string bar = BuildProgressBar(progress);
-                        sb.AppendLine($"- {bar} {pct}%");
+                        string bar = BuildProgressBar(pct);
+                        sb.AppendLine($"- {bar} {(int)(pct * 100f)}%");
 
                         // 研究工作量估算
-                        if (currentProj.baseCost > 0 && progress < 1f)
+                        if (cost > 0 && pct < 1f)
                         {
-                            float remainingWork = currentProj.baseCost * (1f - progress);
-                            sb.AppendLine($"- 总工作量: {currentProj.baseCost:N0} | 剩余约: {remainingWork:N0}");
+                            float remainingWork = cost - progressReal;
+                            sb.AppendLine($"- 剩余: {remainingWork:F0}");
                         }
 
                         // 前置条件
@@ -115,7 +117,7 @@ namespace RimWorldMCP.Tools
                                 if (prereqMet)
                                 {
                                     // Check if research was started
-                                    float p = Math.Min(1f, researchManager.GetProgress(proj));
+                                    float p = researchManager.GetProgress(proj); // 实际点数
                                     if (p > 0f)
                                         inProgress.Add((proj, p));
                                     else
@@ -157,7 +159,8 @@ namespace RimWorldMCP.Tools
                             sb.AppendLine($"### 有进度但未选为当前 ({inProgress.Count} 项)");
                             foreach (var (proj, p) in inProgress.OrderByDescending(x => x.progress))
                             {
-                                sb.AppendLine($"- {proj.label} ({proj.defName}) — {(int)(p * 100f)}%");
+                                float pct = proj.Cost > 0 ? p / proj.Cost : 0f;
+                                sb.AppendLine($"- {proj.label} ({proj.defName}) — {p:F0} / {proj.Cost:F0} ({(int)(pct * 100f)}%)");
                             }
                         }
 
@@ -168,7 +171,7 @@ namespace RimWorldMCP.Tools
                             sb.AppendLine($"### 可开始研究 ({available.Count} 项，显示前 10)");
                             foreach (var proj in available.Take(12))
                             {
-                                sb.AppendLine($"- ⬜ {proj.label} ({proj.defName}) | 工作量: {proj.baseCost:N0}");
+                                sb.AppendLine($"- ⬜ {proj.label} ({proj.defName}) | 工作量: {proj.Cost:F0}");
                             }
                             if (available.Count > 12)
                                 sb.AppendLine($"- ... 还有 {available.Count - 12} 项");

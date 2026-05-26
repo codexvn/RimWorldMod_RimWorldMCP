@@ -40,11 +40,12 @@ namespace RimWorldMCP.Tools
                 }
                 else
                 {
-                    float progress = Math.Min(1f, rm.GetProgress(curProj));
-                    int pct = (int)(progress * 100f);
+                    float progressReal = rm.GetProgress(curProj);
+                    float cost = curProj.Cost;
+                    float pct = curProj.ProgressPercent;
                     sb.AppendLine();
                     sb.AppendLine($"- 当前项目: **{curProj.label}** ({curProj.defName})");
-                    sb.AppendLine($"- 进度: {pct}% | 总工作量: {curProj.baseCost:N0}");
+                    sb.AppendLine($"- 进度: {progressReal:F0} / {cost:F0} ({(int)(pct * 100f)}%)");
 
                     // 查找正在研究的所有殖民者
                     var researchers = map.mapPawns.FreeColonistsSpawned
@@ -94,13 +95,13 @@ namespace RimWorldMCP.Tools
                         sb.AppendLine($"- 净每日产出: {netDailyProgress:F0} 点/天");
 
                         // 预计剩余时间
-                        if (curProj.baseCost > 0 && netDailyProgress > 0)
+                        if (cost > 0 && netDailyProgress > 0)
                         {
-                            float remainingWork = curProj.baseCost * (1f - progress);
+                            float remainingWork = cost - progressReal;
                             float remainingDays = remainingWork / netDailyProgress;
                             sb.AppendLine();
                             sb.AppendLine("### 预计完成");
-                            sb.AppendLine($"- 剩余工作量: {remainingWork:N0}");
+                            sb.AppendLine($"- 剩余工作量: {remainingWork:F0}");
                             sb.AppendLine($"- 预计: {remainingDays:F1} 天 ({GameTimeHelper.CurrentTime()})");
                         }
                     }
