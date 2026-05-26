@@ -160,9 +160,9 @@ namespace RimWorldMCP.Tools
 
                     if (previewOnly)
                     {
-                        var log = new StringBuilder();
-                        log.AppendLine($"预览: {faction.Name} / {traderKind.label}");
-                        log.AppendLine($"缓存 TTL: {CacheTTLTicks / 2500:F1} 游戏小时\n");
+                        var preview = new StringBuilder();
+                        preview.AppendLine($"预览: {faction.Name} / {traderKind.label}");
+                        preview.AppendLine($"缓存 TTL: {CacheTTLTicks / 2500:F1} 游戏小时\n");
 
                         int shown = 0;
                         foreach (var t in tradeables.OrderByDescending(t => t.AnyThing?.MarketValue ?? 0f))
@@ -171,13 +171,13 @@ namespace RimWorldMCP.Tools
                             if (t.CountToTransferToDestination <= 0) continue;
                             shown++;
                             float price = t.AnyThing?.MarketValue ?? 0f;
-                            log.AppendLine($"- {t.Label} x{t.CountToTransferToDestination} ({price * t.CountToTransferToDestination:F0} 银)");
+                            preview.AppendLine($"- {t.Label} x{t.CountToTransferToDestination} ({price * t.CountToTransferToDestination:F0} 银)");
                         }
                         if (shown == 0)
-                            log.AppendLine("（该商船类型无可购商品——可能不交易实物，或是纯收购型）");
+                            preview.AppendLine("（该商船类型无可购商品——可能不交易实物，或是纯收购型）");
 
-                        log.AppendLine($"\n用 trade_execute(faction_name, trader_kind, buy/sell) 执行交易。缓存期内同批货不变。");
-                        return ToolResult.Success(log.ToString().TrimEnd());
+                        preview.AppendLine($"\n用 trade_execute(faction_name, trader_kind, buy/sell) 执行交易。缓存期内同批货不变。");
+                        return ToolResult.Success(preview.ToString().TrimEnd());
                     }
 
                     var log = new StringBuilder();
