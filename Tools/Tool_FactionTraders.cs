@@ -53,8 +53,12 @@ namespace RimWorldMCP.Tools
                             _ => "?"
                         };
 
+                        // 好感 → 折扣：每 10 好感约 1% 折扣，盟友额外 10%
+                        int discount = Math.Max(0, faction.PlayerGoodwill / 10 + (faction.PlayerRelationKind == FactionRelationKind.Ally ? 10 : 0));
+                        string discountStr = discount > 0 ? $"（约 {discount}% 折扣）" : "（无折扣）";
+
                         sb.AppendLine($"\n### {faction.Name}");
-                        sb.AppendLine($"- 关系: {relation} | 好感: {faction.PlayerGoodwill}");
+                        sb.AppendLine($"- 关系: {relation} | 好感: {faction.PlayerGoodwill} {discountStr}");
                         sb.AppendLine($"- 科技: {faction.def.techLevel}");
 
                         // TraderKinds
