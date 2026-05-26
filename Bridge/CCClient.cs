@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -226,6 +227,8 @@ namespace RimWorldMCP
                                 ChatDisplayState.OnSdkMessage(root);
                                 // 统计工具调用成败
                                 CountToolResults(root);
+                                // 提取 Token 用量（usage 在 assistant 消息的 message.usage 中）
+                                ExtractUsageFromMessage(root);
                                 break;
 
                             case "stream_event":
@@ -236,23 +239,6 @@ namespace RimWorldMCP
                                 // Tool 执行结果 → 清理工具调用状态 + 结束流式
                                 ChatDisplayState.FinalizeStreaming();
                                 ChatDisplayState.ClearToolCalls();
-
-                                // 提取 Token 用量
-                                if (root.TryGetProperty("usage", out var usageEl))
-                                {
-                                    long inputTok = 0, outputTok = 0, cacheRead = 0, cacheCreate = 0, durationMs = 0;
-                                    if (usageEl.TryGetProperty("input_tokens", out var it)) inputTok = it.GetInt64();
-                                    if (usageEl.TryGetProperty("output_tokens", out var ot)) outputTok = ot.GetInt64();
-                                    if (usageEl.TryGetProperty("cache_read_input_tokens", out var cr)) cacheRead = cr.GetInt64();
-                                    if (usageEl.TryGetProperty("cache_creation_input_tokens", out var cc)) cacheCreate = cc.GetInt64();
-                                    if (root.TryGetProperty("duration_ms", out var dms)) durationMs = dms.GetInt64();
-                                    McpLog.Info($"[cc] Token: {inputTok}+{outputTok} (缓存 {cacheRead}+{cacheCreate}), {durationMs}ms");
-                                    TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, durationMs);
-                                }
-                                else
-                                {
-                                    McpLog.Warn("[cc] result 消息缺少 usage 字段");
-                                }
                                 break;
 
                             case "aborted":
@@ -298,6 +284,60 @@ namespace RimWorldMCP
                     bool isError = block.TryGetProperty("is_error", out var ie) && ie.GetBoolean();
                     TokenUsageTracker.RecordToolResult(isError);
                 }
+            }
+        }
+
+        /// <summary>从 assistant 消息中提取 Token 用量（message.usage）</summary>
+        private static void ExtractUsageFromMessage(JsonElement root)
+        {
+            // usage 在 message.usage 中（参照 Claude Agent SDK 消息格式）
+            if (!root.TryGetProperty("message", out var msgEl)) return;
+            if (!msgEl.TryGetProperty("usage", out var usageEl) || usageEl.ValueKind != JsonValueKind.Object) return;
+
+            long inputTok = 0, outputTok = 0, cacheRead = 0, cacheCreate = 0;
+            if (usageEl.TryGetProperty("input_tokens", out var it)) inputTok = it.GetInt64();
+            if (usageEl.TryGetProperty("output_tokens", out var ot)) outputTok = ot.GetInt64();
+            if (usageEl.TryGetProperty("cache_read_input_tokens", out var cr)) cacheRead = cr.GetInt64();
+            if (usageEl.TryGetProperty("cache_creation_input_tokens", out var cc)) cacheCreate = cc.GetInt64();
+
+            if (inputTok > 0 || outputTok > 0)
+            {
+                McpLog.Info($"[cc] Token: in={inputTok} out={outputTok} cacheR={cacheRead} cacheW={cacheCreate}");
+                TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, 0);
+            }
+        }
+
+        /// <summary>从 stream_event 中提取增量 usage（message_start 或 message_delta）</summary>
+        private static void ExtractUsageFromStreamEvent(JsonElement root)
+        {
+            if (!root.TryGetProperty("event", out var evt)) return;
+            if (!evt.TryGetProperty("type", out var et)) return;
+            var eventType = et.GetString();
+
+            if (eventType == "message_start" && evt.TryGetProperty("message", out var msgEl))
+            {
+                // message_start: usage 在 event.message.usage 中
+                if (msgEl.TryGetProperty("usage", out var usageEl) && usageEl.ValueKind == JsonValueKind.Object)
+                {
+                    long inputTok = 0, outputTok = 0, cacheRead = 0, cacheCreate = 0;
+                    if (usageEl.TryGetProperty("input_tokens", out var it)) inputTok = it.GetInt64();
+                    if (usageEl.TryGetProperty("output_tokens", out var ot)) outputTok = ot.GetInt64();
+                    if (usageEl.TryGetProperty("cache_read_input_tokens", out var cr)) cacheRead = cr.GetInt64();
+                    if (usageEl.TryGetProperty("cache_creation_input_tokens", out var cc)) cacheCreate = cc.GetInt64();
+                    if (inputTok > 0 || outputTok > 0)
+                        TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, 0);
+                }
+            }
+            else if (eventType == "message_delta" && evt.TryGetProperty("usage", out var deltaUsage) && deltaUsage.ValueKind == JsonValueKind.Object)
+            {
+                // message_delta: usage 直接在 event.usage 中（增量输出 token）
+                long inputTok = 0, outputTok = 0, cacheRead = 0, cacheCreate = 0;
+                if (deltaUsage.TryGetProperty("input_tokens", out var it)) inputTok = it.GetInt64();
+                if (deltaUsage.TryGetProperty("output_tokens", out var ot)) outputTok = ot.GetInt64();
+                if (deltaUsage.TryGetProperty("cache_read_input_tokens", out var cr)) cacheRead = cr.GetInt64();
+                if (deltaUsage.TryGetProperty("cache_creation_input_tokens", out var cc)) cacheCreate = cc.GetInt64();
+                if (outputTok > 0)
+                    TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, 0);
             }
         }
 

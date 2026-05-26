@@ -60,6 +60,10 @@ namespace RimWorldMCP
             base.PreOpen();
             ChatDisplayState.OnChanged += OnChatChanged;
             TodoManager.OnChanged += OnTodoChanged;
+            // 默认吸附开启——持续显示最新内容
+            _chatUserScrolledUp = false;
+            _toolUserScrolledUp = false;
+            _scrollToBottom = true;
         }
 
         public override void PostClose()
@@ -75,6 +79,8 @@ namespace RimWorldMCP
         private int _lastToolCount;
         private bool _chatUserScrolledUp;
         private bool _toolUserScrolledUp;
+        private float _stableViewH;
+        private float _stableToolViewH;
 
         private void OnChatChanged()
         {
@@ -254,24 +260,32 @@ namespace RimWorldMCP
                 totalH += entry.CachedHeight + 6f;
             }
 
-            Rect viewRect = new Rect(0f, 0f, contentWidth,
-                Mathf.Max(totalH, scrollRect.height));
-
-            // 检测用户是否手动滚离底部
-            float bottomY = Mathf.Max(0f, viewRect.height - scrollRect.height);
-            if (_chatScrollPos.y < bottomY - 4f) _chatUserScrolledUp = true;
-            if (_chatScrollPos.y >= bottomY - 1f) _chatUserScrolledUp = false;
-
             bool isStreaming = entries.Count > 0
                 && entries[entries.Count - 1].State == ChatState.Streaming;
-            if (isStreaming || (_scrollToBottom && !_chatUserScrolledUp))
+
+            // 稳定 viewRect 高度（只增不减）避免 IMGUI 每帧重算导致闪烁
+            float minH = Mathf.Max(totalH, scrollRect.height);
+            if (minH <= scrollRect.height || !isStreaming) _stableViewH = minH;
+            else _stableViewH = Mathf.Max(_stableViewH, minH);
+            Rect viewRect = new Rect(0f, 0f, contentWidth, _stableViewH);
+
+            // 磁吸：用户上滚→脱离，滚回底部→吸附
+            float contentBottom = Mathf.Max(0f, minH - scrollRect.height);
+
+            if (!isStreaming) { _chatUserScrolledUp = false; _stableViewH = 0f; }
+
+            // 新内容 + 吸附中 → 先滚到底再进 ScrollView
+            if ((isStreaming && !_chatUserScrolledUp) || (_scrollToBottom && !_chatUserScrolledUp))
             {
-                _chatScrollPos.y = bottomY;
+                _chatScrollPos.y = contentBottom;
                 _scrollToBottom = false;
-                _chatUserScrolledUp = false;
             }
 
             Widgets.BeginScrollView(scrollRect, ref _chatScrollPos, viewRect);
+
+            // 用 ScrollView 后的实际位置判断磁吸（IMGUI 可能 clamp 滚动位置）
+            if (_chatScrollPos.y < contentBottom - 4f) _chatUserScrolledUp = true;
+            if (_chatScrollPos.y >= contentBottom - 1f) _chatUserScrolledUp = false;
 
             float curY = 4f;
             foreach (var entry in entries)
@@ -314,21 +328,28 @@ namespace RimWorldMCP
             foreach (var tc in toolCalls)
                 totalH += CalcCardHeight(tc, cardWidth) + 6f;
 
-            Rect viewRect = new Rect(0f, 0f, scrollRect.width - 16f,
-                Mathf.Max(totalH, scrollRect.height));
+            bool hasRunning = false;
+            foreach (var tc in toolCalls)
+                if (tc.Status == ToolStatus.Running) { hasRunning = true; break; }
 
-            // 检测用户是否手动滚离底部
-            float toolBottomY = Mathf.Max(0f, viewRect.height - scrollRect.height);
-            if (_toolScrollPos.y < toolBottomY - 4f) _toolUserScrolledUp = true;
-            if (_toolScrollPos.y >= toolBottomY - 1f) _toolUserScrolledUp = false;
+            float toolMinH = Mathf.Max(totalH, scrollRect.height);
+            if (toolMinH <= scrollRect.height || !hasRunning) _stableToolViewH = toolMinH;
+            else _stableToolViewH = Mathf.Max(_stableToolViewH, toolMinH);
+            Rect viewRect = new Rect(0f, 0f, scrollRect.width - 16f, _stableToolViewH);
 
-            if (_toolScrollToBottom && !_toolUserScrolledUp)
+            float toolContentBottom = Mathf.Max(0f, toolMinH - scrollRect.height);
+
+            if ((hasRunning && !_toolUserScrolledUp) || (_toolScrollToBottom && !_toolUserScrolledUp))
             {
-                _toolScrollPos.y = toolBottomY;
+                _toolScrollPos.y = toolContentBottom;
                 _toolScrollToBottom = false;
             }
 
             Widgets.BeginScrollView(scrollRect, ref _toolScrollPos, viewRect);
+
+            // 用 ScrollView 后的实际位置判断磁吸
+            if (_toolScrollPos.y < toolContentBottom - 4f) _toolUserScrolledUp = true;
+            if (_toolScrollPos.y >= toolContentBottom - 1f) _toolUserScrolledUp = false;
 
             float curY = 4f;
             for (int i = 0; i < toolCalls.Count; i++)

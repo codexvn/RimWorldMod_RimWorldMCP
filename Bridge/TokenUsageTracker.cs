@@ -54,8 +54,9 @@ namespace RimWorldMCP
             var sb = new StringBuilder();
             long totalTokens = TotalInputTokens + TotalOutputTokens;
             double avgDurationSec = TotalDurationMs / (double)TotalRequests / 1000.0;
-            double cacheHitRate = TotalInputTokens > 0
-                ? (double)TotalCacheReadTokens / TotalInputTokens * 100.0
+            long totalInputWithCache = TotalInputTokens + TotalCacheCreateTokens + TotalCacheReadTokens;
+            double cacheHitRate = totalInputWithCache > 0
+                ? (double)TotalCacheReadTokens / totalInputWithCache * 100.0
                 : 0.0;
 
             sb.AppendLine($"## Token 消耗统计");
@@ -73,8 +74,9 @@ namespace RimWorldMCP
         {
             if (TotalRequests == 0) return "Token: --";
             long totalTokens = TotalInputTokens + TotalOutputTokens;
-            double cacheHitRate = TotalInputTokens > 0
-                ? (double)TotalCacheReadTokens / TotalInputTokens * 100.0
+            long totalInputWithCache = TotalInputTokens + TotalCacheCreateTokens + TotalCacheReadTokens;
+            double cacheHitRate = totalInputWithCache > 0
+                ? (double)TotalCacheReadTokens / totalInputWithCache * 100.0
                 : 0.0;
 
             string fmt(long v) => v >= 1_000_000 ? $"{v / 1_000_000f:F1}M" :

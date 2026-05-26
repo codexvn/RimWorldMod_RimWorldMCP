@@ -142,7 +142,8 @@ export function createResponseProcessor(
             const cacheRead = usage.cache_read_input_tokens ?? 0;
             const cacheCreate = usage.cache_creation_input_tokens ?? 0;
             const totalTokens = inputTokens + outputTokens;
-            const cacheHitRate = inputTokens > 0 ? (cacheRead / inputTokens * 100).toFixed(0) : '0';
+            const totalInput = inputTokens + cacheCreate + cacheRead;
+            const cacheHitRate = totalInput > 0 ? (cacheRead / totalInput * 100).toFixed(0) : '0';
             const durationSec = durationMs ? (durationMs / 1000).toFixed(1) : '?';
             const fmt = (v: number) => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(v);
             console.log(`[result] 耗时${durationSec}s | Token ${fmt(totalTokens)} | 缓存 ${fmt(cacheRead)}(${cacheHitRate}%) | 输出 ${fmt(outputTokens)}`);
