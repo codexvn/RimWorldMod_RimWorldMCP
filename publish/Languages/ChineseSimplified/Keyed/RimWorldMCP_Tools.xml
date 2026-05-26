@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LanguageData>
+  <!-- 通用查询 -->
+  <RimWorldMCP_Tool_get_game_context>游戏状态</RimWorldMCP_Tool_get_game_context>
+  <RimWorldMCP_Tool_get_resources>资源库存</RimWorldMCP_Tool_get_resources>
+  <RimWorldMCP_Tool_check_colony>殖民地检查</RimWorldMCP_Tool_check_colony>
+  <RimWorldMCP_Tool_toggle_pause>暂停切换</RimWorldMCP_Tool_toggle_pause>
+
+  <!-- 网格查询 -->
+  <RimWorldMCP_Tool_get_tile_detail>坐标详情</RimWorldMCP_Tool_get_tile_detail>
+  <RimWorldMCP_Tool_get_tile_grid>网格地图</RimWorldMCP_Tool_get_tile_grid>
+
+  <!-- 制造 -->
+  <RimWorldMCP_Tool_list_recipes>配方列表</RimWorldMCP_Tool_list_recipes>
+  <RimWorldMCP_Tool_create_production_bill>新建工作单</RimWorldMCP_Tool_create_production_bill>
+  <RimWorldMCP_Tool_get_bills>工作单列表</RimWorldMCP_Tool_get_bills>
+  <RimWorldMCP_Tool_manage_bill>管理工作单</RimWorldMCP_Tool_manage_bill>
+
+  <!-- 建造 -->
+  <RimWorldMCP_Tool_designate_build>建造蓝图</RimWorldMCP_Tool_designate_build>
+  <RimWorldMCP_Tool_designate_room>快速房间</RimWorldMCP_Tool_designate_room>
+  <RimWorldMCP_Tool_uninstall_building>拆卸建筑</RimWorldMCP_Tool_uninstall_building>
+  <RimWorldMCP_Tool_install_minified_thing>安装微缩物品</RimWorldMCP_Tool_install_minified_thing>
+
+  <!-- 标记 -->
+  <RimWorldMCP_Tool_designate_mine>开采标记</RimWorldMCP_Tool_designate_mine>
+  <RimWorldMCP_Tool_designate_plants_cut>砍伐标记</RimWorldMCP_Tool_designate_plants_cut>
+  <RimWorldMCP_Tool_designate_harvest>收割标记</RimWorldMCP_Tool_designate_harvest>
+  <RimWorldMCP_Tool_designate_deconstruct>拆除标记</RimWorldMCP_Tool_designate_deconstruct>
+  <RimWorldMCP_Tool_designate_clear_plants>清除杂草</RimWorldMCP_Tool_designate_clear_plants>
+
+  <!-- 存储/种植 -->
+  <RimWorldMCP_Tool_create_stockpile>新建储藏区</RimWorldMCP_Tool_create_stockpile>
+  <RimWorldMCP_Tool_create_growing_zone>新建种植区</RimWorldMCP_Tool_create_growing_zone>
+  <RimWorldMCP_Tool_set_grower_plant>设置作物</RimWorldMCP_Tool_set_grower_plant>
+  <RimWorldMCP_Tool_manage_stockpile_filter>储藏区筛选</RimWorldMCP_Tool_manage_stockpile_filter>
+  <RimWorldMCP_Tool_delete_zone>删除区域</RimWorldMCP_Tool_delete_zone>
+
+  <!-- 装备 -->
+  <RimWorldMCP_Tool_find_equipment>搜索装备</RimWorldMCP_Tool_find_equipment>
+  <RimWorldMCP_Tool_equip_pawn>装备物品</RimWorldMCP_Tool_equip_pawn>
+  <RimWorldMCP_Tool_drop_equipment>丢弃装备</RimWorldMCP_Tool_drop_equipment>
+
+  <!-- 截图 -->
+  <RimWorldMCP_Tool_take_screenshot>截图</RimWorldMCP_Tool_take_screenshot>
+
+  <!-- 研究 -->
+  <RimWorldMCP_Tool_list_research_projects>研究项目</RimWorldMCP_Tool_list_research_projects>
+  <RimWorldMCP_Tool_get_research_progress>研究进度</RimWorldMCP_Tool_get_research_progress>
+  <RimWorldMCP_Tool_set_research_project>设置研究</RimWorldMCP_Tool_set_research_project>
+
+  <!-- 殖民者 -->
+  <RimWorldMCP_Tool_get_colonists>殖民者信息</RimWorldMCP_Tool_get_colonists>
+  <RimWorldMCP_Tool_get_colonist_needs>殖民者需求</RimWorldMCP_Tool_get_colonist_needs>
+  <RimWorldMCP_Tool_get_work_priorities>工作优先级</RimWorldMCP_Tool_get_work_priorities>
+  <RimWorldMCP_Tool_set_work_priority>设置工作</RimWorldMCP_Tool_set_work_priority>
+  <RimWorldMCP_Tool_get_colonist_health>健康报告</RimWorldMCP_Tool_get_colonist_health>
+  <RimWorldMCP_Tool_schedule_operation>安排手术</RimWorldMCP_Tool_schedule_operation>
+
+  <!-- 战斗 -->
+  <RimWorldMCP_Tool_draft_pawn>征召切换</RimWorldMCP_Tool_draft_pawn>
+  <RimWorldMCP_Tool_get_defense_status>防御状态</RimWorldMCP_Tool_get_defense_status>
+  <RimWorldMCP_Tool_attack_pawn>攻击目标</RimWorldMCP_Tool_attack_pawn>
+  <RimWorldMCP_Tool_force_attack>强制攻击</RimWorldMCP_Tool_force_attack>
+  <RimWorldMCP_Tool_find_enemies>搜索敌人</RimWorldMCP_Tool_find_enemies>
+
+  <!-- 右键操作 -->
+  <RimWorldMCP_Tool_pick_up_item>拾取物品</RimWorldMCP_Tool_pick_up_item>
+  <RimWorldMCP_Tool_strip_pawn>剥除装备</RimWorldMCP_Tool_strip_pawn>
+  <RimWorldMCP_Tool_arrest_pawn>逮捕目标</RimWorldMCP_Tool_arrest_pawn>
+  <RimWorldMCP_Tool_rescue_pawn>救援目标</RimWorldMCP_Tool_rescue_pawn>
+  <RimWorldMCP_Tool_capture_pawn>俘虏目标</RimWorldMCP_Tool_capture_pawn>
+  <RimWorldMCP_Tool_ingest_item>服食物品</RimWorldMCP_Tool_ingest_item>
+  <RimWorldMCP_Tool_force_dress>强制穿戴</RimWorldMCP_Tool_force_dress>
+  <RimWorldMCP_Tool_haul_item>搬运物品</RimWorldMCP_Tool_haul_item>
+  <RimWorldMCP_Tool_drop_carried>放下物品</RimWorldMCP_Tool_drop_carried>
+
+  <!-- 全局 -->
+  <RimWorldMCP_Tool_allow_all_items>允许所有物品</RimWorldMCP_Tool_allow_all_items>
+
+  <!-- 搜索 -->
+  <RimWorldMCP_Tool_search_map>搜索地图</RimWorldMCP_Tool_search_map>
+  <RimWorldMCP_Tool_find_pawn>搜索角色</RimWorldMCP_Tool_find_pawn>
+  <RimWorldMCP_Tool_get_thing_def>物品定义</RimWorldMCP_Tool_get_thing_def>
+  <RimWorldMCP_Tool_search_thing_def>Wiki搜索</RimWorldMCP_Tool_search_thing_def>
+  <RimWorldMCP_Tool_get_structure_layout>建筑布局</RimWorldMCP_Tool_get_structure_layout>
+  <RimWorldMCP_Tool_get_construction_status>建造进度</RimWorldMCP_Tool_get_construction_status>
+
+  <!-- 移动 -->
+  <RimWorldMCP_Tool_move_pawn>移动角色</RimWorldMCP_Tool_move_pawn>
+
+  <!-- 弹框 -->
+  <RimWorldMCP_Tool_get_open_dialogs>弹框列表</RimWorldMCP_Tool_get_open_dialogs>
+  <RimWorldMCP_Tool_select_dialog_option>选择弹框</RimWorldMCP_Tool_select_dialog_option>
+
+  <!-- Skill -->
+  <RimWorldMCP_Tool_get_skills>领域技能</RimWorldMCP_Tool_get_skills>
+  <RimWorldMCP_Tool_active_skill>激活技能</RimWorldMCP_Tool_active_skill>
+</LanguageData>
