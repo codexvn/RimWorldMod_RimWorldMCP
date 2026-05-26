@@ -125,6 +125,10 @@
   <!-- 反馈 -->
   <RimWorldMCP_Tool_submit_feedback>提交反馈</RimWorldMCP_Tool_submit_feedback>
 
+  <!-- 任务控制 -->
+  <RimWorldMCP_Tool_cancel_task>取消任务</RimWorldMCP_Tool_cancel_task>
+  <RimWorldMCP_Tool_cancel_build>取消建造</RimWorldMCP_Tool_cancel_build>
+
   <!-- 地图 -->
   <RimWorldMCP_Tool_regenerate_map>重新生成地图</RimWorldMCP_Tool_regenerate_map>
 
