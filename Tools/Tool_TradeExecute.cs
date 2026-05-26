@@ -13,13 +13,14 @@ namespace RimWorldMCP.Tools
     public class Tool_TradeExecute : ITool
     {
         public string Name => "trade_execute";
-        public string Description => "与商船执行交易。先用 trade_with_ship 列出商船，再调用本工具买卖物品。定价使用游戏内置交易系统。";
+        public string Description => "与商船或派系执行交易。通过 ship_name 指定商船，或 faction_name 指定派系（创建虚拟商船进行虚空贸易）。定价使用游戏内置交易系统。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
             properties = new
             {
-                ship_name = new { type = "string", description = "商船名称（匹配 trade_with_ship 返回的名称）" },
+                ship_name = new { type = "string", description = "商船名称（与 faction_name 二选一）" },
+                faction_name = new { type = "string", description = "派系名称（与 ship_name 二选一，创建虚拟商船进行虚空贸易）" },
                 sell = new
                 {
                     type = "array",
@@ -60,9 +61,14 @@ namespace RimWorldMCP.Tools
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("ship_name", out var jSn))
-                return ToolResult.Error("缺少必填参数: ship_name");
-            string shipName = jSn.GetString() ?? "";
+            string shipName = "";
+            string factionName = "";
+            if (args.Value.TryGetProperty("ship_name", out var jSn))
+                shipName = jSn.GetString() ?? "";
+            if (args.Value.TryGetProperty("faction_name", out var jFn))
+                factionName = jFn.GetString() ?? "";
+            if (string.IsNullOrWhiteSpace(shipName) && string.IsNullOrWhiteSpace(factionName))
+                return ToolResult.Error("缺少必填参数: ship_name 或 faction_name");
 
             var sellList = new List<(string item, int count)>();
             if (args.Value.TryGetProperty("sell", out var jSell) && jSell.ValueKind == JsonValueKind.Array)
@@ -87,22 +93,56 @@ namespace RimWorldMCP.Tools
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
+                Map map = Find.CurrentMap;
+                if (map == null) return ToolResult.Error("没有当前地图");
+
+                ITrader trader = null!;
+                bool virtualTrader = false;
+                string traderLabel = "";
+
                 try
                 {
-                    Map map = Find.CurrentMap;
-                    if (map == null) return ToolResult.Error("没有当前地图");
 
-                    var ship = map.passingShipManager.passingShips.OfType<TradeShip>()
-                        .FirstOrDefault(s => !s.Departed && s.CanTradeNow
-                            && s.name.ToLowerInvariant().Contains(shipName.ToLowerInvariant()));
-                    if (ship == null)
-                        return ToolResult.Error($"找不到商船: {shipName}");
+                    if (!string.IsNullOrWhiteSpace(shipName))
+                    {
+                        var ship = map.passingShipManager.passingShips.OfType<TradeShip>()
+                            .FirstOrDefault(s => !s.Departed && s.CanTradeNow
+                                && s.name.ToLowerInvariant().Contains(shipName.ToLowerInvariant()));
+                        if (ship == null)
+                            return ToolResult.Error($"找不到商船: {shipName}");
+                        trader = ship;
+                        traderLabel = ship.name;
+                    }
+                    else
+                    {
+                        var faction = Find.FactionManager.AllFactionsVisible
+                            .FirstOrDefault(f => f.Name.ToLowerInvariant().Contains(factionName.ToLowerInvariant())
+                                && !f.IsPlayer && !f.temporary);
+                        if (faction == null)
+                            return ToolResult.Error($"找不到派系: {factionName}");
+                        if (faction.PlayerRelationKind == FactionRelationKind.Hostile)
+                            return ToolResult.Error($"{faction.Name} 与你是敌对关系，无法贸易");
+
+                        // 获取派系的商船贸易类型
+                        var traderKind = faction.def.orbitalTraderKinds?.FirstOrDefault()
+                            ?? faction.def.caravanTraderKinds?.FirstOrDefault();
+                        if (traderKind == null)
+                            return ToolResult.Error($"{faction.Name} 没有可用的贸易类型");
+
+                        var virtShip = new TradeShip(traderKind, faction);
+                        virtShip.GenerateThings();
+                        virtShip.PassingShipTick(); // 初始化 tick
+                        map.passingShipManager.AddShip(virtShip);
+                        trader = virtShip;
+                        traderLabel = $"{faction.Name} (虚拟商船)";
+                        virtualTrader = true;
+                    }
 
                     var pawn = PawnsFinder.AllMaps_FreeColonistsSpawned
                         .FirstOrDefault(p => p.health.capacities.CapableOf(PawnCapacityDefOf.Talking));
                     if (pawn == null) return ToolResult.Error("没有能说话的殖民者");
 
-                    TradeSession.trader = ship;
+                    TradeSession.trader = trader;
                     TradeSession.playerNegotiator = pawn;
                     var deal = new TradeDeal();
                     var tradeables = (List<Tradeable>)_allTradeablesProp.GetValue(deal);
@@ -141,29 +181,34 @@ namespace RimWorldMCP.Tools
 
                     if (sellValue == 0 && buyValue == 0)
                     {
-                        ResetSession();
+                        ResetSession(virtualTrader ? trader as TradeShip : null);
                         return ToolResult.Error("没有成功匹配到任何物品");
                     }
 
                     bool ok = deal.TryExecute(out bool actuallyTraded);
-                    ResetSession();
+                    ResetSession(virtualTrader ? trader as TradeShip : null);
 
                     if (!ok) return ToolResult.Error("交易执行失败");
                     if (!actuallyTraded) return ToolResult.Error("交易未产生实际交换（可能资金不足）");
+                    log.AppendLine($"交易完成，对方: {traderLabel}");
                     return ToolResult.Success(log.ToString().TrimEnd());
                 }
                 catch (Exception ex)
                 {
-                    ResetSession();
+                    ResetSession(virtualTrader ? trader as TradeShip : null);
                     return ToolResult.Error($"交易失败: {ex.Message}");
                 }
             });
         }
 
-        private static void ResetSession()
+        private static void ResetSession(TradeShip? virtualShip = null)
         {
             TradeSession.trader = null!;
             TradeSession.playerNegotiator = null!;
+            if (virtualShip != null)
+            {
+                virtualShip.Depart();
+            }
         }
 
         private static Tradeable? FindTradeable(List<Tradeable> list, string name, bool playerOwned)

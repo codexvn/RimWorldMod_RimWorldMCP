@@ -80,6 +80,7 @@
   <RimWorldMCP_Tool_ingest_item>服食物品</RimWorldMCP_Tool_ingest_item>
   <RimWorldMCP_Tool_force_dress>强制穿戴</RimWorldMCP_Tool_force_dress>
   <RimWorldMCP_Tool_trade_with_ship>商船贸易</RimWorldMCP_Tool_trade_with_ship>
+  <RimWorldMCP_Tool_trade_execute>执行交易</RimWorldMCP_Tool_trade_execute>
   <RimWorldMCP_Tool_gift_to_faction>通讯送礼</RimWorldMCP_Tool_gift_to_faction>
   <RimWorldMCP_Tool_insult_faction>通讯辱骂</RimWorldMCP_Tool_insult_faction>
   <RimWorldMCP_Tool_haul_item>搬运物品</RimWorldMCP_Tool_haul_item>
