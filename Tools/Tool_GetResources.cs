@@ -14,10 +14,22 @@ namespace RimWorldMCP.Tools
     {
         public string Name => "get_resources";
         public string Description => "获取殖民地当前资源库存详细报告，包括基础材料、食物、药品、装备、电力等。用于评估制造能力和资源瓶颈。";
-        public JsonElement InputSchema => JsonSerializer.SerializeToElement(new { type = "object", properties = new { } });
+        public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
+        {
+            type = "object",
+            properties = new
+            {
+                page = new { type = "integer", description = "页码（1起始），默认1", @default = 1 },
+                page_size = new { type = "integer", description = "每页条数，默认50，最大100", @default = 50 }
+            }
+        });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
+            int page = 1, pageSize = 50;
+            if (args?.TryGetProperty("page", out var jp) == true) page = Math.Max(1, jp.GetInt32());
+            if (args?.TryGetProperty("page_size", out var jps) == true) pageSize = Math.Max(1, Math.Min(100, jps.GetInt32()));
+
             return await McpCommandQueue.DispatchAsync(() =>
             {
                 var map = Find.CurrentMap;
@@ -28,6 +40,19 @@ namespace RimWorldMCP.Tools
 
                 var sb = new StringBuilder();
                 sb.AppendLine("## 资源库存报告");
+
+                // 构建并排序资源列表
+                var resourceList = new List<(ThingDef def, int count)>();
+                foreach (var kv in resources)
+                {
+                    if (kv.Value > 0)
+                        resourceList.Add((kv.Key, kv.Value));
+                }
+                resourceList = resourceList.OrderByDescending(r => r.count).ThenBy(r => r.def.label).ToList();
+
+                // 分页
+                int total = resourceList.Count;
+                var pagedResources = resourceList.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
                 // 分类资源
                 var categories = new Dictionary<string, List<(string label, int count)>>()
@@ -46,12 +71,8 @@ namespace RimWorldMCP.Tools
                     ["其它"] = new(),
                 };
 
-                foreach (var kv in resources)
+                foreach (var (def, count) in pagedResources)
                 {
-                    var def = kv.Key;
-                    int count = kv.Value;
-                    if (count <= 0) continue;
-
                     string label = def.label;
                     string cat = CategorizeItem(def);
                     if (!categories.ContainsKey(cat))
@@ -109,10 +130,19 @@ namespace RimWorldMCP.Tools
                 catch (Exception) { sb.AppendLine("- 无法读取电力信息"); }
 
                 // 统计
-                int totalItemTypes = resources.Count(kv => kv.Value > 0);
                 sb.AppendLine();
                 sb.AppendLine($"---");
-                sb.AppendLine($"*共 {totalItemTypes} 种物品有库存*");
+                sb.AppendLine($"*共 {total} 种物品有库存*");
+
+                // 分页信息
+                if (total > pageSize)
+                {
+                    int totalPages = (int)Math.Ceiling((double)total / pageSize);
+                    sb.Append($"第 {page}/{totalPages} 页，共 {total} 条");
+                    if (page < totalPages) sb.Append($" | page={page + 1} 下一页");
+                    if (page > 1) sb.Append($" | page={page - 1} 上一页");
+                    sb.AppendLine();
+                }
 
                 return ToolResult.Success(sb.ToString());
             });

@@ -17,7 +17,12 @@ namespace RimWorldMCP.Tools
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
-            properties = new { workbench_filter = new { type = "string", description = "按工作台类型 defName 或名称过滤" } }
+            properties = new
+            {
+                workbench_filter = new { type = "string", description = "按工作台类型 defName 或名称过滤" },
+                page = new { type = "integer", description = "页码（1起始），默认1", @default = 1 },
+                page_size = new { type = "integer", description = "每页条数，默认10，最大50", @default = 10 }
+            }
         });
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
@@ -25,6 +30,10 @@ namespace RimWorldMCP.Tools
             var filter = "";
             if (args != null && args.Value.TryGetProperty("workbench_filter", out var f))
                 filter = f.GetString() ?? "";
+
+            int page = 1, pageSize = 10;
+            if (args?.TryGetProperty("page", out var jp) == true) page = Math.Max(1, jp.GetInt32());
+            if (args?.TryGetProperty("page_size", out var jps) == true) pageSize = Math.Max(1, Math.Min(jps.GetInt32(), 50));
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -37,13 +46,9 @@ namespace RimWorldMCP.Tools
                 if (tables.Count == 0)
                     return ToolResult.Success("当前殖民地没有任何工作台。");
 
-                var sb = new StringBuilder();
-                sb.AppendLine("## 当前工作单");
-                sb.AppendLine();
-
-                var billIndex = 0;
-                var totalBills = 0;
-                var hasAnyMatch = false;
+                // 先收集所有匹配的工作单（扁平列表）
+                var billEntries = new List<(Building_WorkTable table, int globalIndex, Bill bill)>();
+                int idx = 0;
 
                 foreach (var table in tables)
                 {
@@ -62,15 +67,45 @@ namespace RimWorldMCP.Tools
                             continue;
                     }
 
-                    hasAnyMatch = true;
+                    foreach (var bill in bills)
+                    {
+                        billEntries.Add((table, idx, bill));
+                        idx++;
+                    }
+                }
+
+                if (billEntries.Count == 0)
+                {
+                    if (!string.IsNullOrEmpty(filter))
+                        return ToolResult.Success($"没有匹配过滤条件 \"{filter}\" 的工作单。");
+                    else
+                        return ToolResult.Success("当前没有工作单。");
+                }
+
+                int totalBills = billEntries.Count;
+                var pagedBills = billEntries.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+                var groupedByTable = pagedBills.GroupBy(e => e.table.thingIDNumber);
+
+                var sb = new StringBuilder();
+                sb.AppendLine("## 当前工作单");
+                sb.AppendLine();
+
+                foreach (var group in groupedByTable)
+                {
+                    var first = group.First();
+                    var table = first.table;
+                    var tableLabel = table.def?.label ?? table.def?.defName ?? "???";
+                    var tableDefName = table.def?.defName ?? "???";
+
                     sb.AppendLine($"### {tableLabel} (`{tableDefName}`)");
                     sb.AppendLine();
                     sb.AppendLine("| 索引 | 单据 | 模式 | 详情 | 状态 |");
                     sb.AppendLine("|------|------|------|------|------|");
 
-                    for (int i = 0; i < bills.Count; i++)
+                    foreach (var entry in group)
                     {
-                        var bill = bills[i];
+                        var bill = entry.bill;
+                        var globalIdx = entry.globalIndex;
                         var label = bill.Label ?? "???";
                         var suspended = bill.suspended;
                         var statusText = suspended ? "暂停" : "运行中";
@@ -106,23 +141,24 @@ namespace RimWorldMCP.Tools
                                 statusText = "已暂停(手动)";
                         }
 
-                        sb.AppendLine($"| [{billIndex}] | {label} | {modeText} | {detailText} | {statusText} |");
-                        billIndex++;
-                        totalBills++;
+                        sb.AppendLine($"| [{globalIdx}] | {label} | {modeText} | {detailText} | {statusText} |");
                     }
 
                     sb.AppendLine();
                 }
 
-                if (!hasAnyMatch)
-                {
-                    if (!string.IsNullOrEmpty(filter))
-                        return ToolResult.Success($"没有匹配过滤条件 \"{filter}\" 的工作单。");
-                    else
-                        return ToolResult.Success("当前没有工作单。");
-                }
+                sb.AppendLine($"**统计**: 共 {totalBills} 个工作单");
 
-                sb.AppendLine($"**统计**: 共 {totalBills} 个工作单, 分布在工作台。");
+                int totalPages = (int)Math.Ceiling((double)totalBills / pageSize);
+                if (totalBills > pageSize)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("---");
+                    sb.Append($"第 {page}/{totalPages} 页，共 {totalBills} 条");
+                    if (page < totalPages) sb.Append($" | page={page + 1} 下一页");
+                    if (page > 1) sb.Append($" | page={page - 1} 上一页");
+                    sb.AppendLine();
+                }
 
                 return ToolResult.Success(sb.ToString());
             });

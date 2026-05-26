@@ -11,6 +11,7 @@ using Verse;
 using RimWorld;
 using RimWorldMCP.Harmony;
 using RimWorldMCP.Helpers;
+using RimWorldMCP.Tools;
 
 namespace RimWorldMCP
 {
@@ -178,6 +179,11 @@ namespace RimWorldMCP
 
                 // 弹框检测
                 CheckDialogs(nowMs, map, colonists, colonistCount);
+
+                // 物品腐坏/耐久降低检测
+                var deteriorationMsg = DeteriorationTracker.CheckAndNotify(map);
+                if (deteriorationMsg != null)
+                    SendCCMessage("DeteriorationWarning", deteriorationMsg);
 
                 // 每日早报（游戏时间 6 点）
                 int day = tick / 60000;
@@ -415,6 +421,7 @@ namespace RimWorldMCP
                 "AlertStart" => "⚠️",
                 "DailyMorning" => "🌅",
                 "IdleDetected" => "⏳",
+                "DeteriorationWarning" => "⚠️",
                 _ => "📢"
             };
             var instruction = category switch
@@ -425,6 +432,7 @@ namespace RimWorldMCP
                 "NegativeEvent" => "\n请评估严重程度并给出应对建议。",
                 "AlertStart" => "\n请检查并处理此警报。",
                 "IdleDetected" => "\n请检查是否有待分配的工作。",
+                "DeteriorationWarning" => "\n请检查问题物品并及时处理。",
                 _ => ""
             };
             return $"{icon} {rawText}{instruction}";

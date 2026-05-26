@@ -25,7 +25,9 @@ namespace RimWorldMCP.Tools
                     @enum = new[] { "colonist", "enemy", "animal", "visitor", "all" },
                     @default = "all"
                 },
-                max_results = new { type = "integer", description = "最大返回数，默认 10", @default = 10 }
+                max_results = new { type = "integer", description = "最大返回数，默认 10", @default = 10 },
+                page = new { type = "integer", description = "页码（1起始），默认1", @default = 1 },
+                page_size = new { type = "integer", description = "每页条数，默认10，最大50", @default = 10 }
             },
             required = new[] { "name" }
         });
@@ -47,6 +49,10 @@ namespace RimWorldMCP.Tools
             int maxResults = 10;
             if (args.Value.TryGetProperty("max_results", out var jMax) && jMax.TryGetInt32(out var m))
                 maxResults = Math.Max(1, Math.Min(m, 50));
+
+            int page = 1, pageSize = 10;
+            if (args?.TryGetProperty("page", out var jp) == true) page = Math.Max(1, jp.GetInt32());
+            if (args?.TryGetProperty("page_size", out var jps) == true) pageSize = Math.Max(1, Math.Min(jps.GetInt32(), 50));
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -87,11 +93,13 @@ namespace RimWorldMCP.Tools
                     if (matched.Count == 0)
                         return ToolResult.Success($"未找到匹配 \"{searchName}\" 的生物。");
 
-                    var take = matched.Take(maxResults).ToList();
-                    var sb = new StringBuilder();
-                    sb.AppendLine($"## find_pawn: \"{searchName}\" 共 {matched.Count} 条");
+                    int total = matched.Count;
+                    var paged = matched.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
-                    foreach (var p in take)
+                    var sb = new StringBuilder();
+                    sb.AppendLine($"## find_pawn: \"{searchName}\" 共 {total} 条");
+
+                    foreach (var p in paged)
                     {
                         string factionStr = p.Faction != null ? $", {p.Faction.Name}" : "";
                         string stateStr = "";
@@ -102,8 +110,16 @@ namespace RimWorldMCP.Tools
                         sb.AppendLine($"- [{p.Position.x},{p.Position.z}] {p.LabelShort} ({p.KindLabel}) ID:{p.thingIDNumber}{factionStr}{stateStr}");
                     }
 
-                    if (matched.Count > maxResults)
-                        sb.AppendLine($"... 还有 {matched.Count - maxResults} 条");
+                    int totalPages = (int)Math.Ceiling((double)total / pageSize);
+                    if (total > pageSize)
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine("---");
+                        sb.Append($"第 {page}/{totalPages} 页，共 {total} 条");
+                        if (page < totalPages) sb.Append($" | page={page + 1} 下一页");
+                        if (page > 1) sb.Append($" | page={page - 1} 上一页");
+                        sb.AppendLine();
+                    }
 
                     return ToolResult.Success(sb.ToString());
                 }

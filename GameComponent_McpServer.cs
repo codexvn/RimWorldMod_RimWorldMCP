@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using RimWorldMCP.Mcp;
@@ -27,6 +28,7 @@ namespace RimWorldMCP
         {
             base.StartedNewGame();
             _sessionId = GenerateSessionId();
+            DeteriorationTracker.Reset();
             StartMcpService();
             AttachMapUI();
         }
@@ -36,6 +38,7 @@ namespace RimWorldMCP
             base.LoadedGame();
             if (string.IsNullOrEmpty(_sessionId))
                 _sessionId = GenerateSessionId();
+            DeteriorationTracker.Reset();
             StartMcpService();
             AttachMapUI();
         }
@@ -169,75 +172,29 @@ namespace RimWorldMCP
 
         private static void RegisterAllTools(ToolRegistry registry, SkillRegistry skillRegistry)
         {
-            registry.Register(new Tool_GetGameContext());
-            registry.Register(new Tool_GetResources());
-            registry.Register(new Tool_ListRecipes());
-            registry.Register(new Tool_CreateBill());
-            registry.Register(new Tool_GetBills());
-            registry.Register(new Tool_ManageBill());
-            registry.Register(new Tool_DesignateBuild());
-            registry.Register(new Tool_DesignateRoom());
-            registry.Register(new Tool_DesignatePlantsCut());
-            registry.Register(new Tool_DesignateMine());
-            registry.Register(new Tool_DesignateDeconstruct());
-            registry.Register(new Tool_DesignateClearPlants());
-            registry.Register(new Tool_DesignateHarvest());
-            registry.Register(new Tool_TakeScreenshot());
-            registry.Register(new Tool_ListResearchProjects());
-            registry.Register(new Tool_GetResearchProgress());
-            registry.Register(new Tool_SetResearchProject());
-            registry.Register(new Tool_GetColonists());
-            registry.Register(new Tool_GetColonistNeeds());
-            registry.Register(new Tool_GetWorkPriorities());
-            registry.Register(new Tool_SetWorkPriority());
-            registry.Register(new Tool_GetColonistHealth());
-            registry.Register(new Tool_ScheduleOperation());
-            registry.Register(new Tool_EquipPawn());
-            registry.Register(new Tool_DraftPawn());
-            registry.Register(new Tool_GetDefenseStatus());
-            registry.Register(new Tool_FindEquipment());
-            registry.Register(new Tool_GetTileGrid());
-            registry.Register(new Tool_GetTileDetail());
-            registry.Register(new Tool_CheckColony());
-            registry.Register(new Tool_TogglePause());
-            registry.Register(new Tool_GetSkills(skillRegistry));
-            registry.Register(new Tool_ActiveSkill(skillRegistry));
-            registry.Register(new Tool_AllowAllItems());
-            registry.Register(new Tool_PickUpItem());
-            registry.Register(new Tool_DropEquipment());
-            registry.Register(new Tool_StripPawn());
-            registry.Register(new Tool_ArrestPawn());
-            registry.Register(new Tool_RescuePawn());
-            registry.Register(new Tool_CapturePawn());
-            registry.Register(new Tool_IngestItem());
-            registry.Register(new Tool_ForceDress());
-            registry.Register(new Tool_CreateStockpile());
-            registry.Register(new Tool_CreateGrowingZone());
-            registry.Register(new Tool_SetGrowerPlant());
-            registry.Register(new Tool_ManageStockpileFilter());
-            registry.Register(new Tool_DeleteZone());
-            registry.Register(new Tool_HaulItem());
-            registry.Register(new Tool_DropCarried());
-            registry.Register(new Tool_SearchMap());
-            registry.Register(new Tool_FindPawn());
-            registry.Register(new Tool_GetThingDef());
-            registry.Register(new Tool_SearchThingDef());
-            registry.Register(new Tool_MovePawn());
-            registry.Register(new Tool_MoveCamera());
-            registry.Register(new Tool_UninstallBuilding());
-            registry.Register(new Tool_InstallMinifiedThing());
-            registry.Register(new Tool_FindEnemies());
-            registry.Register(new Tool_GetStructureLayout());
-            registry.Register(new Tool_GetConstructionStatus());
-            registry.Register(new Tool_AttackPawn());
-            registry.Register(new Tool_ForceAttack());
-            registry.Register(new Tool_GetOpenDialogs());
-            registry.Register(new Tool_SelectDialogOption());
-            registry.Register(new Tool_TodoAdd());
-            registry.Register(new Tool_TodoDelete());
-            registry.Register(new Tool_TodoQuery());
-            registry.Register(new Tool_ListBaseTemplates());
-            registry.Register(new Tool_ApplyBaseTemplate());
+            foreach (var type in typeof(ToolRegistry).Assembly.GetTypes())
+            {
+                if (!typeof(ITool).IsAssignableFrom(type) || type.IsInterface || type.IsAbstract)
+                    continue;
+
+                McpLog.Info($"动态注册工具: {type.Name}");
+                try
+                {
+                    ITool? tool;
+                    var ctorWithSkill = type.GetConstructor(new[] { typeof(SkillRegistry) });
+                    if (ctorWithSkill != null)
+                        tool = (ITool)ctorWithSkill.Invoke(new object[] { skillRegistry });
+                    else
+                        tool = (ITool)Activator.CreateInstance(type);
+
+                    if (tool != null)
+                        registry.Register(tool);
+                }
+                catch (Exception ex)
+                {
+                    McpLog.Warn($"注册失败 {type.Name}: {ex.Message}");
+                }
+            }
         }
 
         private static string FindSkillsDirectory()

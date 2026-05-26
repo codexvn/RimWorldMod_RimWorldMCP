@@ -31,7 +31,8 @@ namespace RimWorldMCP.Tools
                     @enum = new[] { "item", "pawn", "building", "all" },
                     @default = "all"
                 },
-                max_results = new { type = "integer", description = "最大返回数，默认 20", @default = 20 }
+                page = new { type = "integer", description = "页码（1起始），默认1", @default = 1 },
+                page_size = new { type = "integer", description = "每页条数，默认20，最大50", @default = 20 }
             }
         });
 
@@ -57,10 +58,9 @@ namespace RimWorldMCP.Tools
             if (args != null && args.Value.TryGetProperty("category", out var cat))
                 category = cat.GetString() ?? "all";
 
-            int maxResults = 20;
-            if (args != null && args.Value.TryGetProperty("max_results", out var mr))
-                mr.TryGetInt32(out maxResults);
-            maxResults = Math.Max(1, Math.Min(maxResults, 100));
+            int page = 1, pageSize = 20;
+            if (args?.TryGetProperty("page", out var jp) == true) page = Math.Max(1, jp.GetInt32());
+            if (args?.TryGetProperty("page_size", out var jps) == true) pageSize = Math.Max(1, Math.Min(50, jps.GetInt32()));
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -138,20 +138,29 @@ namespace RimWorldMCP.Tools
                     if (hasCenter && radius > 0)
                         results = results.OrderBy(r => r.distSq).ToList();
 
-                    var take = results.Take(maxResults).ToList();
+                    int total = results.Count;
+                    var paged = results.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
                     var sb = new StringBuilder();
                     string filterDesc = "";
                     if (!string.IsNullOrEmpty(keyword)) filterDesc += $"关键词: {keyword}";
                     if (!string.IsNullOrEmpty(defName)) filterDesc += (filterDesc.Length > 0 ? ", " : "") + $"defName: {defName}";
                     if (hasCenter) filterDesc += (filterDesc.Length > 0 ? ", " : "") + $"中心 ({cx},{cz}) 半径 {radius}";
-                    sb.AppendLine($"## 搜索结果 {(filterDesc.Length > 0 ? "(" + filterDesc + ")" : "")} 共 {results.Count} 条");
+                    sb.AppendLine($"## 搜索结果 {(filterDesc.Length > 0 ? "(" + filterDesc + ")" : "")} 共 {total} 条");
 
-                    foreach (var (line, _, typeLabel) in take)
+                    foreach (var (line, _, typeLabel) in paged)
                         sb.AppendLine($"- {line}");
 
-                    if (results.Count > maxResults)
-                        sb.AppendLine($"... 还有 {results.Count - maxResults} 条结果");
+                    if (total > pageSize)
+                    {
+                        int totalPages = (int)Math.Ceiling((double)total / pageSize);
+                        sb.AppendLine();
+                        sb.AppendLine("---");
+                        sb.Append($"第 {page}/{totalPages} 页，共 {total} 条");
+                        if (page < totalPages) sb.Append($" | page={page + 1} 下一页");
+                        if (page > 1) sb.Append($" | page={page - 1} 上一页");
+                        sb.AppendLine();
+                    }
 
                     return ToolResult.Success(sb.ToString());
                 }

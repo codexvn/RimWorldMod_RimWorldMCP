@@ -21,7 +21,8 @@ namespace RimWorldMCP.Tools
             {
                 type = new { type = "string", description = "装备类型: all / ranged / melee / apparel / armor" },
                 min_quality = new { type = "string", description = "最低品质: Awful / Poor / Normal / Good / Excellent / Masterwork / Legendary" },
-                max_results = new { type = "integer", description = "最大返回数，默认 30" }
+                page = new { type = "integer", description = "页码（1起始），默认1", @default = 1 },
+                page_size = new { type = "integer", description = "每页条数，默认30，最大50", @default = 30 }
             }
         });
 
@@ -29,7 +30,7 @@ namespace RimWorldMCP.Tools
         {
             var equipType = "all";
             var minQuality = QualityCategory.Awful;
-            var maxResults = 30;
+            int page = 1, pageSize = 30;
 
             if (args != null)
             {
@@ -37,9 +38,9 @@ namespace RimWorldMCP.Tools
                     equipType = jType.GetString()?.ToLowerInvariant() ?? "all";
                 if (args.Value.TryGetProperty("min_quality", out var jQ) && jQ.ValueKind == JsonValueKind.String)
                     Enum.TryParse(jQ.GetString(), true, out minQuality);
-                if (args.Value.TryGetProperty("max_results", out var jM) && jM.TryGetInt32(out var m))
-                    maxResults = Math.Max(1, Math.Min(200, m));
             }
+            if (args?.TryGetProperty("page", out var jp) == true) page = Math.Max(1, jp.GetInt32());
+            if (args?.TryGetProperty("page_size", out var jps) == true) pageSize = Math.Max(1, Math.Min(50, jps.GetInt32()));
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -98,9 +99,9 @@ namespace RimWorldMCP.Tools
                         return qComp != 0 ? qComp : a.thingIDNumber.CompareTo(b.thingIDNumber);
                     });
 
-                    // 限制数量
-                    if (items.Count > maxResults)
-                        items = items.Take(maxResults).ToList();
+                    // 分页
+                    int total = items.Count;
+                    var paged = items.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
                     // 分组输出
                     var sb = new StringBuilder();
@@ -111,7 +112,7 @@ namespace RimWorldMCP.Tools
                     var meleeWeapons = new List<Thing>();
                     var apparelItems = new List<Thing>();
 
-                    foreach (var t in items)
+                    foreach (var t in paged)
                     {
                         if (t.def.IsRangedWeapon)
                             rangedWeapons.Add(t);
@@ -201,8 +202,19 @@ namespace RimWorldMCP.Tools
                     // 总结
                     sb.AppendLine("### 装备升级建议");
                     sb.AppendLine();
-                    sb.AppendLine($"共找到 {items.Count} 件可用装备：远程 {rangedWeapons.Count} / 近战 {meleeWeapons.Count} / 护甲 {apparelItems.Count}");
+                    sb.AppendLine($"共找到 {total} 件可用装备：远程 {rangedWeapons.Count} / 近战 {meleeWeapons.Count} / 护甲 {apparelItems.Count}");
                     sb.AppendLine("使用 `equip_pawn(colonist_id=N, thing_id=<ID>)` 逐人装备，优先给无武器的殖民者配最高品质装备。");
+
+                    if (total > pageSize)
+                    {
+                        int totalPages = (int)Math.Ceiling((double)total / pageSize);
+                        sb.AppendLine();
+                        sb.AppendLine("---");
+                        sb.Append($"第 {page}/{totalPages} 页，共 {total} 条");
+                        if (page < totalPages) sb.Append($" | page={page + 1} 下一页");
+                        if (page > 1) sb.Append($" | page={page - 1} 上一页");
+                        sb.AppendLine();
+                    }
 
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }

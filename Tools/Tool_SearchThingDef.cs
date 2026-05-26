@@ -32,7 +32,8 @@ namespace RimWorldMCP.Tools
                     type = "string",
                     description = "类型标记过滤，逗号分隔。可选值: weapon, apparel, medicine, drug, food, ranged_weapon, melee_weapon, stuff, craftable, research_prerequisite, haulable"
                 },
-                max_results = new { type = "integer", description = "最大返回数，默认 20，上限 50", @default = 20 }
+                page = new { type = "integer", description = "页码（1起始），默认1", @default = 1 },
+                page_size = new { type = "integer", description = "每页条数，默认20，最大50", @default = 20 }
             },
             required = new[] { "keyword" }
         });
@@ -61,9 +62,9 @@ namespace RimWorldMCP.Tools
                 }
             }
 
-            int maxResults = 20;
-            if (args.Value.TryGetProperty("max_results", out var jMr) && jMr.TryGetInt32(out var m))
-                maxResults = Math.Max(1, Math.Min(m, 50));
+            int page = 1, pageSize = 20;
+            if (args?.TryGetProperty("page", out var jp) == true) page = Math.Max(1, jp.GetInt32());
+            if (args?.TryGetProperty("page_size", out var jps) == true) pageSize = Math.Max(1, Math.Min(50, jps.GetInt32()));
 
             return await McpCommandQueue.DispatchAsync(() =>
             {
@@ -119,12 +120,14 @@ namespace RimWorldMCP.Tools
                         .ThenBy(d => d.label ?? d.defName)
                         .ToList();
 
-                    var take = matched.Take(maxResults).ToList();
+                    int total = matched.Count;
+                    var paged = matched.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
                     var sb = new StringBuilder();
-                    sb.AppendLine($"## search_thing_def: \"{keyword}\" 共 {matched.Count} 条");
+                    sb.AppendLine($"## search_thing_def: \"{keyword}\" 共 {total} 条");
                     sb.AppendLine();
 
-                    foreach (var d in take)
+                    foreach (var d in paged)
                     {
                         // 类型标签
                         var tags = new List<string>();
@@ -143,8 +146,16 @@ namespace RimWorldMCP.Tools
                         sb.AppendLine($"- {tagStr}{d.label} (`{d.defName}`) — {d.category}{priceStr}{massStr}");
                     }
 
-                    if (matched.Count > maxResults)
-                        sb.AppendLine($"\n... 还有 {matched.Count - maxResults} 条");
+                    if (total > pageSize)
+                    {
+                        int totalPages = (int)Math.Ceiling((double)total / pageSize);
+                        sb.AppendLine();
+                        sb.AppendLine("---");
+                        sb.Append($"第 {page}/{totalPages} 页，共 {total} 条");
+                        if (page < totalPages) sb.Append($" | page={page + 1} 下一页");
+                        if (page > 1) sb.Append($" | page={page - 1} 上一页");
+                        sb.AppendLine();
+                    }
 
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }

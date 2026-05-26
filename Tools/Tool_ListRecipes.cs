@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Verse;
 using RimWorld;
@@ -13,14 +14,18 @@ namespace RimWorldMCP.Tools
     public class Tool_ListRecipes : ITool
     {
         public string Name => "list_recipes";
-        public string Description => "列出当前可用的制造配方（已研究解锁的）。可按工作台类型和关键词过滤。返回配方的 defName、产物名称、所需材料、技能要求和工作量。";
+        public string Description => "列出当前可用的制造配方（已研究解锁的）。搜索用正则，如 .*仿生.*（含仿生）、^Install（安装类）、.*（全部）。可筛选仅手术配方。";
+
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
             properties = new
             {
-                search = new { type = "string", description = "搜索关键词，模糊匹配配方名称或产物名称" },
-                workbench_type = new { type = "string", description = "工作台类型 defName 过滤" }
+                search = new { type = "string", description = "正则搜索，匹配配方名/defName/产物名。.* 匹配全部" },
+                workbench_type = new { type = "string", description = "工作台类型 defName 过滤" },
+                surgery_only = new { type = "boolean", description = "仅返回手术配方", @default = false },
+                page = new { type = "integer", description = "页码（1起始），默认1", @default = 1 },
+                page_size = new { type = "integer", description = "每页条数，默认10，最大50", @default = 10 }
             }
         });
 
@@ -28,10 +33,25 @@ namespace RimWorldMCP.Tools
         {
             var search = "";
             var workbenchFilter = "";
+            var surgeryOnly = false;
+            int page = 1, pageSize = 10;
             if (args != null)
             {
                 if (args.Value.TryGetProperty("search", out var s)) search = s.GetString() ?? "";
                 if (args.Value.TryGetProperty("workbench_type", out var w)) workbenchFilter = w.GetString() ?? "";
+                if (args.Value.TryGetProperty("surgery_only", out var so) && so.ValueKind == JsonValueKind.True) surgeryOnly = true;
+                if (args.Value.TryGetProperty("page", out var jp)) page = Math.Max(1, jp.GetInt32());
+                if (args.Value.TryGetProperty("page_size", out var jps)) pageSize = Math.Max(1, Math.Min(50, jps.GetInt32()));
+            }
+
+            Regex? searchRegex = null;
+            if (!string.IsNullOrEmpty(search))
+            {
+                try { searchRegex = new Regex(search, RegexOptions.IgnoreCase); }
+                catch (ArgumentException)
+                {
+                    return ToolResult.Error($"无效正则: {search}");
+                }
             }
 
             return await McpCommandQueue.DispatchAsync(() =>
@@ -42,8 +62,8 @@ namespace RimWorldMCP.Tools
                 // 只显示当前可用的配方（研究解锁 + 意识形态）
                 filtered = filtered.Where(r => r.AvailableNow);
 
-                // 排除手术配方（可选：由前端决定，默认全部列出）
-                // 按工作台类型过滤
+                // 仅手术
+                if (surgeryOnly) filtered = filtered.Where(r => r.IsSurgery);
                 if (!string.IsNullOrEmpty(workbenchFilter))
                 {
                     filtered = filtered.Where(r =>
@@ -52,26 +72,29 @@ namespace RimWorldMCP.Tools
                             u.defName.IndexOf(workbenchFilter, StringComparison.OrdinalIgnoreCase) >= 0));
                 }
 
-                // 按关键词搜索
-                if (!string.IsNullOrEmpty(search))
+                // 按正则搜索
+                if (searchRegex != null)
                 {
                     filtered = filtered.Where(r =>
-                        (r.label != null && r.label.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                        (r.defName != null && r.defName.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                        (r.ProducedThingDef?.label != null && r.ProducedThingDef.label.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0));
+                        (r.label != null && searchRegex.IsMatch(r.label)) ||
+                        (r.defName != null && searchRegex.IsMatch(r.defName)) ||
+                        (r.ProducedThingDef?.label != null && searchRegex.IsMatch(r.ProducedThingDef.label)));
                 }
 
                 var list = filtered.OrderBy(r => r.defName ?? "").ToList();
                 if (list.Count == 0)
                     return ToolResult.Success("没有匹配的配方。");
 
+                int total = list.Count;
+                var paged = list.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
                 var sb = new StringBuilder();
-                sb.AppendLine($"## 可用配方 ({list.Count} 个)");
+                sb.AppendLine($"## 可用配方 ({paged.Count} / {total} 个)");
                 sb.AppendLine();
                 sb.AppendLine("| 配方 | defName | 产物 | 工作台 | 技能要求 | 工作量 | 手术");
                 sb.AppendLine("|------|---------|------|--------|----------|--------|-----|");
 
-                foreach (var recipe in list)
+                foreach (var recipe in paged)
                 {
                     var label = recipe.label ?? recipe.defName ?? "???";
                     var defName = recipe.defName ?? "???";
@@ -116,7 +139,18 @@ namespace RimWorldMCP.Tools
                 }
 
                 sb.AppendLine();
-                sb.AppendLine($"**统计**: 共 {list.Count} 个配方匹配当前过滤条件。");
+                sb.AppendLine($"**统计**: 共 {total} 个配方匹配当前过滤条件。");
+
+                int totalPages = (int)Math.Ceiling((double)total / pageSize);
+                if (total > pageSize)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("---");
+                    sb.Append($"第 {page}/{totalPages} 页，共 {total} 条");
+                    if (page < totalPages) sb.Append($" | page={page + 1} 下一页");
+                    if (page > 1) sb.Append($" | page={page - 1} 上一页");
+                    sb.AppendLine();
+                }
 
                 return ToolResult.Success(sb.ToString());
             });
