@@ -8,12 +8,22 @@ namespace RimWorldMCP
     /// <summary>右下角 AI 对话开关按钮 + 工具调用状态文字</summary>
     public class MapComponent_McpUI : MapComponent
     {
+        private bool _autoOpened;
+
         public MapComponent_McpUI(Map map) : base(map) { }
 
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
             if (Find.CurrentMap == null) return;
+
+            // 首次加载自动打开 AI 对话窗口
+            if (!_autoOpened && CCClient.IsReady)
+            {
+                _autoOpened = true;
+                if (!Find.WindowStack.IsOpen<Dialog_AiChat>())
+                    Find.WindowStack.Add(new Dialog_AiChat());
+            }
 
             // 放在时间控件上方，对齐原版 ToggleableIcon 大小
             float btnSize = 24f;

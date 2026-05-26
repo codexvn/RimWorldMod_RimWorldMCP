@@ -142,14 +142,13 @@ export function createResponseProcessor(
             const cacheRead = usage.cache_read_input_tokens ?? 0;
             const cacheCreate = usage.cache_creation_input_tokens ?? 0;
             const totalTokens = inputTokens + outputTokens;
-            const cacheHitRate = inputTokens > 0 ? (cacheRead / inputTokens * 100).toFixed(1) : '0.0';
+            const cacheHitRate = inputTokens > 0 ? (cacheRead / inputTokens * 100).toFixed(0) : '0';
             const durationSec = durationMs ? (durationMs / 1000).toFixed(1) : '?';
-            console.log(`[result] 耗时 ${durationSec}s | 输入 ${inputTokens} (缓存命中 ${cacheRead}, ${cacheHitRate}%) | 输出 ${outputTokens} | 合计 ${totalTokens}`);
-            // 附加格式化后的 usage 到消息里，供 chat page 直接渲染
+            const fmt = (v: number) => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(v);
+            console.log(`[result] 耗时${durationSec}s | Token ${fmt(totalTokens)} | 缓存 ${fmt(cacheRead)}(${cacheHitRate}%) | 输出 ${fmt(outputTokens)}`);
             (message as any)._usageText = [
-              `耗时 ${durationSec}s | Token 合计 ${totalTokens}`,
-              `输入 ${inputTokens} (缓存命中 ${cacheRead} · ${cacheHitRate}% · 新建 ${cacheCreate})`,
-              `输出 ${outputTokens}`,
+              `耗时 ${durationSec}s | Token 合计 ${fmt(totalTokens)}`,
+              `缓存命中 ${fmt(cacheRead)} (${cacheHitRate}%) | 输出 ${fmt(outputTokens)} | 新建 ${fmt(cacheCreate)}`,
             ].join('\n');
           } else {
             const summary = message.subtype === 'success'

@@ -58,7 +58,7 @@ namespace RimWorldMCP
         /// <summary>紧凑格式供游戏内 UI 底栏使用</summary>
         public static string GetCompactDisplay()
         {
-            if (TotalRequests == 0) return "";
+            if (TotalRequests == 0) return "Token: --";
             long totalTokens = TotalInputTokens + TotalOutputTokens;
             double cacheHitRate = TotalInputTokens > 0
                 ? (double)TotalCacheReadTokens / TotalInputTokens * 100.0
@@ -67,7 +67,7 @@ namespace RimWorldMCP
             string fmt(long v) => v >= 1_000_000 ? $"{v / 1_000_000f:F1}M" :
                                   v >= 1_000 ? $"{v / 1_000f:F0}K" : v.ToString();
 
-            return $"Token: {fmt(totalTokens)} | 命中 {cacheHitRate:F0}% | {TotalRequests}次";
+            return $"Token: {fmt(totalTokens)} | 缓存 {fmt(TotalCacheReadTokens)}({cacheHitRate:F0}%) | {TotalRequests}次";
         }
     }
 }

@@ -21,16 +21,16 @@ namespace RimWorldMCP
     {
         public ChatRole Role;
         public string Text = "";
+        public string ThinkingText = "";  // 当前思考文本（与 Text 分开，互不覆盖）
         public ChatState State;
         public string RunId = "";
         public string AgentId = "";
         public string AgentType = "";
-        public bool IsContext; // 事件系统推送的上下文消息（空闲兜底/早报等）
-        // 流式：记录上一个 delta chunk 的长度，用于 replace 场景
+        public bool IsContext;
         public int LastChunkLen;
-        // 由 UI 线程每帧写入，避免重复 Text.CalcHeight
         public float CachedHeight;
         public int CachedTextLen;
+        public int CachedThinkingLen;
     }
 
     /// <summary>线程安全的聊天状态管理器，接收 Gateway 的 "chat" / "agent" 事件</summary>
@@ -80,18 +80,31 @@ namespace RimWorldMCP
                 _entries.RemoveAt(0);
         }
 
-        /// <summary>事件系统上下文消息（空闲兜底/早报/弹框等），只显示不触发 AI</summary>
+        /// <summary>事件系统上下文消息（空闲兜底/早报/弹框等），插入到流式条目之前避免打断 AI 回复</summary>
         public static void AddSystemMessage(string text)
         {
             lock (_lock)
             {
-                _entries.Add(new ChatEntry
+                var entry = new ChatEntry
                 {
                     Role = ChatRole.Assistant,
                     Text = text,
                     State = ChatState.Done,
                     IsContext = true,
-                });
+                };
+                // 插入到流式条目之前，避免系统消息"插队"到最底部
+                if (_streamingEntry != null)
+                {
+                    var idx = _entries.IndexOf(_streamingEntry);
+                    if (idx >= 0)
+                        _entries.Insert(idx, entry);
+                    else
+                        _entries.Add(entry);
+                }
+                else
+                {
+                    _entries.Add(entry);
+                }
                 TrimEntries();
             }
             OnChanged?.Invoke();
@@ -102,6 +115,12 @@ namespace RimWorldMCP
         {
             lock (_lock)
             {
+                // 结束上一轮 AI 流式条目，确保每轮对话独立记录
+                if (_streamingEntry != null)
+                {
+                    _streamingEntry.State = ChatState.Done;
+                    _streamingEntry = null;
+                }
                 _entries.Add(new ChatEntry
                 {
                     Role = ChatRole.User,
@@ -110,6 +129,7 @@ namespace RimWorldMCP
                 });
                 TrimEntries();
             }
+            _deltaAccum = "";
             OnChanged?.Invoke();
         }
 
@@ -139,6 +159,13 @@ namespace RimWorldMCP
                 if (_streamingEntry != null)
                 {
                     _streamingEntry.State = ChatState.Done;
+                    // 合并思考文本到正文（避免中断时思考内容丢失）
+                    if (!string.IsNullOrEmpty(_streamingEntry.ThinkingText))
+                    {
+                        _streamingEntry.Text = "思考中: " + _streamingEntry.ThinkingText
+                            + (string.IsNullOrEmpty(_streamingEntry.Text) ? "" : "\n" + _streamingEntry.Text);
+                        _streamingEntry.ThinkingText = "";
+                    }
                     if (string.IsNullOrEmpty(_streamingEntry.Text))
                         _streamingEntry.Text = "（已中断）";
                     else
@@ -156,8 +183,12 @@ namespace RimWorldMCP
             var message = sdkMsg.TryGetProperty("message", out var msg) ? msg : sdkMsg;
             var role = message.TryGetProperty("role", out var r) ? r.GetString() : "assistant";
 
-            // SDK 回显的 user 消息不创建流式条目
-            if (role == "user") return;
+            // SDK 回显 user 消息 → 结束上一轮流式条目，确保每轮独立
+            if (role == "user")
+            {
+                FinalizeStreaming();
+                return;
+            }
 
             // 提取子代理信息
             var agentId = sdkMsg.TryGetProperty("agent_id", out var aid) ? aid.GetString() ?? "" : "";
@@ -190,7 +221,7 @@ namespace RimWorldMCP
                         var thinking = block.TryGetProperty("thinking", out var th) ? th.GetString() ?? "" : "";
                         if (!string.IsNullOrEmpty(thinking))
                         {
-                            streamingText = "思考中: " + thinking;
+                            streamingText = thinking;
                             _deltaAccum = thinking;
                             _deltaIsThinking = true;
                         }
@@ -222,7 +253,7 @@ namespace RimWorldMCP
 
             if (!string.IsNullOrEmpty(streamingText))
             {
-                UpsertStreaming(streamingText!, agentId, agentType);
+                UpsertStreaming(streamingText!, _deltaIsThinking, agentId, agentType);
             }
 
             // tool_use 变更也需要刷新 UI
@@ -234,7 +265,7 @@ namespace RimWorldMCP
 
         private static ChatEntry? _streamingEntry;
 
-        private static void UpsertStreaming(string text, string agentId, string agentType)
+        private static void UpsertStreaming(string text, bool isThinking, string agentId, string agentType)
         {
             lock (_lock)
             {
@@ -243,7 +274,6 @@ namespace RimWorldMCP
                     _streamingEntry = new ChatEntry
                     {
                         Role = ChatRole.Assistant,
-                        Text = text,
                         State = ChatState.Streaming,
                         AgentId = agentId,
                         AgentType = agentType,
@@ -252,11 +282,19 @@ namespace RimWorldMCP
                 }
                 else
                 {
-                    _streamingEntry.Text = text;
                     _streamingEntry.AgentId = agentId;
                     _streamingEntry.AgentType = agentType;
                     _streamingEntry.CachedHeight = 0f;
                 }
+
+                if (isThinking)
+                    _streamingEntry.ThinkingText = text;
+                else
+                {
+                    _streamingEntry.Text = text;
+                    _streamingEntry.ThinkingText = ""; // 正文开始，清除思考
+                }
+
                 TrimEntries();
             }
             OnChanged?.Invoke();
@@ -280,7 +318,8 @@ namespace RimWorldMCP
                 _deltaIsThinking = blockType == "thinking";
                 _deltaAccum = "";
                 // 立即显示空条目 + 光标，UI 可见 AI 正在响应
-                UpsertStreaming(_deltaIsThinking ? "思考中: " : "", "", "");
+                if (_streamingEntry == null)
+                    UpsertStreaming("", _deltaIsThinking, "", "");
             }
             else if (eventType == "content_block_delta")
             {
@@ -292,14 +331,14 @@ namespace RimWorldMCP
                     var text = delta.TryGetProperty("text", out var tt) ? tt.GetString() ?? "" : "";
                     if (_deltaIsThinking) { _deltaIsThinking = false; _deltaAccum = ""; }
                     _deltaAccum += text;
-                    UpsertStreaming(_deltaAccum, "", "");
+                    UpsertStreaming(_deltaAccum, false, "", "");
                 }
                 else if (deltaType == "thinking_delta")
                 {
                     var thinking = delta.TryGetProperty("thinking", out var th) ? th.GetString() ?? "" : "";
                     if (!_deltaIsThinking) { _deltaIsThinking = true; _deltaAccum = ""; }
                     _deltaAccum += thinking;
-                    UpsertStreaming("思考中: " + _deltaAccum, "", "");
+                    UpsertStreaming(_deltaAccum, true, "", "");
                 }
                 else if (deltaType == "input_json_delta")
                 {

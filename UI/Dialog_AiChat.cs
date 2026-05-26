@@ -175,9 +175,11 @@ namespace RimWorldMCP
                 if (map != null)
                 {
                     var season = GenLocalDate.Season(map);
+                    string seasonName = season switch { Season.Spring => "春", Season.Summer => "夏",
+                        Season.Fall => "秋", Season.Winter => "冬", _ => season.ToString() };
                     int dayOfQ = GenLocalDate.DayOfQuadrum(map);
                     int year = GenLocalDate.Year(map);
-                    dayInfo = $" | {season} {dayOfQ}, {year}";
+                    dayInfo = $" · {year}年 {seasonName}第{dayOfQ}天";
                 }
             }
             catch { }
@@ -185,7 +187,15 @@ namespace RimWorldMCP
             string header = $"{colony}{dayInfo}";
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(0.5f, 0.8f, 0.5f, _alpha);
-            Widgets.Label(new Rect(rect.x, rect.y + 2f, rect.width, rect.height - 2f), header);
+            Widgets.Label(new Rect(rect.x, rect.y + 2f, rect.width * 0.55f, rect.height - 2f), header);
+            GUI.color = Color.white;
+
+            // Token 消耗右对齐
+            string tokenText = TokenUsageTracker.GetCompactDisplay();
+            float tokenW = Text.CalcSize(tokenText).x;
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.45f, 0.75f, 0.9f, _alpha);
+            Widgets.Label(new Rect(rect.xMax - tokenW - 4f, rect.y + 2f, tokenW, rect.height - 2f), tokenText);
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
 
@@ -487,22 +497,8 @@ namespace RimWorldMCP
             Widgets.Label(toolsRect, $"Tools: {toolCount}");
             GUI.color = Color.white;
 
-            // Token 消耗
-            string tokenText = TokenUsageTracker.GetCompactDisplay();
-            float tokenDisplayW = 0f;
-            if (tokenText.Length > 0)
-            {
-                float tokenX = toolsX + 72f;
-                tokenDisplayW = Text.CalcSize(tokenText).x + 8f;
-                Rect tokenRect = new Rect(tokenX, y, tokenDisplayW, btnH);
-                Text.Font = GameFont.Tiny;
-                GUI.color = new Color(0.45f, 0.75f, 0.9f, _alpha);
-                Widgets.Label(tokenRect, tokenText);
-                GUI.color = Color.white;
-            }
-
-            // 透明度（紧接 token 显示或工具箱之后）
-            float alphaLabelX = toolsX + 72f + tokenDisplayW + 4f;
+            // 透明度
+            float alphaLabelX = toolsX + 75f;
             Rect alphaLabel = new Rect(alphaLabelX, y, 40f, btnH);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(0.5f, 0.5f, 0.5f, _alpha);
@@ -567,25 +563,42 @@ namespace RimWorldMCP
 
         // ========== 对话条目 ==========
 
+        private static string GetDisplayBody(ChatEntry entry)
+        {
+            var body = (entry.Text ?? "").Replace("_", "__");
+            var thinking = (entry.ThinkingText ?? "").Replace("_", "__");
+            if (!string.IsNullOrEmpty(thinking))
+            {
+                if (!string.IsNullOrEmpty(body))
+                    thinking += "\n";
+                body = thinking + body;
+            }
+            return body;
+        }
+
         private static void CalcEntryHeight(ChatEntry entry, float contentWidth)
         {
-            var text = entry.Text ?? "";
-            if (entry.State == ChatState.Done && entry.CachedHeight > 0f) return;
-            if (entry.CachedHeight > 0f && text.Length == entry.CachedTextLen) return;
+            var body = GetDisplayBody(entry);
+            bool changed = body.Length != entry.CachedTextLen
+                        || (entry.ThinkingText ?? "").Length != entry.CachedThinkingLen;
+            if (!changed && entry.CachedHeight > 0f) return;
 
             float labelWidth = contentWidth - 32f;
-            float bodyHeight = Text.CalcHeight(text.StripTags(), labelWidth);
+            float bodyHeight = Text.CalcHeight(body.StripTags(), labelWidth);
             entry.CachedHeight = 25f + Mathf.Max(bodyHeight, 10f);
-            entry.CachedTextLen = text.Length;
+            entry.CachedTextLen = body.Length;
+            entry.CachedThinkingLen = (entry.ThinkingText ?? "").Length;
         }
 
         private static float DrawEntry(ChatEntry entry, Rect viewRect, float contentWidth, float y)
         {
             bool isSubagent = !string.IsNullOrEmpty(entry.AgentId);
+            bool isThinking = !string.IsNullOrEmpty(entry.ThinkingText);
             string label = entry.IsContext ? "系统"
                 : entry.Role == ChatRole.User ? "你"
-                : isSubagent ? entry.AgentType : "AI";
-            string body = (entry.Text ?? "").Replace("_", "__");
+                : isSubagent ? entry.AgentType
+                : isThinking ? "AI 思考中" : "AI";
+            string body = GetDisplayBody(entry);
             if (entry.State == ChatState.Streaming)
             {
                 bool showCursor = Time.realtimeSinceStartup % 1.0f < 0.6f;
@@ -623,10 +636,12 @@ namespace RimWorldMCP
                     ? new Color(0.4f, 0.8f, 1f, _alpha)
                     : isSubagent
                         ? new Color(0.8f, 0.4f, 1f, _alpha)
-                        : new Color(0.4f, 1f, 0.4f, _alpha);
+                        : isThinking
+                            ? new Color(1f, 0.75f, 0.3f, _alpha)
+                            : new Color(0.4f, 1f, 0.4f, _alpha);
             Widgets.Label(labelRect, label);
 
-            // 正文
+            // 正文（含思考区段）
             Rect bodyRect = new Rect(bubbleRect.x + 8f, labelRect.yMax + 2f,
                 bodyWidth - 12f, Mathf.Max(bodyHeight, 10f));
             GUI.color = entry.IsContext ? new Color(0.7f, 0.7f, 0.8f, _alpha)
