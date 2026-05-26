@@ -13,15 +13,15 @@ namespace RimWorldMCP.Tools
     public class Tool_AdvanceTick : ITool
     {
         public string Name => "advance_tick";
-        public string Description => "让游戏运行指定 tick 数后暂停并返回游戏状态。用于观察指令执行结果，防止 LLM 过度思考。传入要运行的 tick 数（1 秒 ≈ 60 tick/1x 速度，超快 ≈ 360 tick/秒）。运行中可按空格暂停来中断。";
+        public string Description => "让游戏运行指定小时数后暂停并返回游戏状态。用于观察指令执行结果，防止 LLM 过度思考。传入游戏内小时数（1 游戏小时 = 2500 tick，超快 ≈ 0.8 秒）。运行中可按空格暂停来中断。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
             properties = new
             {
-                ticks = new { type = "integer", description = "要运行的 tick 数量。1 实际秒 ≈ 60 tick（1x 速度），超快模式下约 360 tick/秒。推荐 300~600 tick。" }
+                hours = new { type = "number", description = "要运行的游戏内小时数。1 小时 = 2500 tick，超快模式下约 0.8 秒。支持小数，如 0.5 = 半小时。推荐 0.1~0.5 小时。" }
             },
-            required = new[] { "ticks" }
+            required = new[] { "hours" }
         });
 
         // pending: targetTick → TCS
@@ -151,10 +151,12 @@ namespace RimWorldMCP.Tools
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
-            if (!args.Value.TryGetProperty("ticks", out var jTicks) || !jTicks.TryGetInt32(out var ticks))
-                return ToolResult.Error("缺少必填参数: ticks");
-            if (ticks <= 0) return ToolResult.Error("ticks 必须 > 0");
-            if (ticks > 36000) return ToolResult.Error("ticks 过大，单次最多 36000（约 10 分钟/1x）");
+            if (!args.Value.TryGetProperty("hours", out var jHours))
+                return ToolResult.Error("缺少必填参数: hours");
+            double hours = jHours.ValueKind == JsonValueKind.Number ? jHours.GetDouble() : 0;
+            if (hours <= 0) return ToolResult.Error("hours 必须 > 0");
+            if (hours > 24) return ToolResult.Error("hours 过大，单次最多 24 小时（1 天）");
+            int ticks = (int)Math.Round(hours * 2500);
 
             var tcs = new TaskCompletionSource<ToolResult>();
 
