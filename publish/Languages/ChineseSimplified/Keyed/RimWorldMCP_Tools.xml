@@ -154,4 +154,8 @@
   <!-- 基地模板 -->
   <RimWorldMCP_Tool_list_base_templates>基地模板</RimWorldMCP_Tool_list_base_templates>
   <RimWorldMCP_Tool_apply_base_template>应用模板</RimWorldMCP_Tool_apply_base_template>
+
+  <!-- 任务 -->
+  <RimWorldMCP_Tool_list_quests>任务列表（分页）</RimWorldMCP_Tool_list_quests>
+  <RimWorldMCP_Tool_accept_quest>接受任务</RimWorldMCP_Tool_accept_quest>
 </LanguageData>
