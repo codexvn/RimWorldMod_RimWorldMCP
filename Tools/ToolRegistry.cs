@@ -71,7 +71,7 @@ namespace RimWorldMCP.Tools
                     Annotations = GetAnnotations(t.Name)
                 };
                 return def;
-            }).ToList();
+            }).OrderBy(t => t.Name).ToList();
         }
 
         private static ToolAnnotations? GetAnnotations(string toolName)
@@ -131,7 +131,7 @@ namespace RimWorldMCP.Tools
                         }
                         if (afterResult.IsPaused)
                         {
-                            result.Text += $"\n\n{afterResult.PauseStatus}";
+                            result.Text = $"{afterResult.PauseStatus}\n\n{result.Text}";
                         }
                     }
                     catch { /* 调度失败不影响工具结果 */ }

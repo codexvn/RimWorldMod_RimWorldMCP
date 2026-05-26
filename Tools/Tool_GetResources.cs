@@ -68,7 +68,7 @@ namespace RimWorldMCP.Tools
                     sb.AppendLine();
                     sb.AppendLine($"### {cat.Key}");
                     // 按数量降序排列
-                    foreach (var item in items.OrderByDescending(i => i.count))
+                    foreach (var item in items.OrderByDescending(i => i.count).ThenBy(i => i.label))
                     {
                         sb.AppendLine($"- {item.label}: {item.count}");
                     }

@@ -32,7 +32,8 @@ namespace RimWorldMCP.Tools
                 if (map == null)
                     return ToolResult.Error("当前没有可用地图。");
 
-                var tables = map.listerBuildings.AllBuildingsColonistOfClass<Building_WorkTable>().ToList();
+                var tables = map.listerBuildings.AllBuildingsColonistOfClass<Building_WorkTable>()
+                    .OrderBy(t => t.def?.defName ?? "").ThenBy(t => t.thingIDNumber).ToList();
                 if (tables.Count == 0)
                     return ToolResult.Success("当前殖民地没有任何工作台。");
 

@@ -34,18 +34,18 @@ namespace RimWorldMCP.Tools
                 {
                     try
                     {
-                        float progress = researchManager.GetProgress(currentProj);
-                        int pct = Math.Min(100, (int)(progress * 100f));
+                        float progress = Math.Min(1f, researchManager.GetProgress(currentProj));
+                        int pct = (int)(progress * 100f);
                         sb.AppendLine("### 当前研究");
                         sb.AppendLine($"- **{currentProj.label}** ({currentProj.defName})");
-                        sb.AppendLine($"- 进度: {progress:P1}");
+                        sb.AppendLine($"- 进度: {pct}%");
 
                         // 进度条
                         string bar = BuildProgressBar(progress);
                         sb.AppendLine($"- {bar} {pct}%");
 
                         // 研究工作量估算
-                        if (currentProj.baseCost > 0)
+                        if (currentProj.baseCost > 0 && progress < 1f)
                         {
                             float remainingWork = currentProj.baseCost * (1f - progress);
                             sb.AppendLine($"- 总工作量: {currentProj.baseCost:N0} | 剩余约: {remainingWork:N0}");
@@ -115,7 +115,7 @@ namespace RimWorldMCP.Tools
                                 if (prereqMet)
                                 {
                                     // Check if research was started
-                                    float p = researchManager.GetProgress(proj);
+                                    float p = Math.Min(1f, researchManager.GetProgress(proj));
                                     if (p > 0f)
                                         inProgress.Add((proj, p));
                                     else
@@ -157,7 +157,7 @@ namespace RimWorldMCP.Tools
                             sb.AppendLine($"### 有进度但未选为当前 ({inProgress.Count} 项)");
                             foreach (var (proj, p) in inProgress.OrderByDescending(x => x.progress))
                             {
-                                sb.AppendLine($"- {proj.label} ({proj.defName}) — {p:P1}");
+                                sb.AppendLine($"- {proj.label} ({proj.defName}) — {(int)(p * 100f)}%");
                             }
                         }
 

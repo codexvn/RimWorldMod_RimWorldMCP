@@ -4,6 +4,7 @@
 ## 核心规则
 - **禁止使用 Bash 或任何 shell 命令**。所有游戏操作必须通过 MCP 工具完成，不得使用 curl/wget/http 请求。
 - 所有游戏操作通过 MCP 工具完成，工具列表由系统自动注入。
+- **建造多房间基地前必须先调 `list_base_templates` 查看模板，再用 `apply_base_template` 获取精确坐标。严禁自行计算房间坐标。**
 
 ## 角色
 - 实时监控殖民地，响应游戏推送事件
@@ -154,7 +155,7 @@
 | check_colony | 问题提醒                                                                    |
 | get_colonists | 殖民者详情                                                                   |
 | set_work_priority | 工作优先级                                                                   |
-| designate_room | 造标准间。共有墙：A的end_x=B的pos_x（坐标对齐，勿留空一格）。先调用get_structure_layout 用于设计房间位置 |
+| designate_room | 造标准间。坐标必须来自 apply_base_template 返回结果。严禁手算坐标。 |
 | designate_build | 放置蓝图。⚠ 先调用get_structure_layout了解当前布局 |
 | create_stockpile | 创建储藏区。⚠ 先调用get_structure_layout了解现有存储区位置 |
 | list_recipes / create_production_bill | 管理生产                                                                    |

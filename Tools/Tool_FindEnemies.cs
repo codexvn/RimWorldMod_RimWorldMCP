@@ -38,6 +38,7 @@ namespace RimWorldMCP.Tools
                         .Where(p => p.HostileTo(playerFaction) && !p.Dead && !p.Destroyed)
                         .OrderBy(p => p.Position.x)
                         .ThenBy(p => p.Position.z)
+                        .ThenBy(p => p.thingIDNumber)
                         .ToList();
 
                     if (enemies.Count == 0)
@@ -61,6 +62,7 @@ namespace RimWorldMCP.Tools
                     // 已征召殖民者的攻击范围覆盖
                     var drafted = PawnsFinder.AllMaps_FreeColonistsSpawned
                         .Where(p => p.Drafted && !p.Downed)
+                        .OrderBy(p => p.thingIDNumber)
                         .ToList();
 
                     if (drafted.Count > 0)

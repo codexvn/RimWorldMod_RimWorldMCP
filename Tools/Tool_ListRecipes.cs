@@ -61,7 +61,7 @@ namespace RimWorldMCP.Tools
                         (r.ProducedThingDef?.label != null && r.ProducedThingDef.label.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0));
                 }
 
-                var list = filtered.ToList();
+                var list = filtered.OrderBy(r => r.defName ?? "").ToList();
                 if (list.Count == 0)
                     return ToolResult.Success("没有匹配的配方。");
 

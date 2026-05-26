@@ -50,7 +50,7 @@ namespace RimWorldMCP.Tools
                         c.Name.ToStringShort.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0 ||
                         c.Name.ToStringFull.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0);
 
-                var items = filtered.ToList();
+                var items = filtered.OrderBy(p => p.thingIDNumber).ToList();
                 if (items.Count == 0)
                     return ToolResult.Success("没有匹配的殖民者。");
 

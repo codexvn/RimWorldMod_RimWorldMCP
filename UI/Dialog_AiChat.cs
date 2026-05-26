@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using RimWorld;
 using RimWorldMCP.Helpers;
+using RimWorldMCP.Tools;
 using UnityEngine;
 using Verse;
 
@@ -14,6 +15,7 @@ namespace RimWorldMCP
     {
         private Vector2 _chatScrollPos;
         private Vector2 _toolScrollPos;
+        private Vector2 _todoScrollPos;
         private bool _scrollToBottom;
         private string _inputText = "";
         private static float _alpha = 0.85f;
@@ -57,16 +59,20 @@ namespace RimWorldMCP
         {
             base.PreOpen();
             ChatDisplayState.OnChanged += OnChatChanged;
+            TodoManager.OnChanged += OnTodoChanged;
         }
 
         public override void PostClose()
         {
             ChatDisplayState.OnChanged -= OnChatChanged;
+            TodoManager.OnChanged -= OnTodoChanged;
             base.PostClose();
         }
 
         private bool _toolScrollToBottom;
+        private bool _todoScrollToBottom;
         private void OnChatChanged() { _scrollToBottom = true; _toolScrollToBottom = true; }
+        private void OnTodoChanged() { _todoScrollToBottom = true; }
 
         private void TrySendInput()
         {
@@ -120,11 +126,19 @@ namespace RimWorldMCP
             Widgets.DrawBoxSolid(new Rect(dividerX, panelsY, 1f, panelsH),
                 new Color(0.3f, 0.3f, 0.3f, _alpha));
 
+            // 右栏垂直拆分为二：上半工具调用，下半 TODO
+            float rightX = dividerX + panelGap / 2f + 1f;
+            float rightContentW = rightW - 2f;
+            float rightTopH = panelsH * 0.55f;
+            float rightGap = 4f;
+            float rightBottomH = panelsH - rightTopH - rightGap;
+
             DrawConversationPanel(
                 new Rect(inRect.x, panelsY, leftW, panelsH), entries);
             DrawToolPanel(
-                new Rect(dividerX + panelGap / 2f + 1f, panelsY, inRect.width - leftW - panelGap - 2f, panelsH),
-                toolCalls);
+                new Rect(rightX, panelsY, rightContentW, rightTopH), toolCalls);
+            DrawTodoPanel(
+                new Rect(rightX, panelsY + rightTopH + rightGap, rightContentW, rightBottomH));
 
             // Input
             float inputY = panelsY + panelsH + gap;
@@ -345,6 +359,87 @@ namespace RimWorldMCP
             return cardH;
         }
 
+        // ========== TODO 面板 ==========
+
+        private void DrawTodoPanel(Rect panelRect)
+        {
+            var items = TodoManager.Query(null);
+            int pendingCount = 0;
+            foreach (var i in items) { if (i.Status != "done") pendingCount++; }
+
+            // 标题
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.5f, 0.5f, 0.5f, _alpha);
+            Widgets.Label(new Rect(panelRect.x, panelRect.y, 120f, 16f), $"TODO ({pendingCount})");
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+
+            Rect scrollRect = new Rect(panelRect.x, panelRect.y + 14f,
+                panelRect.width, panelRect.height - 14f);
+
+            if (items.Count == 0)
+            {
+                Text.Font = GameFont.Tiny;
+                GUI.color = new Color(0.4f, 0.4f, 0.4f, _alpha);
+                Widgets.Label(new Rect(scrollRect.x, scrollRect.y + 4f,
+                    scrollRect.width, 16f), "暂无待办事项");
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
+                return;
+            }
+
+            float itemH = 20f;
+            float totalH = items.Count * (itemH + 2f) + 4f;
+            float contentW = scrollRect.width - 16f;
+
+            Rect viewRect = new Rect(0f, 0f, contentW, Mathf.Max(totalH, scrollRect.height));
+            Widgets.BeginScrollView(scrollRect, ref _todoScrollPos, viewRect);
+
+            float curY = 2f;
+            for (int idx = 0; idx < items.Count; idx++)
+            {
+                var item = items[idx];
+                bool isDone = item.Status == "done";
+
+                Color prioColor = item.Priority >= 4
+                    ? new Color(1f, 0.3f, 0.3f)
+                    : item.Priority >= 2
+                        ? new Color(1f, 0.75f, 0.3f)
+                        : new Color(0.5f, 0.5f, 0.5f);
+                Color textColor = isDone ? new Color(0.4f, 0.4f, 0.4f) : new Color(0.9f, 0.9f, 0.9f);
+
+                Rect rowRect = new Rect(2f, curY, contentW - 4f, itemH);
+                if (idx % 2 == 0)
+                    Widgets.DrawBoxSolid(rowRect, new Color(0.06f, 0.06f, 0.12f, 0.5f));
+
+                string prioMark = $"P{item.Priority}";
+                Text.Font = GameFont.Tiny;
+                GUI.color = prioColor;
+                Widgets.Label(new Rect(rowRect.x + 2f, rowRect.y + 2f, 22f, 16f), prioMark);
+
+                GUI.color = textColor;
+                Widgets.Label(new Rect(rowRect.x + 26f, rowRect.y + 2f, rowRect.width - 70f, 16f),
+                    item.Description ?? "");
+
+                GUI.color = new Color(0.4f, 0.4f, 0.4f);
+                Widgets.Label(new Rect(rowRect.x + rowRect.width - 44f, rowRect.y + 2f, 42f, 16f),
+                    $"#{item.Id}");
+
+                curY += itemH + 2f;
+            }
+
+            Widgets.EndScrollView();
+
+            if (_todoScrollToBottom)
+            {
+                _todoScrollPos.y = Mathf.Max(0f, viewRect.height - scrollRect.height);
+                _todoScrollToBottom = false;
+            }
+
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+        }
+
         // ========== 输入行 ==========
 
         private void DrawInputRow(Rect rect)
@@ -439,7 +534,15 @@ namespace RimWorldMCP
                 }
             }
 
-            Rect clearRect = new Rect(continueRect.x - 44f - 4f, y, 44f, actionBtnH);
+            Rect clearTodoRect = new Rect(continueRect.x - 52f - 4f, y, 52f, actionBtnH);
+            GUI.color = TodoManager.Count > 0 ? Color.white : Color.grey;
+            if (Widgets.ButtonText(clearTodoRect, "清TODO"))
+            {
+                if (TodoManager.Count > 0)
+                    TodoManager.Clear();
+            }
+
+            Rect clearRect = new Rect(clearTodoRect.x - 44f - 4f, y, 44f, actionBtnH);
             GUI.color = Color.white;
             if (Widgets.ButtonText(clearRect, "清空"))
                 ChatDisplayState.Clear();

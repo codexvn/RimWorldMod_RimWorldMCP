@@ -24,7 +24,7 @@ namespace RimWorldMCP.Tools
                 if (map == null)
                     return ToolResult.Error("当前没有可用地图。");
 
-                var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned.OrderBy(p => p.thingIDNumber).ToList();
                 var sb = new StringBuilder();
                 sb.AppendLine("## 防御状态报告");
                 sb.AppendLine();

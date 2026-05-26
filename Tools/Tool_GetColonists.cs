@@ -40,7 +40,7 @@ namespace RimWorldMCP.Tools
                     filtered = colonists.Where(c => c.Name.ToStringShort.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0
                         || c.Name.ToStringFull.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) >= 0);
 
-                var items = filtered.ToList();
+                var items = filtered.OrderBy(p => p.thingIDNumber).ToList();
                 if (items.Count == 0)
                     return ToolResult.Success("没有匹配的殖民者。");
 
@@ -60,7 +60,6 @@ namespace RimWorldMCP.Tools
 
                     // 心情
                     float moodPct = pawn.needs?.mood?.CurLevelPercentage ?? -1f;
-                    string moodStr = moodPct >= 0 ? $"{(int)(moodPct * 100)}%" : "N/A";
                     string moodLabel = GetMoodLabel(moodPct);
 
                     // 健康摘要
@@ -97,7 +96,7 @@ namespace RimWorldMCP.Tools
 
                     sb.AppendLine();
                     sb.AppendLine($"### {name} (ID:{pawn.thingIDNumber}){statusTag}");
-                    sb.AppendLine($"- {name} ({age}岁, {gender}) | 心情: {moodStr} ({moodLabel}) | 健康: {healthSummary}");
+                    sb.AppendLine($"- {name} ({age}岁, {gender}) | 心情: {moodLabel} | 健康: {healthSummary}");
                     sb.AppendLine($"  特性: {traitsStr}");
                     sb.AppendLine($"  技能: {skillsStr}");
                     sb.AppendLine($"  装备: {equipmentStr}");

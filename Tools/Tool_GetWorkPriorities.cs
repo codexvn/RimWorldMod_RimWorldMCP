@@ -23,12 +23,13 @@ namespace RimWorldMCP.Tools
         {
             return await McpCommandQueue.DispatchAsync(() =>
             {
-                var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+                var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned.OrderBy(p => p.thingIDNumber).ToList();
                 if (colonists == null || colonists.Count == 0)
                     return ToolResult.Success("## 工作优先级\n\n暂无自由殖民者。");
 
                 var allWorkTypes = DefDatabase<WorkTypeDef>.AllDefsListForReading
                     .Where(wt => wt.visible)
+                    .OrderBy(wt => wt.defName ?? "")
                     .ToList();
 
                 if (allWorkTypes.Count == 0)

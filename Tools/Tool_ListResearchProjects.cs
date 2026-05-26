@@ -62,7 +62,7 @@ namespace RimWorldMCP.Tools
                         (p.defName != null && p.defName.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0));
                 }
 
-                var list = filtered.ToList();
+                var list = filtered.OrderBy(r => r.defName ?? "").ToList();
                 if (list.Count == 0)
                     return ToolResult.Success("没有匹配的研究项目。");
 

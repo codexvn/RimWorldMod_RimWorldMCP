@@ -6,7 +6,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { buildSystemPrompt } from '../rimworld/context.js';
 import type { CompanionConfig } from '../companion/config.js';
-import {Options} from "@anthropic-ai/claude-agent-sdk";
+import {Options, SYSTEM_PROMPT_DYNAMIC_BOUNDARY} from "@anthropic-ai/claude-agent-sdk";
 
 // ========== AsyncStream ==========
 
@@ -59,7 +59,7 @@ export function createSession(sdk: any, config: CompanionConfig, abortController
     enableFileCheckpointing: true,
     abortController,
     settingSources: config.settingSources,
-    systemPrompt: buildSystemPrompt(),
+    systemPrompt: [buildSystemPrompt(), SYSTEM_PROMPT_DYNAMIC_BOUNDARY],
     stderr: (data: string | Buffer) => {
       const text = typeof data === 'string' ? data : data.toString();
       process.stderr.write(`[sdk] ${text}`);

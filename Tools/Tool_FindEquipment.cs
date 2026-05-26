@@ -89,12 +89,13 @@ namespace RimWorldMCP.Tools
                     if (items.Count == 0)
                         return ToolResult.Success("地图上没有符合条件的可用装备。");
 
-                    // 按品质降序排列
+                    // 按品质降序排列，同品质按 thingIDNumber 稳定排序
                     items.Sort((a, b) =>
                     {
                         var qa = a.TryGetComp<CompQuality>()?.Quality ?? QualityCategory.Normal;
                         var qb = b.TryGetComp<CompQuality>()?.Quality ?? QualityCategory.Normal;
-                        return qb.CompareTo(qa);
+                        var qComp = qb.CompareTo(qa);
+                        return qComp != 0 ? qComp : a.thingIDNumber.CompareTo(b.thingIDNumber);
                     });
 
                     // 限制数量

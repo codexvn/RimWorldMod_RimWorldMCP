@@ -46,14 +46,9 @@ namespace RimWorldMCP
             var sb = new StringBuilder();
             var map = Find.CurrentMap;
             var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
-            var tickManager = Find.TickManager;
-            int ticksAbs = tickManager?.TicksAbs ?? 0;
-            int ticksGame = tickManager?.TicksGame ?? 0;
-            int day = ticksGame / 60000;
 
             sb.AppendLine("## 殖民地概况");
-            sb.AppendLine($"- 地图: {map?.Tile ?? -1} | 大小: {map?.Size.x ?? 0}x{map?.Size.z ?? 0} | 时间: 第{day / 15 + 1}年 第{day % 15 + 1}天");
-            sb.AppendLine($"- 总 Tick: {ticksAbs} | 游戏 Tick: {ticksGame}");
+            sb.AppendLine($"- 地图: {map?.Tile ?? -1} | 大小: {map?.Size.x ?? 0}x{map?.Size.z ?? 0} | 时间: {GameTimeHelper.CurrentTime()}");
 
             int freeColonists = colonists.Count;
             var prisoners = PawnsFinder.AllMaps_PrisonersOfColony;
@@ -115,10 +110,10 @@ namespace RimWorldMCP
                     foreach (var batt in net.batteryComps)
                     { totalStored += batt.StoredEnergy; totalStoredMax += batt.Props.storedEnergyMax; }
                 }
-                sb.AppendLine($"- 发电: {totalGenerated / 1000f:F1} kW | 用电: {totalUsed / 1000f:F1} kW");
+                sb.AppendLine($"- 发电: {totalGenerated / 1000f:F0} kW | 用电: {totalUsed / 1000f:F0} kW");
                 if (totalStoredMax > 0)
-                    sb.AppendLine($"- 储电: {totalStored / 1000f:F1} / {totalStoredMax / 1000f:F1} kWd ({totalStored / totalStoredMax * 100f:F0}%)");
-                sb.AppendLine($"- 平衡: {(totalGenerated >= totalUsed ? "盈余" : "赤字")} {Math.Abs(totalGenerated - totalUsed) / 1000f:F1} kW");
+                    sb.AppendLine($"- 储电: {totalStored / 1000f:F0} / {totalStoredMax / 1000f:F0} kWd ({totalStored / totalStoredMax * 100f:F0}%)");
+                sb.AppendLine($"- 平衡: {(totalGenerated >= totalUsed ? "盈余" : "赤字")} {Math.Abs(totalGenerated - totalUsed) / 1000f:F0} kW");
             }
             else sb.AppendLine("- 无电网数据");
 
@@ -128,7 +123,7 @@ namespace RimWorldMCP
             if (rm != null)
             {
                 var curProj = rm.GetProject();
-                if (curProj != null) sb.AppendLine($"- 当前: {curProj.label} ({(int)(rm.GetProgress(curProj) * 100f)}%)");
+                if (curProj != null) sb.AppendLine($"- 当前: {curProj.label} ({(int)(Math.Min(1f, rm.GetProgress(curProj)) * 100f)}%)");
                 else sb.AppendLine("- 当前: 无");
                 try
                 {
@@ -162,7 +157,7 @@ namespace RimWorldMCP
             {
                 try
                 {
-                    sb.AppendLine($"- 室外温度: {map.mapTemperature.OutdoorTemp:F1}°C");
+                    sb.AppendLine($"- 室外温度: {map.mapTemperature.OutdoorTemp:F0}°C");
                     var weather = map.weatherManager?.curWeather;
                     if (weather != null)
                     {
@@ -188,7 +183,7 @@ namespace RimWorldMCP
                 var alerts = NativeAlertHelper.GetActiveAlerts();
                 if (alerts.Count == 0) sb.AppendLine("- 无");
                 else
-                    foreach (var a in alerts.OrderByDescending(a => a.Priority))
+                    foreach (var a in alerts.OrderByDescending(a => a.Priority).ThenBy(a => a.Label))
                     {
                         string prio = a.Priority switch { 2 => "!!", 1 => "! ", _ => "  " };
                         sb.AppendLine($"- [{prio}] {a.Label}");

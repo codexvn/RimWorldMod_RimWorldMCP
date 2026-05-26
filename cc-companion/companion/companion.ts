@@ -117,6 +117,13 @@ async function main(): Promise<void> {
         server.broadcast(JSON.stringify({ type: 'colony-stats', ...colonyStats }));
       }
 
+      // 提取 TODO 状态并直接广播给聊天页（纯 UI 消息，不经 SDK）
+      const todoItems = payload.todoItems as Array<Record<string, unknown>> | undefined;
+      if (todoItems) {
+        server.broadcast(JSON.stringify({ type: 'todo-state', todoItems }));
+      }
+      if (wsMessage.event === 'todo-state') return;
+
       console.log(`[event] ${wsMessage.event || 'unknown'}: ${text.substring(0, 100)}`);
       inputStream.enqueue({
         type: 'user',

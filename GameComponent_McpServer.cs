@@ -44,6 +44,7 @@ namespace RimWorldMCP
         {
             base.ExposeData();
             Scribe_Values.Look(ref _sessionId, "mcpSessionId", "");
+            TodoManager.ExposeData();
         }
 
         private static string GenerateSessionId()
@@ -162,6 +163,7 @@ namespace RimWorldMCP
                 _cts = null;
             }
 
+            TodoManager.Clear();
             BridgeLifecycle.Stop();
         }
 
@@ -231,6 +233,11 @@ namespace RimWorldMCP
             registry.Register(new Tool_ForceAttack());
             registry.Register(new Tool_GetOpenDialogs());
             registry.Register(new Tool_SelectDialogOption());
+            registry.Register(new Tool_TodoAdd());
+            registry.Register(new Tool_TodoDelete());
+            registry.Register(new Tool_TodoQuery());
+            registry.Register(new Tool_ListBaseTemplates());
+            registry.Register(new Tool_ApplyBaseTemplate());
         }
 
         private static string FindSkillsDirectory()
