@@ -5,7 +5,6 @@
   <RimWorldMCP_Tool_get_resources>资源库存</RimWorldMCP_Tool_get_resources>
   <RimWorldMCP_Tool_check_colony>殖民地检查</RimWorldMCP_Tool_check_colony>
   <RimWorldMCP_Tool_toggle_pause>切换暂停</RimWorldMCP_Tool_toggle_pause>
-  <RimWorldMCP_Tool_set_game_speed>游戏速度</RimWorldMCP_Tool_set_game_speed>
 
   <!-- 网格查询 -->
   <RimWorldMCP_Tool_get_tile_detail>坐标详情</RimWorldMCP_Tool_get_tile_detail>
