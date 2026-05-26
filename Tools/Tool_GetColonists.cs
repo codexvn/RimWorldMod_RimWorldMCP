@@ -305,7 +305,7 @@ namespace RimWorldMCP.Tools
                 if (entries.Count == 0) return "";
 
                 var last2 = entries.OrderByDescending(x => x.Tick).Take(2)
-                    .Select(x => x.Entry.ToGameStringFromPOV(pawn, true));
+                    .Select(x => x.Entry.ToGameStringFromPOV(pawn));
                 return string.Join(" | ", last2);
             }
             catch (Exception) { return ""; }

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Verse;
 using RimWorld;
 using RimWorldMCP.Harmony;
+using RimWorldMCP.Helpers;
 
 namespace RimWorldMCP
 {
@@ -20,6 +21,14 @@ namespace RimWorldMCP
         private const int CCFallbackIntervalMs = 5000;
         private static Process? _companionProcess;
         private static string _currentSessionId = "";
+
+        // 空闲兜底 + 早报 + 殖民者追踪 + 弹框检测
+        private static int _lastSendRealMs;
+        private const int IdleOverviewIntervalMs = 120000;
+        private static int _dailyReportDay = -1;
+        private static int _lastColonistCount = -1;
+        private static int _lastDialogCount;
+        private static string _lastDialogKey = "";
 
         public static async Task StartAsync(string sessionId)
         {
@@ -86,12 +95,38 @@ namespace RimWorldMCP
         {
             if (!CCClient.IsReady) return;
 
-            // 高危事件：每帧立即推送（Harmony Patch 在暂停时仍会拦截，不受 TicksGame 影响）
+            var map = Find.CurrentMap;
+            if (map == null) return;
+            var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
+            int colonistCount = colonists.Count;
+            int nowMs = Environment.TickCount;
+
+            // === 第1层：高危事件 — 每帧立即推送，不受暂停/Tick 影响 ===
             if (NotificationBus.HighDangerPending)
             {
                 NotificationBus.HighDangerPending = false;
                 var emergencyList = NotificationBus.Drain();
-                SendCCEvents(emergencyList);
+                if (emergencyList.Count > 0)
+                {
+                    // 高危单独推送，非高危合并到定期批次
+                    var highList = new List<Notification>();
+                    var lowLines = new List<string>();
+                    foreach (var n in emergencyList)
+                    {
+                        if (NotificationBus.IsHighDanger(n.Type, n.DangerLabel, n.Priority))
+                            highList.Add(n);
+                        else
+                            AddNotifyLine(n, lowLines);
+                    }
+                    if (highList.Count > 0)
+                        SendCCEvents(highList);
+                    if (lowLines.Count > 0)
+                    {
+                        var sb = new StringBuilder("## 通知\n");
+                        foreach (var line in lowLines) sb.AppendLine($"- {line}");
+                        SendCCMessage("AlertStart", sb.ToString().TrimEnd());
+                    }
+                }
             }
 
             var tick = Find.TickManager?.TicksGame ?? 0;
@@ -99,16 +134,212 @@ namespace RimWorldMCP
             if (tickElapsed)
                 _nextCCEventTick = tick + CCEventCheckInterval;
 
-            // 兜底定时器：暂停时 TicksGame 不前进，用 wall clock 保证定期推送
-            int nowMs = Environment.TickCount;
             bool fallbackElapsed = unchecked((uint)(nowMs - _nextCCFallbackMs) >= CCFallbackIntervalMs);
             if (fallbackElapsed)
                 _nextCCFallbackMs = nowMs;
 
-            if (!tickElapsed && !fallbackElapsed) return;
+            // === 第2层：定期轮询（游戏 Tick + wall clock 兜底） ===
+            if (tickElapsed || fallbackElapsed)
+            {
+                var notifications = NotificationBus.Drain();
 
-            var notifications = NotificationBus.Drain();
-            SendCCEvents(notifications);
+                // 殖民者数量变化
+                bool countChanged = colonistCount != _lastColonistCount && _lastColonistCount >= 0;
+                var lines = new List<string>();
+                foreach (var n in notifications)
+                {
+                    if (!NotificationBus.IsHighDanger(n.Type, n.DangerLabel, n.Priority))
+                        AddNotifyLine(n, lines);
+                }
+                if (countChanged)
+                {
+                    int diff = colonistCount - _lastColonistCount;
+                    lines.Add($"殖民者 {_lastColonistCount}→{colonistCount} ({(diff > 0 ? "+" : "")}{diff})");
+                }
+                _lastColonistCount = colonistCount;
+
+                if (lines.Count > 0)
+                {
+                    var sb = new StringBuilder("## 通知\n");
+                    foreach (var line in lines) sb.AppendLine($"- {line}");
+                    SendCCMessage("AlertStart", sb.ToString().TrimEnd());
+                }
+
+                // 弹框检测
+                CheckDialogs(nowMs, map, colonists, colonistCount);
+
+                // 每日早报（游戏时间 6 点）
+                int day = tick / 60000;
+                int hour = GenLocalDate.HourOfDay(map);
+                if (hour == 6 && _dailyReportDay != day)
+                {
+                    _dailyReportDay = day;
+                    SendCCMessage("DailyMorning", BuildDailyBriefing(map, colonists, colonistCount));
+                }
+            }
+
+            // === 第3层：空闲兜底 — 长时间无交互推送殖民地概览 ===
+            if (_lastSendRealMs > 0
+                && unchecked((uint)(nowMs - _lastSendRealMs) >= IdleOverviewIntervalMs)
+                && !ChatDisplayState.IsBusy)
+            {
+                SendCCMessage("IdleDetected", GameContextProvider.BuildColonyOverview(map, colonists, colonistCount));
+            }
+        }
+
+        /// <summary>统一发送入口 — 追踪最后发送时间用于空闲兜底</summary>
+        private static void SendCCMessage(string category, string text)
+        {
+            _lastSendRealMs = Environment.TickCount;
+            _ = CCClient.SendEventText("rimworld.alert", category, FormatGameEvent(category, text));
+        }
+
+        /// <summary>每日早报</summary>
+        private static string BuildDailyBriefing(Map map, List<Pawn> colonists, int colonistCount)
+        {
+            var tick = Find.TickManager?.TicksGame ?? 0;
+            int day = tick / 60000;
+            var season = GenLocalDate.Season(map);
+            string seasonStr = season switch
+            {
+                Season.Spring => "春", Season.Summer => "夏",
+                Season.Fall => "秋", Season.Winter => "冬", _ => "?"
+            };
+            var weather = map.weatherManager?.curWeather;
+            float temp = map.mapTemperature?.OutdoorTemp ?? 0f;
+
+            float avgMood = colonists.Count > 0
+                ? colonists.Average(c => c.needs?.mood?.CurLevelPercentage ?? 0.5f) * 100f : 0f;
+
+            int steel = GetResourceCount(map, "Steel");
+            int wood = GetResourceCount(map, "WoodLog");
+            int components = GetResourceCount(map, "ComponentIndustrial");
+            int foodDays = CalcFoodDays(map, colonistCount);
+
+            float generated = 0, used = 0;
+            foreach (var net in map.powerNetManager?.AllNetsListForReading ?? new List<PowerNet>())
+                foreach (var comp in net.powerComps)
+                    if (comp.PowerOn)
+                    {
+                        float rate = comp.EnergyOutputPerTick;
+                        if (rate > 0) generated += rate; else used += -rate;
+                    }
+            string powerLabel = generated >= used ? "盈余" : "赤字";
+
+            var rm = Find.ResearchManager;
+            var curProj = rm?.GetProject();
+            float wealth = map.wealthWatcher?.WealthTotal ?? 0f;
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"## 每早汇报 第{day / 15 + 1}年 {seasonStr}季 第{day % 15 + 1}天");
+            sb.AppendLine(GameContextProvider.BuildPauseStatus());
+            sb.AppendLine($"天气: {weather?.label ?? "?"}, 室外 {temp:F0}°C");
+            sb.AppendLine($"殖民者: {colonistCount} 人 | 平均心情 {avgMood:F0}%");
+            sb.AppendLine($"资源: 钢{steel} 木{wood} 零件{components} | 食物约{foodDays}天");
+            sb.AppendLine($"电力: 发{generated / 1000f:F0}kW 用{used / 1000f:F0}kW ({powerLabel})");
+            if (curProj != null)
+                sb.AppendLine($"研究: {curProj.label} ({rm!.GetProgress(curProj) * 100f:F0}%)");
+            sb.AppendLine($"财富: {wealth:N0}");
+
+            var alertLines = NativeAlertHelper.BuildAlertLines(NativeAlertHelper.GetActiveAlerts());
+            if (alertLines.Count > 0)
+            {
+                sb.AppendLine("警报:");
+                foreach (var a in alertLines) sb.AppendLine($"  - {a}");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>弹框检测 — FloatMenu/Dialog 出现时提示 AI</summary>
+        private static void CheckDialogs(int nowMs, Map map, List<Pawn> colonists, int colonistCount)
+        {
+            var dialogs = DialogHelper.GetInteractableDialogs();
+            int dialogCount = dialogs.Count;
+            string dialogKey = "";
+            foreach (var w in dialogs)
+            {
+                if (w is FloatMenu)
+                {
+                    var options = DialogHelper.FloatMenuOptionsField?.GetValue(w) as List<FloatMenuOption>;
+                    if (options != null)
+                        dialogKey = "fm:" + string.Join("|", options.Take(10).Select(o => o.Label).OrderBy(s => s));
+                }
+                else dialogKey += w.GetType().Name;
+            }
+
+            if (dialogCount > 0 && (dialogCount != _lastDialogCount || dialogKey != _lastDialogKey))
+            {
+                _lastDialogCount = dialogCount;
+                _lastDialogKey = dialogKey;
+
+                int steel = GetResourceCount(map, "Steel");
+                int comps = GetResourceCount(map, "ComponentIndustrial");
+
+                var sb = new StringBuilder();
+                sb.AppendLine("## 弹框提示");
+                sb.AppendLine($"当前有 {dialogCount} 个弹框需要选择。");
+                sb.AppendLine("使用 get_open_dialogs 查看选项，select_dialog_option 选择。");
+                sb.AppendLine($"---");
+                sb.AppendLine($"殖民者: {colonistCount}人 | 食物: {CalcFoodDays(map, colonistCount)}天 | 钢{steel} 零件{comps}");
+                SendCCMessage("AlertStart", sb.ToString().TrimEnd());
+            }
+            else if (dialogCount == 0 && _lastDialogCount > 0)
+            {
+                _lastDialogCount = 0;
+                _lastDialogKey = "";
+            }
+        }
+
+        /// <summary>通知格式化为文本行</summary>
+        private static void AddNotifyLine(Notification n, List<string> lines)
+        {
+            switch (n.Type)
+            {
+                case NotificationType.Letter:
+                    var ll = $"[{n.DangerLabel}] {n.Label}";
+                    if (!string.IsNullOrEmpty(n.Text)) ll += $" — {n.Text}";
+                    lines.Add(ll);
+                    break;
+                case NotificationType.Message:
+                    lines.Add($"[{n.DangerLabel}] {n.Text}");
+                    break;
+                case NotificationType.AlertStart:
+                    var culprits = n.Culprits != null && n.Culprits.Count > 0
+                        ? $": {string.Join(", ", n.Culprits.Take(5))}" : "";
+                    lines.Add($"[{n.PriorityLabel}] {n.Label}{culprits}");
+                    break;
+                case NotificationType.AlertEnd:
+                    lines.Add($"[{n.Label} 已解除]");
+                    break;
+            }
+        }
+
+        private static int GetResourceCount(Map map, string defName)
+        {
+            var resources = map.resourceCounter?.AllCountedAmounts;
+            if (resources == null) return 0;
+            foreach (var kv in resources)
+                if (kv.Key.defName == defName) return kv.Value;
+            return 0;
+        }
+
+        private static int CalcFoodDays(Map map, int colonistCount)
+        {
+            if (colonistCount <= 0) return 0;
+            float totalNutrition = 0f;
+            var resources = map.resourceCounter?.AllCountedAmounts;
+            if (resources != null)
+            {
+                foreach (var kv in resources)
+                {
+                    var def = kv.Key;
+                    if (def.IsNutritionGivingIngestible && def.ingestible?.HumanEdible == true
+                        && def.ingestible?.foodType != FoodTypeFlags.Tree)
+                        totalNutrition += kv.Value * (def.ingestible?.CachedNutrition ?? 0f);
+                }
+            }
+            return (int)(totalNutrition / (colonistCount * 1.6f));
         }
 
         private static string FormatGameEvent(string category, string rawText)
@@ -155,7 +386,10 @@ namespace RimWorldMCP
 
             var text = sb.ToString().TrimEnd();
             if (text.Length > 0)
+            {
+                _lastSendRealMs = Environment.TickCount;
                 _ = CCClient.SendEventText("rimworld.alert", primaryCategory, text);
+            }
         }
 
         private static bool TryFormatNotification(Notification n, out string category, out string rawText)
