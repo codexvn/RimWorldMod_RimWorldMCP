@@ -48,7 +48,7 @@ RimWorld (C#)                  CC Companion (Node.js)       Claude API
 
 ## 参数来源
 
-敏感数据（API Key、Base URL、MCP 配置）由 C# 写入 `{sessionsDir}/.claude/settings.json`，SDK 自动读取。非敏感参数可通过 CLI/env var 覆盖：
+API Key、Base URL、权限模式等 SDK 配置由用户本地 `.claude/settings.json` 管理，SDK 自动读取。C# 通过 `--project-setting-sources` 传入 MCP 服务地址和权限模板。非敏感参数可通过 CLI/env var 覆盖：
 
 | 环境变量 | CLI 参数 | 默认值 | 说明 |
 |----------|----------|--------|------|
@@ -56,11 +56,15 @@ RimWorld (C#)                  CC Companion (Node.js)       Claude API
 | `CCB_PORT` | `--port` | `19999` | WebSocket 监听端口 |
 | `CCB_AUTH_TOKEN` | `--token` | 无 | WS 握手认证 |
 | `CCB_MODEL_NAME` | `--model-name` | 空 | 模型名称 |
-| `CCB_IDLE_TIMEOUT` | `--idle-timeout` | 不传则永不退出 | 空闲超时自动退出（ms） |
+| `CCB_IDLE_TIMEOUT` | `--idle-timeout` | `0`（永不退出），C# spawn 时传 `30000` | 无 client 连接/断开后超时自动退出（ms） |
 | `CCB_SETTING_SOURCES` | `--setting-sources` | `user,project,local` | settings 加载源 |
 | `RIMWORLD_PROJECT_PATH` | `--project-path` | `process.cwd()` | SDK 项目目录 |
+| - | `--project-setting-sources` | 无 | 写入 `{projectPath}/.claude/settings.json` 的 JSON |
+| - | `--local-setting-sources` | 无 | 写入 `{projectPath}/.claude/settings.local.json` 的 JSON |
 
-API Key、Base URL、权限模式、MCP 服务等敏感/复杂配置由 C# 写入 `.claude/settings.json`，SDK 自动读取，不通过 CLI 或环境变量传递。
+## 进程生命周期
+
+C# 侧自动 spawn 时传入 `--idle-timeout 30000`，companion 在 WS 断开 30s 无重连后自动退出。同时 C# 侧在返回主菜单、退出游戏、读档/新档时主动杀旧进程。Windows 额外通过 Job Object 绑定，RimWorld 强杀时 OS 自动清理 companion。
 
 ## 会话存储
 

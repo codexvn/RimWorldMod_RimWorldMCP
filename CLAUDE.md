@@ -85,10 +85,21 @@ RimWorld 的 `IntVec3(x, y, z)` 字段含义：
 
 RimWorld 返回主菜单时 `Game.Dispose()` 不通知 GameComponent，导致上一 Game 实例的 HttpListener（http.sys 内核级 URL 注册）残留。
 
-- `GameComponent_McpServer.StopMcpService()` — 启动前调用，停止当前实例及静态残留的传输层
+- `GameComponent_McpServer.StopMcpService()` — 启动前调用，停止当前实例及静态残留的传输层，同时调用 `BridgeLifecycle.Stop()` 杀旧 companion 进程
 - `s_activeTransport` — 静态字段跨 Game 实例追踪活跃监听器
 - `HttpListenerException` 错误码中文诊断（5=拒绝访问, 183=端口占用）
 - `_transport` 在 `StartAsync()` 成功后才赋值，失败保持 null 允许下次重试
+
+### 进程生命周期
+
+Companion 进程在 RimWorld 退出/崩溃/重进入时可靠清理，三层保障：
+
+| 机制 | 平台 | 场景 |
+|------|------|------|
+| Harmony `Game.Dispose()` postfix → `BridgeLifecycle.Stop()` | 跨平台 | 正常返回主菜单 / 退出游戏 |
+| `StopMcpService()` → `BridgeLifecycle.Stop()` | 跨平台 | 读档 / 新档（先杀旧进程再启动新进程） |
+| Windows Job Object `KILL_ON_JOB_CLOSE` | Windows | RimWorld 强杀 → OS 立即杀 companion |
+| `--idle-timeout 30000`（WS 断开计时） | 跨平台 | companion 侧兜底 — WS 断开 30s 无重连自动退出 |
 
 ### Mod 设置
 
@@ -129,7 +140,7 @@ RimWorld (C#)                  CC Companion (Node.js)       Claude API
 `BridgeLifecycle.StartAsync(sessionId)` 在加载存档时执行：
 1. `StopCompanionProcess()` — 停止旧进程
 2. `KillStaleByPidFile()` — 清理 `.pid` 残留
-3. `StartCompanionProcess()` — 创建 `claude-sessions/rimworld-<sessionId>/` 目录，spawn `node --import tsx/esm companion/companion.ts`；config 通过环境变量传递，SDK 配置由用户 `.claude/settings.json` 提供
+3. `StartCompanionProcess()` — 创建 `claude-sessions/rimworld-<sessionId>/` 目录，spawn `node --import tsx/esm companion/companion.ts --idle-timeout 30000 --project-setting-sources "{...}"`；config 通过环境变量传递，SDK 配置由用户 `.claude/settings.json` 提供，Windows 额外通过 Job Object 绑定子进程生命周期
 4. `CCClient.Connect()` — WebSocket 握手（hello/hello-ok）
 
 sessionId 由 `GameComponent_McpServer` 生成并持久化：新游戏随机生成 12 位 hex，`ExposeData()` 通过 `Scribe_Values` 写入存档。读档时从存档恢复；兼容旧存档（无 sessionId 时自动补生成）。
@@ -204,7 +215,7 @@ npm start
 ```
 用户 .claude/settings.json   ← 低优先级（API Key、Base URL、MCP 等）
         ↓
-SDK Options (session.ts)     ← 中优先级（model、permissionMode、maxTurns）
+SDK Options (session.ts)     ← 中优先级（model、settingSources、cwd）
         ↓
 环境变量 (ProcessStartInfo)   ← 高优先级（RIMWORLD_PROJECT_PATH、CCB_HOST、CCB_PORT、CCB_AUTH_TOKEN）
 ```
