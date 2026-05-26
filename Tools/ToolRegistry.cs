@@ -15,6 +15,34 @@ namespace RimWorldMCP.Tools
         private readonly Dictionary<string, ITool> _tools = new();
         private readonly List<ResourceDefinition> _resources = new();
 
+        /// <summary>自动扫描：支持 GetTargetPos 返回非 null 坐标的工具名称集合</summary>
+        private static readonly HashSet<string> s_cameraToolNames = new();
+
+        static ToolRegistry()
+        {
+            try
+            {
+                foreach (var type in typeof(ToolRegistry).Assembly.GetTypes())
+                {
+                    if (!typeof(ITool).IsAssignableFrom(type) || type.IsInterface || type.IsAbstract)
+                        continue;
+                    try
+                    {
+                        var tool = (ITool)Activator.CreateInstance(type);
+                        if (tool.Name == "move_camera") continue; // 跳过自身
+                        using var doc = JsonDocument.Parse("{\"pos_x\":0,\"pos_y\":0}");
+                        if (tool.GetTargetPos(doc.RootElement) != null)
+                            s_cameraToolNames.Add(tool.Name);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>获取所有支持自动移动视角的工具名称（已排序）</summary>
+        public static IReadOnlyList<string> CameraToolNames => s_cameraToolNames.OrderBy(n => n).ToList();
+
         public void Register(ITool tool)
         {
             _tools[tool.Name] = tool;
