@@ -13,6 +13,6 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["*.ts", "rimworld/*.ts"],
+  "include": ["**/*.ts", "rimworld/*.ts"],
   "exclude": ["node_modules"]
 }

@@ -4,8 +4,8 @@
 
 import { join } from 'path';
 import { homedir } from 'os';
-import { buildSystemPrompt } from './rimworld/context.js';
-import type { CompanionConfig } from './config.js';
+import { buildSystemPrompt } from '../rimworld/context.js';
+import type { CompanionConfig } from '../companion/config.js';
 import {Options} from "@anthropic-ai/claude-agent-sdk";
 
 // ========== AsyncStream ==========
@@ -53,22 +53,12 @@ export class AsyncStream<T = any> {
 export function createSession(sdk: any, config: CompanionConfig, abortController?: AbortController) {
   const inputStream = new AsyncStream<any>();
 
-  if (!config.mcpConfig) {
-    throw new Error('[cc-companion] 未提供 --mcp-config，请通过 CLI 参数或 CC_MCP_CONFIG 环境变量指定 MCP 服务配置');
-  }
-  const mcpServers: Record<string, any> = JSON.parse(config.mcpConfig);
-
   const options = {
     cwd: config.projectPath,
-    permissionMode: config.permissionMode,
-    maxTurns: config.maxTurns,
+    model: config.modelName || undefined,
     enableFileCheckpointing: true,
     abortController,
-    env: {
-      ...process.env,
-    },
     settingSources: config.settingSources,
-    mcpServers,
     systemPrompt: buildSystemPrompt(),
     stderr: (data: string | Buffer) => {
       const text = typeof data === 'string' ? data : data.toString();
@@ -95,9 +85,11 @@ export function createResponseProcessor(
   queryIterator: AsyncIterable<any>,
   cwd: string,
   onMessage?: (msg: any) => void,
+  onInit?: (msg: any) => void,
 ) {
   let sessionId = 'pending';
   let processing = false;
+  let initData: any = null;
 
   async function process(): Promise<void> {
     if (processing) { console.log('[cc-companion] processResponses 已在运行中，跳过'); return; }
@@ -108,6 +100,12 @@ export function createResponseProcessor(
         const msgType: string = message?.type || 'unknown';
 
         if (msgType === 'system') {
+          if (message.subtype === 'init') {
+            initData = message;
+            onInit?.(message);
+            // 广播给 WS 客户端，方便聊天页面展示
+            onMessage?.(message);
+          }
           if (message.session_id && sessionId !== message.session_id) {
             sessionId = message.session_id;
             console.log(`[cc-companion] 会话 ID: ${sessionId}`);
@@ -146,5 +144,5 @@ export function createResponseProcessor(
     console.log('[cc-companion] processResponses 结束');
   }
 
-  return { process, getSessionId: () => sessionId };
+  return { process };
 }

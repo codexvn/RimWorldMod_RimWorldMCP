@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Verse;
 using RimWorld;
@@ -34,32 +35,33 @@ namespace RimWorldMCP
         {
             _currentSessionId = sessionId;
             var settings = RimWorldMCPMod.Instance?.Settings;
-            if (settings == null || string.IsNullOrEmpty(settings.CCUrl)) return;
+            if (settings == null) return;
 
-            if (settings.CCAutoStart)
+            if (settings.CCBAutoStart)
             {
-                McpLog.Info("[bridge] CCAutoStart=开启");
+                McpLog.Info("[bridge] CCBAutoStart=开启");
                 McpLog.Info("[bridge] 步骤1: 停止当前进程...");
                 StopCompanionProcess();
                 McpLog.Info("[bridge] 步骤2: 清理残留 PID 文件...");
                 KillStaleByPidFile();
                 McpLog.Info("[bridge] 步骤3: 启动 Companion 进程...");
-                StartCompanionProcess(settings.LocalCCPort, settings.CCToken, sessionId);
+                StartCompanionProcess(settings.CCBHost, settings.CCBPort, settings.CCBAuthToken, sessionId);
                 await Task.Delay(2000);
             }
             else
             {
-                McpLog.Info("[bridge] CCAutoStart=关闭，仅连接远程 Companion");
+                McpLog.Info("[bridge] CCBAutoStart=关闭，仅连接远程 Companion");
             }
 
-            await CCClient.Connect(settings.CCUrl, settings.CCToken);
+            var ccbUrl = $"ws://{settings.CCBHost}:{settings.CCBPort}";
+            await CCClient.Connect(ccbUrl, settings.CCBAuthToken);
             if (CCClient.IsReady)
             {
-                McpLog.Info($"[bridge] 已连接到 Claude Code: {settings.CCUrl}");
+                McpLog.Info($"[bridge] 已连接到 Claude Code: {ccbUrl}");
             }
             else
             {
-                McpLog.Error($"[bridge] Claude Code 连接失败: {settings.CCUrl}");
+                McpLog.Error($"[bridge] Claude Code 连接失败: {ccbUrl}");
             }
         }
 
@@ -72,10 +74,11 @@ namespace RimWorldMCP
                 StopCompanionProcess();
                 KillStaleByPidFile();
                 var settings = RimWorldMCPMod.Instance?.Settings;
-                if (settings?.CCAutoStart == true)
+                if (settings?.CCBAutoStart == true)
                 {
-                    StartCompanionProcess(settings.LocalCCPort, settings.CCToken, _currentSessionId);
-                    _ = CCClient.Connect(settings.CCUrl, settings.CCToken);
+                    StartCompanionProcess(settings.CCBHost, settings.CCBPort, settings.CCBAuthToken, _currentSessionId);
+                    var ccbUrl = $"ws://{settings.CCBHost}:{settings.CCBPort}";
+                    _ = CCClient.Connect(ccbUrl, settings.CCBAuthToken);
                 }
             }
 
@@ -434,8 +437,6 @@ namespace RimWorldMCP
 
         // ========== 公开 API（设置 UI 调用） ==========
 
-        public static bool IsNodeAvailable() => FindNodeExe() != null;
-
         public static bool IsCompanionInstalled()
         {
             var dir = FindCompanionDir();
@@ -542,7 +543,7 @@ namespace RimWorldMCP
             var modRoot = FindModRoot();
             if (modRoot == null) return null;
             var dir = Path.Combine(modRoot, "cc-companion");
-            if (Directory.Exists(dir) && File.Exists(Path.Combine(dir, "companion.ts")))
+            if (Directory.Exists(dir) && File.Exists(Path.Combine(dir, "companion", "companion.ts")))
             { McpLog.Info($"[cc] Companion 目录: {dir}"); return dir; }
             McpLog.Error("[cc] 找不到 cc-companion 目录");
             return null;
@@ -577,7 +578,7 @@ namespace RimWorldMCP
             finally { try { File.Delete(pidFile); } catch { } }
         }
 
-        private static void StartCompanionProcess(int port, string token, string sessionId)
+        private static void StartCompanionProcess(string host, int port, string token, string sessionId)
         {
             var nodeExe = FindNodeExe(); if (nodeExe == null) return;
             var companionDir = FindCompanionDir(); if (companionDir == null) return;
@@ -592,17 +593,10 @@ namespace RimWorldMCP
 
             var settings = RimWorldMCPMod.Instance?.Settings;
             var mcpPort = settings?.McpPort ?? 9877;
-            var mcpConfig = $"{{\"rimworld\":{{\"type\":\"http\",\"url\":\"http://localhost:{mcpPort}/mcp\"}}}}";
+            var projectSettingsJson = BuildProjectSettingsJson(mcpPort);
 
-            var args = $"--import tsx/esm companion.ts"
-                + $" --port {port}"
-                + $" --host 127.0.0.1"
-                + $" --mcp-config \"{mcpConfig}\""
-                + $" --project-path \"{sessionsDir}\"";
-            if (!string.IsNullOrEmpty(token)) args += $" --token {token}";
-            if (!string.IsNullOrEmpty(settings?.CCApiKey)) args += $" --api-key {settings!.CCApiKey}";
-            if (!string.IsNullOrEmpty(settings?.CCApiBaseUrl)) args += $" --api-base-url {settings!.CCApiBaseUrl}";
-            if (!string.IsNullOrEmpty(settings?.CCModelName)) args += $" --model-name {settings!.CCModelName}";
+            var args = $"--import tsx/esm companion/companion.ts"
+                + $" --project-setting-sources \"{EscapeJsonForArg(projectSettingsJson)}\"";
 
             try
             {
@@ -613,6 +607,11 @@ namespace RimWorldMCP
                     UseShellExecute = false, RedirectStandardOutput = true,
                     RedirectStandardError = true, CreateNoWindow = true,
                 };
+                // 通过环境变量传递（替代 CLI args）
+                psi.Environment["RIMWORLD_PROJECT_PATH"] = sessionsDir;
+                psi.Environment["CCB_HOST"] = host;
+                psi.Environment["CCB_PORT"] = port.ToString();
+                if (!string.IsNullOrEmpty(token)) psi.Environment["CCB_AUTH_TOKEN"] = token;
 
                 _companionProcess = Process.Start(psi);
                 if (_companionProcess == null) { McpLog.Error("[cc] 无法启动 Companion 进程"); return; }
@@ -633,6 +632,32 @@ namespace RimWorldMCP
                 McpLog.Info($"[cc] Companion 进程已启动 (PID: {_companionProcess.Id}, CWD: {companionDir})");
             }
             catch (Exception ex) { McpLog.Error($"[cc] 启动 Companion 进程失败: {ex.Message}"); }
+        }
+
+        private static string BuildProjectSettingsJson(int mcpPort)
+        {
+            var obj = new Dictionary<string, object?>
+            {
+                ["permissions"] = new Dictionary<string, object>
+                {
+                    ["allow"] = new[] { "mcp:*" }
+                },
+                ["mcpServers"] = new Dictionary<string, object>
+                {
+                    ["rimworld"] = new Dictionary<string, string>
+                    {
+                        ["type"] = "http",
+                        ["url"] = $"http://localhost:{mcpPort}/mcp"
+                    }
+                }
+            };
+            return JsonSerializer.Serialize(obj);
+        }
+
+        /// <summary>JSON 字符串转义，使其可安全用于 CLI 双引号参数</summary>
+        private static string EscapeJsonForArg(string json)
+        {
+            return json.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         private static void StopCompanionProcess()

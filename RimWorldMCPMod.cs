@@ -1,4 +1,3 @@
-using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -24,8 +23,8 @@ namespace RimWorldMCP
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
-            float h = 600f;
-            h += Settings.CCAutoStart ? 430f : 170f;
+            float h = 560f;
+            h += Settings.CCBAutoStart ? 70f : 170f;
             if (Settings.OssEnabled) h += 220f;
             if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
 
@@ -63,33 +62,21 @@ namespace RimWorldMCP
             listing.Label("CC 桥接");
             listing.Gap(2f);
 
-            listing.Label("连接地址 (WebSocket URL)");
-            listing.Label("本地: ws://127.0.0.1:19999，远程: ws://IP:端口");
-            Settings.CCUrl = listing.TextEntry(Settings.CCUrl);
+            listing.Label("连接地址 (WebSocket)");
+            listing.Label("ws://{host}:{port}，默认连本地 Companion");
+            Settings.CCBHost = listing.TextEntry(Settings.CCBHost);
+            var ccPortStr = listing.TextEntry(Settings.CCBPort.ToString());
+            if (int.TryParse(ccPortStr, out int ccPort) && ccPort > 0 && ccPort <= 65535)
+                Settings.CCBPort = ccPort;
 
             listing.Gap(6f);
-            listing.CheckboxLabeled("自动启动本地 Companion", ref Settings.CCAutoStart,
+            listing.CheckboxLabeled("自动启动本地 Companion", ref Settings.CCBAutoStart,
                 "开启后，游戏加载时自动 spawn Node.js 子进程。");
 
-            if (Settings.CCAutoStart)
+            if (Settings.CCBAutoStart)
             {
-                listing.Label("本地监听端口");
-                var ccPortStr = listing.TextEntry(Settings.LocalCCPort.ToString());
-                if (int.TryParse(ccPortStr, out int ccPort) && ccPort > 0 && ccPort <= 65535)
-                    Settings.LocalCCPort = ccPort;
-
                 listing.Label("Token (可选)");
-                Settings.CCToken = listing.TextEntry(Settings.CCToken);
-
-                listing.Gap(6f);
-                listing.Label("API Key");
-                Settings.CCApiKey = listing.TextEntry(Settings.CCApiKey);
-
-                listing.Label("API 代理地址");
-                Settings.CCApiBaseUrl = listing.TextEntry(Settings.CCApiBaseUrl);
-
-                listing.Label("模型名称");
-                Settings.CCModelName = listing.TextEntry(Settings.CCModelName);
+                Settings.CCBAuthToken = listing.TextEntry(Settings.CCBAuthToken);
             }
 
             listing.Gap(6f);

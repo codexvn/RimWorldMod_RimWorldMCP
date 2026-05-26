@@ -12,13 +12,10 @@ namespace RimWorldMCP
         public int McpPort = 9877;
 
         // CC 桥接
-        public string CCUrl = "ws://127.0.0.1:19999";
-        public int LocalCCPort = 19999;
-        public string CCToken = "";
-        public bool CCAutoStart = true;
-        public string CCApiKey = "";
-        public string CCApiBaseUrl = "http://localhost:3000";
-        public string CCModelName = "deepseek-v4-pro[1m]";
+        public string CCBHost = "127.0.0.1";
+        public int CCBPort = 19999;
+        public string CCBAuthToken = "";
+        public bool CCBAutoStart = true;
 
         // OSS
         public bool OssEnabled = false;
@@ -39,13 +36,10 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref McpPort, "mcpPort", 9877);
             Scribe_Values.Look(ref logLevelInt, "logLevel", (int)LogLevel.Info);
             LogLevel = (LogLevel)logLevelInt;
-            Scribe_Values.Look(ref CCUrl, "ccUrl", "ws://127.0.0.1:19999");
-            Scribe_Values.Look(ref LocalCCPort, "localCCPort", 19999);
-            Scribe_Values.Look(ref CCToken, "ccToken", "");
-            Scribe_Values.Look(ref CCAutoStart, "ccAutoStart", true);
-            Scribe_Values.Look(ref CCApiKey, "ccApiKey", "");
-            Scribe_Values.Look(ref CCApiBaseUrl, "ccApiBaseUrl", "http://localhost:3000");
-            Scribe_Values.Look(ref CCModelName, "ccModelName", "deepseek-v4-pro[1m]");
+            Scribe_Values.Look(ref CCBHost, "ccbHost", "127.0.0.1");
+            Scribe_Values.Look(ref CCBPort, "ccbPort", 19999);
+            Scribe_Values.Look(ref CCBAuthToken, "ccbAuthToken", "");
+            Scribe_Values.Look(ref CCBAutoStart, "ccbAutoStart", true);
             Scribe_Values.Look(ref OssEnabled, "ossEnabled", false);
             Scribe_Values.Look(ref OssServiceUrl, "ossServiceUrl", "");
             Scribe_Values.Look(ref OssBucketName, "ossBucketName", "");

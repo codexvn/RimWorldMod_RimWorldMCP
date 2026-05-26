@@ -39,12 +39,16 @@ RimWorldMCP/
 ├── McpOssUploader.cs                      # 阿里云 OSS 截图自动上传
 ├── McpOssConfig.cs                        # OSS 配置数据
 ├── cc-companion/                           # Claude Code 伴随进程（TypeScript, tsx 运行时）
-│   ├── companion.ts                       # 编排入口
-│   ├── config.ts                          # 配置解析（CLI 参数、环境变量）
-│   ├── auth.ts                            # API 认证
-│   ├── sdk-loader.ts                      # SDK 加载
-│   ├── session.ts                         # SDK 会话管理（mcpServers、env、systemPrompt）
-│   ├── ws-server.ts                       # WebSocket Server
+│   ├── companion/                         # 入口 + 配置 + SDK 加载
+│   │   ├── companion.ts                   # 编排入口
+│   │   ├── config.ts                      # 配置解析（CLI 参数、环境变量）
+│   │   └── sdk-loader.ts                  # SDK 加载
+│   ├── bridge/                            # 桥接层（WS + SDK 会话）
+│   │   ├── ws-server.ts                   # WebSocket Server
+│   │   └── session.ts                     # SDK 会话管理（mcpServers、env、systemPrompt）
+│   ├── chat/                              # 聊天 UI
+│   │   ├── chat-http.ts                   # HTTP 路由
+│   │   └── chat-page.ts                   # 聊天页面 HTML
 │   ├── rimworld/context.ts                # 系统提示词加载
 │   └── Prompt.md                          # AI 行为提示词
 └── About/
@@ -95,13 +99,10 @@ RimWorld 返回主菜单时 `Game.Dispose()` 不通知 GameComponent，导致上
 | 日志级别 | Info | Debug / Info / Warn / Error 过滤 |
 | MCP 监听地址 | 0.0.0.0 | 可设为 localhost / 内网 IP |
 | MCP 端口 | 9877 | HTTP 监听端口 |
-| CC 连接地址 | ws://127.0.0.1:19999 | Claude Code WebSocket 地址 |
+| CCB 主机 | 127.0.0.1 | Companion WebSocket 主机 |
+| CCB 端口 | 19999 | Companion WebSocket 端口 |
 | 自动启动 | 开启 | 游戏加载时自动 spawn Node.js 子进程 |
-| 本地监听端口 | 19999 | 本地 Companion WS 端口 |
-| Token | - | CC 桥接认证凭据 |
-| API Key | - | Anthropic API 认证 |
-| API 基础地址 | http://localhost:3000 | API 代理地址 |
-| 模型名称 | deepseek-v4-pro[1m] | SDK model ID，映射三个别名 |
+| Token | - | WS 握手认证，companion 层面 |
 | OSS 上传 | 关闭 | 截图自动上传到阿里云 OSS |
 | OSS Endpoint/Bucket/Key | - | 阿里云 OSS 访问配置 |
 | 签名 URL | 开启 | 预签名 URL 有效期 24h |
@@ -128,20 +129,25 @@ RimWorld (C#)                  CC Companion (Node.js)       Claude API
 `BridgeLifecycle.StartAsync(sessionId)` 在加载存档时执行：
 1. `StopCompanionProcess()` — 停止旧进程
 2. `KillStaleByPidFile()` — 清理 `.pid` 残留
-3. `StartCompanionProcess()` — 创建 `claude-sessions/rimworld-<sessionId>/` 目录，spawn `node --import tsx/esm companion.ts --project-path "..."` 
+3. `StartCompanionProcess()` — 创建 `claude-sessions/rimworld-<sessionId>/` 目录，spawn `node --import tsx/esm companion/companion.ts`；config 通过环境变量传递，SDK 配置由用户 `.claude/settings.json` 提供
 4. `CCClient.Connect()` — WebSocket 握手（hello/hello-ok）
 
 sessionId 由 `GameComponent_McpServer` 生成并持久化：新游戏随机生成 12 位 hex，`ExposeData()` 通过 `Scribe_Values` 写入存档。读档时从存档恢复；兼容旧存档（无 sessionId 时自动补生成）。
 
-spawn 命令示例：
+CLI 示例（手动运行）：
 ```bash
-node --import tsx/esm companion.ts \
-  --port 19999 \
-  --mcp-config '{"rimworld":{"type":"http","url":"http://localhost:9877/mcp"}}' \
-  --project-path "publish/claude-sessions/rimworld-a1b2c3d4e5f6" \
-  --api-key "sk-xxx" \
-  --api-base-url "http://localhost:3000" \
-  --model-name "deepseek-v4-pro[1m]"
+# 从 RimWorldMCP/cc-companion/ 目录，--setting-sources 默认 user,project,local 可省略
+npm start
+# 等效：tsx companion/companion.ts
+```
+
+C# 自动 spawn 时实际执行的命令：
+```bash
+node --import tsx/esm companion/companion.ts
+# 参数通过环境变量传递：
+#   RIMWORLD_PROJECT_PATH → SDK cwd，确定 .claude/settings.json 位置
+#   CCB_HOST, CCB_PORT      → Companion WebSocket 监听
+#   CCB_AUTH_TOKEN          → WS 握手认证（可选）
 ```
 
 ### 事件推送
@@ -164,7 +170,55 @@ node --import tsx/esm companion.ts \
 
 设置面板可安装/卸载/重装 Claude Code 依赖（`npm install`），状态和日志实时显示。安装状态通过 `BridgeLifecycle.InstallStatus` 暴露，设置窗口每帧刷新。
 
-Companion 完整 CLI 参数见 `cc-companion/config.ts` 的 `printHelp()`，或用 `tsx companion.ts --help` 查看。
+Companion 完整 CLI 参数见 `cc-companion/companion/config.ts` 的 `printHelp()`，或用 `tsx companion/companion.ts --help` 查看。
+
+## 运行教程
+
+### 模式一：自动模式（推荐）
+
+1. 在 Mod 设置中确保：`自动启动` = 开启，`CCB 端口` = 19999
+2. 在 `cc-companion/` 目录执行 `npm install`（或设置面板点"安装 Claude Code 依赖"）
+3. 启动 RimWorld，加载存档
+4. 游戏内自动 spawn companion 进程，控制台输出 `[js] [cc-companion] 就绪`
+5. 打开聊天窗（Ctrl+Shift+C）即可与 AI 交互
+
+### 模式二：手动模式（调试/开发）
+
+```bash
+# 终端 1：启动 companion
+cd RimWorldMCP/cc-companion
+npm start
+# 输出：[cc-companion] 就绪，等待 RimWorldMCP 连接...
+#       WebSocket: ws://127.0.0.1:19999
+#       聊天页面: http://127.0.0.1:19999/
+
+# 游戏设置：自动启动 = 关闭，CCB 主机 = 127.0.0.1，CCB 端口 = 19999
+```
+
+### 聊天页面
+
+浏览器打开 `http://127.0.0.1:19999/` 可查看实时对话、SDK 版本、模型、MCP 服务状态。发消息通过 RimWorld 游戏内聊天窗——聊天页面是只读面板。
+
+### 参数覆盖顺序
+
+```
+用户 .claude/settings.json   ← 低优先级（API Key、Base URL、MCP 等）
+        ↓
+SDK Options (session.ts)     ← 中优先级（model、permissionMode、maxTurns）
+        ↓
+环境变量 (ProcessStartInfo)   ← 高优先级（RIMWORLD_PROJECT_PATH、CCB_HOST、CCB_PORT、CCB_AUTH_TOKEN）
+```
+
+SDK 从用户本地 `.claude/settings.json` 读取 API Key、Base URL、MCP 服务、权限等配置。C# 不再写入 settings.json，完全沿用用户本地配置。
+
+### 日志查看
+
+| 来源 | 怎么看 |
+|------|--------|
+| Companion 进程 | `BridgeLifecycle.cs` 注册 `OutputDataReceived`/`ErrorDataReceived`，输出到游戏控制台 `[js]` 前缀 |
+| SDK 内部 | `session.ts` 中 `stderr: (data) => process.stderr.write(\`[sdk] ${text}\`)` |
+| 游戏日志 | Verse.Log — `McpLog.Info/Warn/Error` 方法 |
+| C# 桥接 | `McpLog.Info($"[cc] ...")` 形式，输出带 `[cc]` 前缀 |
 
 ## OSS 截图上传
 

@@ -168,12 +168,7 @@ namespace RimWorldMCP
             }
             catch { }
 
-            string agent = RimWorldMCPMod.Instance?.Settings?.CCModelName ?? "Claude";
-            int shortIdx = agent.LastIndexOf('/');
-            if (shortIdx >= 0) agent = agent.Substring(shortIdx + 1);
-            if (agent.Length > 28) agent = agent.Substring(0, 28);
-
-            string header = $"{colony}{dayInfo} | Agent: {agent}";
+            string header = $"{colony}{dayInfo}";
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(0.5f, 0.8f, 0.5f, _alpha);
             Widgets.Label(new Rect(rect.x, rect.y + 2f, rect.width, rect.height - 2f), header);
