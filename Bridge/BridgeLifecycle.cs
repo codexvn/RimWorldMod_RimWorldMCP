@@ -18,6 +18,7 @@ namespace RimWorldMCP
     /// <summary>CC 桥接连接生命周期管理</summary>
     public static class BridgeLifecycle
     {
+        private static bool _autoPaused;
         private static int _nextCCEventTick;
         private const int CCEventCheckInterval = 120;
         private static int _nextCCFallbackMs;
@@ -107,12 +108,37 @@ namespace RimWorldMCP
 
         // ========== CC 事件转发 ==========
 
+        /// <summary>AI 工作时自动暂停游戏，处理完后自动恢复。玩家手动取消暂停会尊重选择。</summary>
+        private static void AutoPauseGuard()
+        {
+            bool busy = ChatDisplayState.IsBusy;
+            bool paused = Find.TickManager?.Paused ?? true;
+
+            if (busy && !paused && !_autoPaused)
+            {
+                Find.TickManager!.CurTimeSpeed = TimeSpeed.Paused;
+                _autoPaused = true;
+            }
+            else if (!busy && _autoPaused)
+            {
+                Find.TickManager!.CurTimeSpeed = TimeSpeed.Normal;
+                _autoPaused = false;
+            }
+            else if (_autoPaused && !paused)
+            {
+                // 玩家手动取消暂停 → 尊重玩家选择，不再自动管理
+                _autoPaused = false;
+            }
+        }
+
         private static void CCEventTick()
         {
             if (!CCClient.IsReady) return;
 
             var map = Find.CurrentMap;
             if (map == null) return;
+
+            AutoPauseGuard();
             var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
             int colonistCount = colonists.Count;
             int nowMs = Environment.TickCount;
