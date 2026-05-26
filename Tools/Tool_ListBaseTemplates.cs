@@ -63,6 +63,6 @@ namespace RimWorldMCP.Tools
             return Task.FromResult(ToolResult.Success(sb.ToString().TrimEnd()));
         }
 
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

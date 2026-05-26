@@ -42,6 +42,6 @@ namespace RimWorldMCP.Tools
 
             return Task.FromResult(ToolResult.Success($"## {skill.Name}\n\n{skill.Content}\n\n---\n> 来源: {Path.GetFileName(skill.FilePath)}"));
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

@@ -91,15 +91,15 @@ namespace RimWorldMCP.Tools
                 catch (Exception ex) { return ToolResult.Error($"标记收割失败: {ex.Message}"); }
             });
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args)
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args)
         {
             if (args == null) return null;
             if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var posX)) return null;
             if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var posY)) return null;
             if (args.Value.TryGetProperty("end_x", out var jEX) && jEX.TryGetInt32(out var endX)
                 && args.Value.TryGetProperty("end_y", out var jEY) && jEY.TryGetInt32(out var endY))
-                return ((posX + endX) / 2, (posY + endY) / 2);
-            return (posX, posY);
+                return (posX, posY, endX, endY);
+            return (posX, posY, posX, posY);
         }
     }
 }

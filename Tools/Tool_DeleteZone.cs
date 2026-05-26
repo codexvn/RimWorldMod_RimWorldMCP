@@ -57,12 +57,12 @@ namespace RimWorldMCP.Tools
                 catch (Exception ex) { return ToolResult.Error($"删除区域失败: {ex.Message}"); }
             });
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args)
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args)
         {
             if (args == null) return null;
             if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var posX)) return null;
             if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var posY)) return null;
-            return (posX, posY);
+            return (posX, posY, posX, posY);
         }
     }
 }

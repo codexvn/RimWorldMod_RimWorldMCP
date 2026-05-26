@@ -227,6 +227,6 @@ namespace RimWorldMCP.Tools
             var comp = t.TryGetComp<CompQuality>();
             return comp != null ? comp.Quality.GetLabel() : "-";
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

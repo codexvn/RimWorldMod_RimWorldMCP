@@ -141,6 +141,14 @@
   <RimWorldMCP_Tool_todo_delete>删除任务</RimWorldMCP_Tool_todo_delete>
   <RimWorldMCP_Tool_todo_query>查询任务</RimWorldMCP_Tool_todo_query>
 
+  <!-- 命令工具 -->
+  <RimWorldMCP_Tool_designate_hunt>狩猎标记</RimWorldMCP_Tool_designate_hunt>
+  <RimWorldMCP_Tool_designate_slaughter>宰杀标记</RimWorldMCP_Tool_designate_slaughter>
+  <RimWorldMCP_Tool_designate_tame>驯服标记</RimWorldMCP_Tool_designate_tame>
+  <RimWorldMCP_Tool_forbid_item>禁止物品</RimWorldMCP_Tool_forbid_item>
+  <RimWorldMCP_Tool_allow_item>允许物品</RimWorldMCP_Tool_allow_item>
+  <RimWorldMCP_Tool_claim_item>占有物品</RimWorldMCP_Tool_claim_item>
+
   <!-- 基地模板 -->
   <RimWorldMCP_Tool_list_base_templates>基地模板</RimWorldMCP_Tool_list_base_templates>
   <RimWorldMCP_Tool_apply_base_template>应用模板</RimWorldMCP_Tool_apply_base_template>

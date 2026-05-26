@@ -15,7 +15,7 @@ namespace RimWorldMCP.Tools
         private readonly Dictionary<string, ITool> _tools = new();
         private readonly List<ResourceDefinition> _resources = new();
 
-        /// <summary>自动扫描：支持 GetTargetPos 返回非 null 坐标的工具名称集合</summary>
+        /// <summary>自动扫描：支持 GetTargetRange 返回非 null 坐标的工具名称集合</summary>
         private static readonly HashSet<string> s_cameraToolNames = new();
 
         static ToolRegistry()
@@ -31,7 +31,7 @@ namespace RimWorldMCP.Tools
                         var tool = (ITool)Activator.CreateInstance(type);
                         if (tool.Name == "move_camera") continue; // 跳过自身
                         using var doc = JsonDocument.Parse("{\"pos_x\":0,\"pos_y\":0}");
-                        if (tool.GetTargetPos(doc.RootElement) != null)
+                        if (tool.GetTargetRange(doc.RootElement) != null)
                             s_cameraToolNames.Add(tool.Name);
                     }
                     catch { }
@@ -105,12 +105,12 @@ namespace RimWorldMCP.Tools
             {
                 try
                 {
-                    // 自动移动视角 — 工具自身返回目标坐标，开关打开则移动
+                    // 自动移动视角 — 工具自身返回目标区域，开关打开则移动+自动缩放
                     if (RimWorldMCPMod.Instance?.Settings?.AutoMoveCamera == true)
                     {
-                        var target = tool.GetTargetPos(args);
-                        if (target != null)
-                            await CameraHelper.MoveTo(target.Value.x, target.Value.y);
+                        var range = tool.GetTargetRange(args);
+                        if (range != null)
+                            await CameraHelper.MoveToRange(range.Value.minX, range.Value.minZ, range.Value.maxX, range.Value.maxZ);
                     }
 
                     var result = await tool.ExecuteAsync(args);

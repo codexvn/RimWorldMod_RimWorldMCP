@@ -28,6 +28,6 @@ namespace RimWorldMCP.Tools
             var result = $"可用 Skill ({skills.Count} 个):\n\n{string.Join("\n", lines)}\n\n使用 active_skill(skill_name) 来激活获取完整内容。";
             return Task.FromResult(ToolResult.Success(result));
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

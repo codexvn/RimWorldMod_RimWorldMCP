@@ -36,6 +36,6 @@ namespace RimWorldMCP.Tools
                 : ToolResult.Error($"未找到待办 #{id}。请用 todo_query 查看当前的 ID 列表。"));
         }
 
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

@@ -155,12 +155,12 @@ namespace RimWorldMCP.Tools
             });
         }
 
-        public (int x, int y)? GetTargetPos(JsonElement? args)
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args)
         {
             if (args == null) return null;
             if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var px)) return null;
             if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var py)) return null;
-            return (px, py);
+            return (px, py, px, py);
         }
 
         private static string OwnerTypeLabel(BedOwnerType t) => t switch

@@ -137,6 +137,6 @@ namespace RimWorldMCP.Tools
             string bar = new string('#', filled) + new string('_', 10 - filled);
             return $"[{bar}]";
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

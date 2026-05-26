@@ -58,12 +58,12 @@ namespace RimWorldMCP.Tools
             });
         }
 
-        public (int x, int y)? GetTargetPos(JsonElement? args)
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args)
         {
             if (args == null) return null;
             if (!args.Value.TryGetProperty("center_x", out var jX) || !jX.TryGetInt32(out var cx)) return null;
             if (!args.Value.TryGetProperty("center_y", out var jY) || !jY.TryGetInt32(out var cy)) return null;
-            return (cx, cy);
+            return (cx, cy, cx, cy);
         }
 
         // ── single_room ──────────────────────────────────────────────

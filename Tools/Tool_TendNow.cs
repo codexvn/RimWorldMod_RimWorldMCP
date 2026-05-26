@@ -177,7 +177,7 @@ namespace RimWorldMCP.Tools
             });
         }
 
-        public (int x, int y)? GetTargetPos(JsonElement? args)
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args)
         {
             return null; // 返回 null，由 doctor 的位置决定视角
         }

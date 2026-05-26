@@ -20,7 +20,8 @@ namespace RimWorldMCP.Tools
             properties = new
             {
                 ship_name = new { type = "string", description = "商船名称（与 faction_name 二选一）" },
-                faction_name = new { type = "string", description = "派系名称（与 ship_name 二选一，创建虚拟商船进行虚空贸易）" },
+                faction_name = new { type = "string", description = "派系名称（与 ship_name 二选一）" },
+                trader_kind = new { type = "string", description = "商船类型（可选，不传则列出派系可用类型）" },
                 sell = new
                 {
                     type = "array",
@@ -69,6 +70,10 @@ namespace RimWorldMCP.Tools
                 factionName = jFn.GetString() ?? "";
             if (string.IsNullOrWhiteSpace(shipName) && string.IsNullOrWhiteSpace(factionName))
                 return ToolResult.Error("缺少必填参数: ship_name 或 faction_name");
+
+            string traderKindFilter = "";
+            if (args.Value.TryGetProperty("trader_kind", out var jTk))
+                traderKindFilter = jTk.GetString() ?? "";
 
             var sellList = new List<(string item, int count)>();
             if (args.Value.TryGetProperty("sell", out var jSell) && jSell.ValueKind == JsonValueKind.Array)
@@ -123,18 +128,43 @@ namespace RimWorldMCP.Tools
                         if (faction.PlayerRelationKind == FactionRelationKind.Hostile)
                             return ToolResult.Error($"{faction.Name} 与你是敌对关系，无法贸易");
 
-                        // 获取派系的商船贸易类型
-                        var traderKind = faction.def.orbitalTraderKinds?.FirstOrDefault()
-                            ?? faction.def.caravanTraderKinds?.FirstOrDefault();
-                        if (traderKind == null)
+                        // 列出派系可用商船类型
+                        var allKinds = (faction.def.orbitalTraderKinds ?? new List<TraderKindDef>())
+                            .Concat(faction.def.caravanTraderKinds ?? new List<TraderKindDef>())
+                            .Where(k => k != null)
+                            .Distinct()
+                            .ToList();
+
+                        if (allKinds.Count == 0)
                             return ToolResult.Error($"{faction.Name} 没有可用的贸易类型");
+
+                        // 指定类型 → 模糊匹配
+                        TraderKindDef? traderKind = null;
+                        if (!string.IsNullOrWhiteSpace(traderKindFilter))
+                        {
+                            traderKind = allKinds.FirstOrDefault(k =>
+                                (k.label?.ToLowerInvariant().Contains(traderKindFilter.ToLowerInvariant()) ?? false)
+                                || (k.defName?.ToLowerInvariant().Contains(traderKindFilter.ToLowerInvariant()) ?? false));
+                            if (traderKind == null)
+                                return ToolResult.Error($"{faction.Name} 没有 '{traderKindFilter}' 类型的商船。可用: {string.Join(", ", allKinds.Select(k => k.label))}");
+                        }
+                        else if (sellList.Count > 0 || buyList.Count > 0)
+                        {
+                            // 有买卖请求但未指定类型 → 自动选第一个
+                            traderKind = allKinds[0];
+                        }
+                        else
+                        {
+                            // 仅探索 → 列出类型
+                            return ToolResult.Success($"{faction.Name} 可用商船类型: {string.Join(", ", allKinds.Select(k => $"{k.label}({k.defName})"))}");
+                        }
 
                         var virtShip = new TradeShip(traderKind, faction);
                         virtShip.GenerateThings();
-                        virtShip.PassingShipTick(); // 初始化 tick
+                        virtShip.PassingShipTick();
                         map.passingShipManager.AddShip(virtShip);
                         trader = virtShip;
-                        traderLabel = $"{faction.Name} (虚拟商船)";
+                        traderLabel = $"{faction.Name}/{traderKind.label}";
                         virtualTrader = true;
                     }
 
@@ -228,6 +258,6 @@ namespace RimWorldMCP.Tools
             }
             return null;
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

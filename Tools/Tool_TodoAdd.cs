@@ -52,6 +52,6 @@ namespace RimWorldMCP.Tools
                 $"已添加待办 #{item.Id} (P{item.Priority}): {item.Description} ({GameTimeHelper.FormatGameTime(item.CreatedAtTick)})"));
         }
 
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

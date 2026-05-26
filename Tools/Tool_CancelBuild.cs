@@ -160,13 +160,15 @@ namespace RimWorldMCP.Tools
             });
         }
 
-        public (int x, int y)? GetTargetPos(JsonElement? args)
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args)
         {
             if (args == null) return null;
-            int x = 0, y = 0;
-            if (args.Value.TryGetProperty("pos_x", out var jx)) x = jx.GetInt32();
-            if (args.Value.TryGetProperty("pos_y", out var jy)) y = jy.GetInt32();
-            return (x, y);
+            if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var x)) return null;
+            if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var y)) return null;
+            int ex = x, ey = y;
+            if (args.Value.TryGetProperty("end_x", out var jEX) && jEX.TryGetInt32(out var _ex)) ex = _ex;
+            if (args.Value.TryGetProperty("end_y", out var jEY) && jEY.TryGetInt32(out var _ey)) ey = _ey;
+            return (Math.Min(x, ex), Math.Min(y, ey), Math.Max(x, ex), Math.Max(y, ey));
         }
-    }
+}
 }

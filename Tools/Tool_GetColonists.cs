@@ -328,6 +328,6 @@ namespace RimWorldMCP.Tools
                 return true;
             return false;
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
     }
 }

@@ -107,11 +107,11 @@ namespace RimWorldMCP.Tools
                 return ToolResult.Success(sb.ToString());
             });
         }
-        public (int x, int y)? GetTargetPos(JsonElement? args)
+        public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args)
         {
             if (args != null && args.Value.TryGetProperty("pos_x", out var jx) && jx.TryGetInt32(out var px)
                 && args.Value.TryGetProperty("pos_y", out var jy) && jy.TryGetInt32(out var py))
-                return (px, py);
+                return (px, py, px, py);
             return null;
         }
     }
