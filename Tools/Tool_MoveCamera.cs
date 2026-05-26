@@ -8,7 +8,7 @@ namespace RimWorldMCP.Tools
     public class Tool_MoveCamera : ITool
     {
         public string Name => "move_camera";
-        public string Description => "移动游戏视角到指定地图坐标。利用游戏 CameraDriver.JumpToCurrentMapLoc，视角瞬间跳转。";
+        public string Description => "移动游戏视角到指定地图坐标。利用游戏 CameraDriver.PanToMapLoc，视角平滑滑动，速度根据距离自动调整。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
@@ -40,7 +40,7 @@ namespace RimWorldMCP.Tools
                         return ToolResult.Error($"目标坐标 ({posX},{posY}) 超出地图边界 (0~{map.Size.x - 1}, 0~{map.Size.z - 1})");
 
                     var cell = new IntVec3(posX, 0, posY);
-                    Find.CameraDriver.JumpToCurrentMapLoc(cell);
+                    Find.CameraDriver.PanToMapLoc(cell);
 
                     return ToolResult.Success($"视角已移动到 ({posX}, {posY})。");
                 }
