@@ -526,7 +526,15 @@ namespace RimWorldMCP
                 var log = new System.Text.StringBuilder();
                 try
                 {
-                    var psi = new ProcessStartInfo("npm", "install")
+                    var npmPath = FindNpmPath();
+                    if (npmPath == null)
+                    {
+                        InstallStatus = "找不到 npm，请确保已安装 Node.js (https://nodejs.org)";
+                        IsInstalling = false;
+                        return;
+                    }
+                    McpLog.Info($"[cc] 使用 npm: {npmPath}");
+                    var psi = new ProcessStartInfo(npmPath, "install")
                     {
                         WorkingDirectory = dir,
                         UseShellExecute = false,
@@ -589,17 +597,124 @@ namespace RimWorldMCP
 
         public static string? FindNodeExe()
         {
+            // 1. Try bare "node" via PATH (existing logic)
+            {
+                var node = TryFindNode("node");
+                if (node != null) return node;
+            }
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // 2. Try "node.exe" explicitly (Windows PATHEXT workaround)
+                {
+                    var node = TryFindNode("node.exe");
+                    if (node != null) return node;
+                }
+
+                // 3. Check common install paths
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                var commonPaths = new[]
+                {
+                    Path.Combine(programFiles, "nodejs", "node.exe"),
+                    Path.Combine(programFilesX86, "nodejs", "node.exe"),
+                };
+
+                // 4. Scan nvm directory: %APPDATA%\nvm\<version>\node.exe
+                var nvmPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "nvm");
+                if (Directory.Exists(nvmPath))
+                {
+                    try
+                    {
+                        var nvmVersions = Directory.GetDirectories(nvmPath)
+                            .Select(d => Path.Combine(d, "node.exe"))
+                            .Where(File.Exists)
+                            .OrderByDescending(v => v) // latest version first
+                            .ToArray();
+                        foreach (var v in nvmVersions)
+                        {
+                            var node = TryFindNode(v);
+                            if (node != null) return node;
+                        }
+                    }
+                    catch { }
+                }
+
+                // 5. Check common paths via file existence
+                foreach (var path in commonPaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        var node = TryFindNode(path);
+                        if (node != null) return node;
+                    }
+                }
+            }
+
+            McpLog.Error("[cc] 未找到 Node.js，请确保已安装并加入 PATH (https://nodejs.org)");
+            return null;
+        }
+
+        /// <summary>尝试执行 node --version 验证给定路径的 node 可执行文件</summary>
+        private static string? TryFindNode(string candidate)
+        {
             try
             {
-                var psi = new ProcessStartInfo("node", "--version")
+                var psi = new ProcessStartInfo(candidate, "--version")
                 { UseShellExecute = false, RedirectStandardOutput = true,
                   RedirectStandardError = true, CreateNoWindow = true };
                 using var proc = Process.Start(psi);
-                if (proc != null) { proc.WaitForExit(3000); if (proc.ExitCode == 0) return "node"; }
+                if (proc != null) { proc.WaitForExit(3000); if (proc.ExitCode == 0) return candidate; }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>查找 npm 可执行文件路径，基于 node 路径推导 + PATH 兜底</summary>
+        public static string? FindNpmPath()
+        {
+            // 1. 基于 node.exe 路径推导同目录下的 npm
+            var nodeExe = FindNodeExe();
+            if (nodeExe != null)
+            {
+                var nodeDir = Path.GetDirectoryName(nodeExe);
+                if (!string.IsNullOrEmpty(nodeDir))
+                {
+                    var npmName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "npm.cmd" : "npm";
+                    var npmCandidate = Path.Combine(nodeDir, npmName);
+                    if (File.Exists(npmCandidate))
+                    {
+                        McpLog.Info($"[cc] 找到 npm: {npmCandidate} (基于 node 路径)");
+                        return npmCandidate;
+                    }
+                }
+            }
+
+            // 2. Fallback: 尝试 PATH 查找 "npm" / "npm.cmd"
+            try
+            {
+                var psi = new ProcessStartInfo("npm", "--version")
+                { UseShellExecute = false, RedirectStandardOutput = true,
+                  RedirectStandardError = true, CreateNoWindow = true };
+                using var proc = Process.Start(psi);
+                if (proc != null) { proc.WaitForExit(3000); if (proc.ExitCode == 0) { McpLog.Info("[cc] 找到 npm: npm (PATH)"); return "npm"; } }
             }
             catch { }
 
-            McpLog.Error("[cc] 未找到 Node.js，请确保已安装并加入 PATH (https://nodejs.org)");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo("npm.cmd", "--version")
+                    { UseShellExecute = false, RedirectStandardOutput = true,
+                      RedirectStandardError = true, CreateNoWindow = true };
+                    using var proc = Process.Start(psi);
+                    if (proc != null) { proc.WaitForExit(3000); if (proc.ExitCode == 0) { McpLog.Info("[cc] 找到 npm: npm.cmd (PATH)"); return "npm.cmd"; } }
+                }
+                catch { }
+            }
+
+            McpLog.Error("[cc] 未找到 npm，请确保 Node.js 安装正确 (https://nodejs.org)");
             return null;
         }
 
@@ -715,6 +830,7 @@ namespace RimWorldMCP
             {
                 ["permissions"] = new Dictionary<string, object>
                 {
+                    ["permissionMode"] = "bypassPermissions",
                     ["allow"] = new[] { "mcp:*" }
                 },
                 ["mcpServers"] = new Dictionary<string, object>
