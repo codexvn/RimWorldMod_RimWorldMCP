@@ -75,9 +75,11 @@ namespace RimWorldMCP.Tools
                     if (thing == null)
                         return ToolResult.Error($"找不到物品 ID={thingId}");
 
-                    // 验证：在物品栏/已被搬运
+                    // 验证：物品有效且有数量
                     if (thing.Map == null || !thing.Spawned)
                         return ToolResult.Error($"{thing.Label} 不在可搬运状态（可能已被拾取或销毁）");
+                    if (thing.stackCount <= 0)
+                        return ToolResult.Error($"{thing.Label} 堆叠数量为 0，无法搬运");
 
                     // 验证：可搬运
                     if (!thing.def.EverHaulable)
@@ -138,12 +140,9 @@ namespace RimWorldMCP.Tools
                         destInfo = "搬运到最佳存储区";
                     }
 
-                    // 如有需要覆盖数量
-                    if (finalCount != thing.stackCount)
-                    {
-                        if (job is { def: not null })
-                            job.count = finalCount;
-                    }
+                    // 确保 job count 有效（覆盖可能的 0 值）
+                    if (job?.def != null)
+                        job.count = Math.Max(finalCount, 1);
 
                     if (!pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc, capQueue))
                         return ToolResult.Error($"{pawn.Name.ToStringShort} 无法开始搬运（物品可能已被占用或当前任务无法中断）。");

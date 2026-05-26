@@ -19,9 +19,10 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                ship_name = new { type = "string", description = "商船名称（与 faction_name 二选一）" },
-                faction_name = new { type = "string", description = "派系名称（与 ship_name 二选一）" },
-                trader_kind = new { type = "string", description = "商船类型（可选，不传则列出派系可用类型）" },
+                ship_name = new { type = "string", description = "商船名称（与 faction_name/settlement_name 三选一）" },
+                faction_name = new { type = "string", description = "派系名称（与 ship_name/settlement_name 三选一）" },
+                settlement_name = new { type = "string", description = "世界定居点名称（与 ship_name/faction_name 三选一）" },
+                trader_kind = new { type = "string", description = "商船类型（可选，用于派系/定居点，不传则列出可用）" },
                 sell = new
                 {
                     type = "array",
@@ -64,12 +65,15 @@ namespace RimWorldMCP.Tools
             if (args == null) return ToolResult.Error("缺少参数");
             string shipName = "";
             string factionName = "";
+            string settlementName = "";
             if (args.Value.TryGetProperty("ship_name", out var jSn))
                 shipName = jSn.GetString() ?? "";
             if (args.Value.TryGetProperty("faction_name", out var jFn))
                 factionName = jFn.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(shipName) && string.IsNullOrWhiteSpace(factionName))
-                return ToolResult.Error("缺少必填参数: ship_name 或 faction_name");
+            if (args.Value.TryGetProperty("settlement_name", out var jSt))
+                settlementName = jSt.GetString() ?? "";
+            if (string.IsNullOrWhiteSpace(shipName) && string.IsNullOrWhiteSpace(factionName) && string.IsNullOrWhiteSpace(settlementName))
+                return ToolResult.Error("缺少必填参数: ship_name / faction_name / settlement_name");
 
             string traderKindFilter = "";
             if (args.Value.TryGetProperty("trader_kind", out var jTk))
@@ -117,6 +121,16 @@ namespace RimWorldMCP.Tools
                             return ToolResult.Error($"找不到商船: {shipName}");
                         trader = ship;
                         traderLabel = ship.name;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(settlementName))
+                    {
+                        var settlement = Find.World.worldObjects.Settlements
+                            .FirstOrDefault(s => s.CanTradeNow
+                                && s.Name.ToLowerInvariant().Contains(settlementName.ToLowerInvariant()));
+                        if (settlement == null)
+                            return ToolResult.Error($"找不到可贸易定居点: {settlementName}");
+                        trader = settlement;
+                        traderLabel = settlement.Name;
                     }
                     else
                     {
