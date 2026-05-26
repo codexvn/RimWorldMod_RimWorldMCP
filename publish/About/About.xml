@@ -3,7 +3,7 @@
   <name>RimWorld MCP</name>
   <author>codexvn</author>
   <packageId>codexvn.rimworld.mcp</packageId>
-  <description>MCP (Model Context Protocol) 服务器，将 RimWorld 游戏状态和操作暴露为 LLM 可调用的 Tool。内置 39 个 Tool，覆盖查询、制造、建造、标记、研究、殖民者、医疗、战斗、右键操作、网格可视化等类别。支持 SSE 和 Streamable HTTP 双传输。通过 WebSocket 对接 OpenClaw Gateway（ED25519 设备签名认证），实现事件监控与推送（Letter 通知、消息监控、空闲检测、每日早报、综合警报）。支持 OSS 截图自动上传，以及 6 个领域知识 Skill 系统。</description>
+  <description>MCP (Model Context Protocol) 服务器，将 RimWorld 游戏状态和操作暴露为 LLM 可调用的 Tool。内置 78 个 Tool，覆盖查询、制造、建造、标记、存储/种植、研究、殖民者、医疗、战斗、右键操作、网格可视化、弹框操作、TODO 系统、基地模板等类别。通过 Claude Code Companion 实现游戏内 AI 助手——事件监控与推送、聊天窗口、自动截图分析、无缝工具执行。支持 6 个领域知识 Skill 系统及 OSS 截图上传。</description>
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>

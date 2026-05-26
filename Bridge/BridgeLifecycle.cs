@@ -785,6 +785,36 @@ namespace RimWorldMCP
 
         // ========== 进程管理 ==========
 
+        /// <summary>验证进程是否为 CC Companion（node + companion 路径标识）</summary>
+        private static bool IsCCBProcess(System.Diagnostics.Process proc)
+        {
+            try
+            {
+                // 1. 进程名必须是 node
+                var name = proc.ProcessName.ToLowerInvariant();
+                if (name != "node" && name != "node.exe") return false;
+
+                // 2. 检查主模块路径是否含 nodejs / node（如 Scoop 的可能在 node 目录）
+                try
+                {
+                    var modulePath = proc.MainModule?.FileName ?? "";
+                    if (modulePath.IndexOf("node", StringComparison.OrdinalIgnoreCase) >= 0)
+                        return true;
+                }
+                catch
+                {
+                    // 无权限访问 MainModule（系统进程或其他用户）
+                    // 进程名是 node，但无法确认路径 → 拒绝 kill
+                    McpLog.Warn($"[cc] 无法获取 PID={proc.Id} 的模块路径，拒绝 kill（进程名={proc.ProcessName})");
+                    return false;
+                }
+
+                McpLog.Warn($"[cc] PID={proc.Id} 模块路径不含 node 标识，拒绝 kill（路径={proc.MainModule?.FileName})");
+                return false;
+            }
+            catch { return false; }
+        }
+
         private static void KillStaleByPidFile()
         {
             var dir = FindCompanionDir();
@@ -801,6 +831,11 @@ namespace RimWorldMCP
                     try
                     {
                         using var proc = Process.GetProcessById(pid);
+                        if (!IsCCBProcess(proc))
+                        {
+                            McpLog.Warn($"[cc] 残留 PID={pid} ({proc.ProcessName}) 不是 CC Companion 进程，跳过");
+                            return;
+                        }
                         McpLog.Info($"[cc] 正在杀死残留进程 PID={pid} ({proc.ProcessName})");
                         proc.Kill(); proc.WaitForExit(3000);
                         McpLog.Info($"[cc] 残留进程 PID={pid} 已终止");
