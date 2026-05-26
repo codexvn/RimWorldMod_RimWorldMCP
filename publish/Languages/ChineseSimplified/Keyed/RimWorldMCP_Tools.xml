@@ -10,7 +10,10 @@
   <!-- 网格查询 -->
   <RimWorldMCP_Tool_get_tile_detail>坐标详情</RimWorldMCP_Tool_get_tile_detail>
   <RimWorldMCP_Tool_get_tile_grid>网格地图</RimWorldMCP_Tool_get_tile_grid>
-  <RimWorldMCP_Tool_get_terrain_info>土壤信息</RimWorldMCP_Tool_get_terrain_info>
+  <RimWorldMCP_Tool_fertility_grid>肥沃度图</RimWorldMCP_Tool_fertility_grid>
+  <RimWorldMCP_Tool_terrain_grid>地形图</RimWorldMCP_Tool_terrain_grid>
+  <RimWorldMCP_Tool_temperature_grid>温度图</RimWorldMCP_Tool_temperature_grid>
+  <RimWorldMCP_Tool_pollution_grid>污染图</RimWorldMCP_Tool_pollution_grid>
 
   <!-- 制造 -->
   <RimWorldMCP_Tool_list_recipes>配方列表</RimWorldMCP_Tool_list_recipes>
