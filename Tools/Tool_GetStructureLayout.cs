@@ -549,5 +549,12 @@ namespace RimWorldMCP.Tools
 
             return components.Count;
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args)
+        {
+            if (args == null) return null;
+            if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var posX)) return null;
+            if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var posY)) return null;
+            return (posX, posY);
+        }
     }
 }

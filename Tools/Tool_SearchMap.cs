@@ -158,5 +158,6 @@ namespace RimWorldMCP.Tools
                 catch (Exception ex) { return ToolResult.Error($"搜索失败: {ex.Message}"); }
             });
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
     }
 }

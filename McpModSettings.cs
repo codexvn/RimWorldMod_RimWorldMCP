@@ -18,6 +18,9 @@ namespace RimWorldMCP
         public bool CCBAutoStart = true;
         public string CCBModelName = "";
 
+        // 工具行为
+        public bool AutoMoveCamera = true;
+
         // OSS
         public bool OssEnabled = false;
         public string OssServiceUrl = "";
@@ -42,6 +45,7 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref CCBAuthToken, "ccbAuthToken", "");
             Scribe_Values.Look(ref CCBAutoStart, "ccbAutoStart", true);
             Scribe_Values.Look(ref CCBModelName, "ccbModelName", "");
+            Scribe_Values.Look(ref AutoMoveCamera, "autoMoveCamera", true);
             Scribe_Values.Look(ref OssEnabled, "ossEnabled", false);
             Scribe_Values.Look(ref OssServiceUrl, "ossServiceUrl", "");
             Scribe_Values.Look(ref OssBucketName, "ossBucketName", "");

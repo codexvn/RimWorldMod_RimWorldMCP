@@ -136,5 +136,12 @@ namespace RimWorldMCP.Tools
                 catch (Exception ex) { return ToolResult.Error($"标记砍伐失败: {ex.Message}"); }
             });
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args)
+        {
+            if (args == null) return null;
+            if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var posX)) return null;
+            if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var posY)) return null;
+            return (posX, posY);
+        }
     }
 }

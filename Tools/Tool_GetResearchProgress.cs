@@ -200,5 +200,6 @@ namespace RimWorldMCP.Tools
             filled = Math.Max(0, Math.Min(20, filled));
             return $"[{new string('#', filled)}{new string('_', 20 - filled)}]";
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
     }
 }

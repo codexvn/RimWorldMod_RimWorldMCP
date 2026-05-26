@@ -23,7 +23,7 @@ namespace RimWorldMCP
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
-            float h = 560f;
+            float h = 590f;
             h += Settings.CCBAutoStart ? 70f : 170f;
             if (Settings.OssEnabled) h += 220f;
             if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
@@ -42,6 +42,13 @@ namespace RimWorldMCP
                 Settings.LogLevel = (LogLevel)next;
                 McpLog.MinLogLevel = Settings.LogLevel;
             }
+            listing.Gap(24f);
+
+            // ====== 工具行为 ======
+            listing.Label("工具行为");
+            listing.Gap(2f);
+            listing.CheckboxLabeled("调用工具时自动移动视角", ref Settings.AutoMoveCamera,
+                "AI 调用带坐标参数的工具时，自动将游戏视角平滑移动到目标位置。");
             listing.Gap(24f);
 
             // ====== MCP 服务器 ======

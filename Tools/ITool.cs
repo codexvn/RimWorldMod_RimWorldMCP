@@ -9,6 +9,8 @@ namespace RimWorldMCP.Tools
         string Description { get; }
         JsonElement InputSchema { get; }
         Task<ToolResult> ExecuteAsync(JsonElement? args);
+        /// <summary>从大模型参数中提取目标坐标，返回 null 表示无需移动视角</summary>
+        (int x, int y)? GetTargetPos(JsonElement? args);
     }
 
     public class ToolResult

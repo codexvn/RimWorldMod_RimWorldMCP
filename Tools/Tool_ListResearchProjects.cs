@@ -99,5 +99,6 @@ namespace RimWorldMCP.Tools
                 return ToolResult.Success(sb.ToString());
             });
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
     }
 }

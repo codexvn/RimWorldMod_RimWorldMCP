@@ -173,5 +173,6 @@ namespace RimWorldMCP.Tools
 
             return "其它";
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
     }
 }

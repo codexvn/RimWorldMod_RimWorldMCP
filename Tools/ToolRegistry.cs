@@ -77,6 +77,14 @@ namespace RimWorldMCP.Tools
             {
                 try
                 {
+                    // 自动移动视角 — 工具自身返回目标坐标，开关打开则移动
+                    if (RimWorldMCPMod.Instance?.Settings?.AutoMoveCamera == true)
+                    {
+                        var target = tool.GetTargetPos(args);
+                        if (target != null)
+                            await CameraHelper.MoveTo(target.Value.x, target.Value.y);
+                    }
+
                     var result = await tool.ExecuteAsync(args);
 
                     // 工具结束时补推剩余通知 + 检查暂停状态

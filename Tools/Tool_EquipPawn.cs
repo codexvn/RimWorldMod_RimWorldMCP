@@ -118,5 +118,6 @@ namespace RimWorldMCP.Tools
                 catch (Exception ex) { return ToolResult.Error($"装备操作失败: {ex.Message}"); }
             });
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
     }
 }

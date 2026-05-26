@@ -96,5 +96,6 @@ namespace RimWorldMCP.Tools
                 }
             });
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
     }
 }

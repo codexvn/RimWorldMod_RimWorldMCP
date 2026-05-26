@@ -204,5 +204,6 @@ namespace RimWorldMCP.Tools
 
             return $"  - {h.Label}{bodyPart}{severity}{bleedRate}{permanent}{immun}";
         }
+        public (int x, int y)? GetTargetPos(JsonElement? args) => null;
     }
 }
