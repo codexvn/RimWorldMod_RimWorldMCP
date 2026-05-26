@@ -48,7 +48,7 @@ namespace RimWorldMCP
             listing.Label("工具行为");
             listing.Gap(2f);
             listing.CheckboxLabeled("调用工具时自动移动视角", ref Settings.AutoMoveCamera,
-                "AI 调用带坐标参数的工具时，自动将游戏视角平滑移动到目标位置。");
+                "AI 调用带坐标参数的工具时，自动将游戏视角平滑移动到目标位置。\n\n支持自动移动的工具（18个）：\n建造: designate_build, designate_room, install_minified_thing\n标记: designate_mine, designate_plants_cut, designate_deconstruct, designate_clear_plants, designate_harvest\n存储/种植: create_stockpile, create_growing_zone, set_grower_plant, manage_stockpile_filter, delete_zone\n查询/截图: get_tile_detail, get_tile_grid, get_structure_layout, take_screenshot\n移动: move_pawn");
             listing.Gap(24f);
 
             // ====== MCP 服务器 ======

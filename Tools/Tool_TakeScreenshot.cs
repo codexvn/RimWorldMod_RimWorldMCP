@@ -116,6 +116,9 @@ namespace RimWorldMCP.Tools
             if (args == null) return null;
             if (!args.Value.TryGetProperty("pos_x", out var jX) || !jX.TryGetInt32(out var posX)) return null;
             if (!args.Value.TryGetProperty("pos_y", out var jY) || !jY.TryGetInt32(out var posY)) return null;
+            if (args.Value.TryGetProperty("end_x", out var jEX) && jEX.TryGetInt32(out var endX)
+                && args.Value.TryGetProperty("end_y", out var jEY) && jEY.TryGetInt32(out var endY))
+                return ((posX + endX) / 2, (posY + endY) / 2);
             return (posX, posY);
         }
     }

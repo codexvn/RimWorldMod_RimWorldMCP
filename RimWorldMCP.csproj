@@ -58,10 +58,6 @@
     <None Include="CLAUDE.md" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="cc-companion\.claude\" />
-  </ItemGroup>
-
   <!-- CC Companion: 复制源码到 publish + npm install -->
   <Target Name="CCCompanionBuild" AfterTargets="Build">
     <PropertyGroup>
