@@ -23,6 +23,7 @@ namespace RimWorldMCP
         private static int _nextCCFallbackMs;
         private const int CCFallbackIntervalMs = 5000;
         private static Process? _companionProcess;
+        private static volatile bool _companionReady;
         private static IntPtr _jobHandle = IntPtr.Zero;
         private static string _currentSessionId = "";
 
@@ -50,6 +51,7 @@ namespace RimWorldMCP
             var settings = RimWorldMCPMod.Instance?.Settings;
             if (settings == null) return;
 
+            bool companionStarted = false;
             if (settings.CCBAutoStart)
             {
                 McpLog.Info("[bridge] CCBAutoStart=开启");
@@ -58,23 +60,54 @@ namespace RimWorldMCP
                 McpLog.Info("[bridge] 步骤2: 清理残留 PID 文件...");
                 KillStaleByPidFile();
                 McpLog.Info("[bridge] 步骤3: 启动 Companion 进程...");
-                StartCompanionProcess(settings.CCBHost, settings.CCBPort, settings.CCBAuthToken, sessionId);
-                await Task.Delay(2000);
+                companionStarted = StartCompanionProcess(settings.CCBHost, settings.CCBPort, settings.CCBAuthToken, sessionId);
+                if (companionStarted)
+                {
+                    // 轮询等待 Companion 就绪（最多 15 秒），期间检测进程是否崩溃
+                    var deadline = DateTime.UtcNow.AddSeconds(15);
+                    var ready = false;
+                    while (DateTime.UtcNow < deadline)
+                    {
+                        if (_companionProcess != null && _companionProcess.HasExited)
+                        {
+                            McpLog.Error($"[cc] Companion 进程启动后立即退出 (退出码: {_companionProcess.ExitCode})，跳过连接");
+                            companionStarted = false;
+                            break;
+                        }
+                        await Task.Delay(500);
+                        // Companion 就绪的标志：_companionReady 由 output 中的就绪日志设置
+                        if (_companionReady)
+                        {
+                            ready = true;
+                            break;
+                        }
+                    }
+                    if (!ready && companionStarted)
+                        McpLog.Warn("[cc] Companion 启动超时(15s)，尝试连接...");
+                }
+                else
+                {
+                    McpLog.Error("[bridge] Companion 进程启动失败，跳过 WebSocket 连接");
+                }
             }
             else
             {
                 McpLog.Info("[bridge] CCBAutoStart=关闭，仅连接远程 Companion");
             }
 
-            var ccbUrl = $"ws://{settings.CCBHost}:{settings.CCBPort}";
-            await CCClient.Connect(ccbUrl, settings.CCBAuthToken);
-            if (CCClient.IsReady)
+            // 仅当 auto-start 关闭（手动模式）或 companion 成功启动时才尝试连接
+            if (!settings.CCBAutoStart || companionStarted)
             {
-                McpLog.Info($"[bridge] 已连接到 Claude Code: {ccbUrl}");
-            }
-            else
-            {
-                McpLog.Error($"[bridge] Claude Code 连接失败: {ccbUrl}");
+                var ccbUrl = $"ws://{settings.CCBHost}:{settings.CCBPort}";
+                await CCClient.Connect(ccbUrl, settings.CCBAuthToken);
+                if (CCClient.IsReady)
+                {
+                    McpLog.Info($"[bridge] 已连接到 Claude Code: {ccbUrl}");
+                }
+                else
+                {
+                    McpLog.Error($"[bridge] Claude Code 连接失败: {ccbUrl}");
+                }
             }
         }
 
@@ -769,15 +802,28 @@ namespace RimWorldMCP
 
         private static string? FindModRoot()
         {
+            // 首选：Mod.Content.RootDir（RimWorld 官方 API，不依赖 Assembly.Location）
+            try
+            {
+                var rootDir = RimWorldMCPMod.Instance?.Content?.RootDir;
+                if (!string.IsNullOrEmpty(rootDir))
+                    return rootDir;
+            }
+            catch { }
+
+            // 备选：Assembly.Location 向上两级（仅当从磁盘加载时可用，RimWorld mod 通常为空）
             try
             {
                 var asmPath = typeof(BridgeLifecycle).Assembly.Location;
-                if (string.IsNullOrEmpty(asmPath)) return null;
-                var asmDir = Path.GetDirectoryName(asmPath);
-                if (asmDir == null) return null;
-                return Path.GetFullPath(Path.Combine(asmDir, "..", ".."));
+                if (!string.IsNullOrEmpty(asmPath))
+                {
+                    var asmDir = Path.GetDirectoryName(asmPath);
+                    if (asmDir != null)
+                        return Path.GetFullPath(Path.Combine(asmDir, "..", ".."));
+                }
             }
-            catch { return null; }
+            catch { }
+            return null;
         }
 
         public static string? FindNodeExe()
@@ -1013,10 +1059,10 @@ namespace RimWorldMCP
             finally { try { File.Delete(pidFile); } catch { } }
         }
 
-        private static void StartCompanionProcess(string host, int port, string token, string sessionId)
+        private static bool StartCompanionProcess(string host, int port, string token, string sessionId)
         {
-            var nodeExe = FindNodeExe(); if (nodeExe == null) return;
-            var companionDir = FindCompanionDir(); if (companionDir == null) return;
+            var nodeExe = FindNodeExe(); if (nodeExe == null) return false;
+            var companionDir = FindCompanionDir(); if (companionDir == null) return false;
 
             var modRoot = FindModRoot();
             var baseSessionsDir = modRoot != null
@@ -1059,8 +1105,9 @@ namespace RimWorldMCP
                 psi.Environment["CCB_PORT"] = port.ToString();
                 if (!string.IsNullOrEmpty(token)) psi.Environment["CCB_AUTH_TOKEN"] = token;
 
+                _companionReady = false;
                 _companionProcess = Process.Start(psi);
-                if (_companionProcess == null) { McpLog.Error("[cc] 无法启动 Companion 进程"); return; }
+                if (_companionProcess == null) { McpLog.Error("[cc] 无法启动 Companion 进程"); return false; }
 
                 // Windows: JobObject 绑定，主进程退出时 OS 自动杀子进程
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -1072,19 +1119,27 @@ namespace RimWorldMCP
                 _companionProcess.EnableRaisingEvents = true;
                 _companionProcess.Exited += (_, _) =>
                 {
+                    _companionReady = false;
                     var exitCode = _companionProcess?.ExitCode;
                     McpLog.Warn($"[cc] Companion 进程已退出 (PID: {_companionProcess?.Id}, 退出码: {exitCode})");
                 };
                 _companionProcess.OutputDataReceived += (_, e) =>
-                { if (!string.IsNullOrEmpty(e.Data)) McpLog.Info($"[js] {e.Data}"); };
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        McpLog.Info($"[js] {e.Data}");
+                        if (e.Data.Contains("就绪")) _companionReady = true;
+                    }
+                };
                 _companionProcess.ErrorDataReceived += (_, e) =>
                 { if (!string.IsNullOrEmpty(e.Data)) McpLog.Warn($"[js] {e.Data}"); };
                 _companionProcess.BeginOutputReadLine();
                 _companionProcess.BeginErrorReadLine();
 
                 McpLog.Info($"[cc] Companion 进程已启动 (PID: {_companionProcess.Id}, CWD: {companionDir})");
+                return true;
             }
-            catch (Exception ex) { McpLog.Error($"[cc] 启动 Companion 进程失败: {ex.Message}"); }
+            catch (Exception ex) { McpLog.Error($"[cc] 启动 Companion 进程失败: {ex.Message}"); return false; }
         }
 
         internal static string BuildProjectSettingsJson(int mcpPort)
@@ -1111,6 +1166,7 @@ namespace RimWorldMCP
 
         private static void StopCompanionProcess()
         {
+            _companionReady = false;
             if (_companionProcess == null) { McpLog.Info("[cc] 无需停止：无当前进程引用"); return; }
             try
             {
