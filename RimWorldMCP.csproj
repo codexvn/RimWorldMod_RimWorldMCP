@@ -58,13 +58,17 @@
     <None Include="CLAUDE.md" />
   </ItemGroup>
 
+  <!-- 构建后删掉 pdb -->
+  <Target Name="DeletePdb" AfterTargets="Build">
+    <Delete Files="$(OutputPath)$(AssemblyName).pdb" />
+  </Target>
+
   <!-- CC Companion: 复制源码到 publish（跨平台，排除无关目录） -->
   <Target Name="CCCompanionBuild" AfterTargets="Build">
     <PropertyGroup>
       <CompanionSrc>$(MSBuildProjectDirectory)\cc-companion\</CompanionSrc>
       <CompanionOut>$(MSBuildProjectDirectory)\publish\cc-companion\</CompanionOut>
     </PropertyGroup>
-    <!-- Copy 会覆盖文件，无需先删除目录（避免文件锁问题） -->
     <ItemGroup>
       <CompanionFiles Include="$(CompanionSrc)**\*"
         Exclude="$(CompanionSrc)dist\**;$(CompanionSrc)node_modules\**;$(CompanionSrc).idea\**;$(CompanionSrc).claude\**;$(CompanionSrc)README.md" />
