@@ -413,10 +413,7 @@ namespace RimWorldMCP
             if (!string.IsNullOrEmpty(tc.Meta))
                 bodyH = Text.CalcHeight(tc.Meta, width - 12f) + 4f;
 
-            // 完成/失败后显示耗时行
-            float durH = tc.Status != ToolStatus.Running ? 16f : 0f;
-
-            return headerH + bodyH + durH + 10f;
+            return headerH + bodyH + 10f;
         }
 
         private static float DrawToolCard(ToolCallInfo tc, int index, float width, float y)
@@ -454,15 +451,28 @@ namespace RimWorldMCP
                     ? new Color(0.3f, 0.9f, 0.3f)
                     : new Color(1f, 0.3f, 0.3f);
 
-            // Index + status + name
+            // Index + status + name（左）+ 耗时（右）
             string headerText = $"#{index + 1} {statusIcon} {name}";
+            float durW = 0f;
+            string durText = "";
+            if (tc.Status != ToolStatus.Running)
+            {
+                durText = FormatDuration(tc.DurationMs);
+                durW = Text.CalcSize(durText).x + 4f;
+            }
             Text.Font = GameFont.Tiny;
             GUI.color = statusColor;
             Widgets.Label(new Rect(headerRect.x + 4f, headerRect.y + 2f,
-                headerRect.width - 8f, headerH), headerText);
+                headerRect.width - 8f - durW, headerH), headerText);
+            if (durW > 0f)
+            {
+                GUI.color = new Color(0.4f, 0.4f, 0.4f, _alpha);
+                Widgets.Label(new Rect(headerRect.xMax - durW - 2f, headerRect.y + 2f,
+                    durW, headerH), durText);
+            }
             GUI.color = Color.white;
 
-            // Body (meta) — 失败用红色
+            // Body (meta)
             if (!string.IsNullOrEmpty(tc.Meta))
             {
                 float bodyY = headerRect.yMax + 2f;
@@ -472,17 +482,6 @@ namespace RimWorldMCP
                     : new Color(0.55f, 0.55f, 0.6f, _alpha);
                 Widgets.Label(new Rect(cardRect.x + 6f, bodyY,
                     cardRect.width - 12f, bodyH), tc.Meta);
-                GUI.color = Color.white;
-            }
-
-            // 耗时（完成/失败后显示）
-            if (tc.Status != ToolStatus.Running)
-            {
-                float durY = bodyH > 0f ? headerRect.yMax + bodyH + 2f + 2f : headerRect.yMax + 2f;
-                string durText = FormatDuration(tc.DurationMs);
-                Text.Font = GameFont.Tiny;
-                GUI.color = new Color(0.35f, 0.35f, 0.35f, _alpha);
-                Widgets.Label(new Rect(cardRect.x + 6f, durY, cardRect.width - 12f, 16f), durText);
                 GUI.color = Color.white;
             }
 
