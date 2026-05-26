@@ -141,6 +141,10 @@
   <RimWorldMCP_Tool_todo_delete>删除任务</RimWorldMCP_Tool_todo_delete>
   <RimWorldMCP_Tool_todo_query>查询任务</RimWorldMCP_Tool_todo_query>
 
+  <!-- 右键菜单 -->
+  <RimWorldMCP_Tool_get_right_click_menu>右键菜单</RimWorldMCP_Tool_get_right_click_menu>
+  <RimWorldMCP_Tool_select_right_click>选择右键</RimWorldMCP_Tool_select_right_click>
+
   <!-- 命令工具 -->
   <RimWorldMCP_Tool_designate_hunt>狩猎标记</RimWorldMCP_Tool_designate_hunt>
   <RimWorldMCP_Tool_designate_slaughter>宰杀标记</RimWorldMCP_Tool_designate_slaughter>
