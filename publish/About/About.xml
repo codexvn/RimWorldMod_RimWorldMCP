@@ -3,7 +3,28 @@
   <name>RimWorld MCP</name>
   <author>codexvn</author>
   <packageId>codexvn.rimworld.mcp</packageId>
-  <description>MCP (Model Context Protocol) 服务器，将 RimWorld 游戏状态和操作暴露为 LLM 可调用的 Tool。内置 78 个 Tool，覆盖查询、制造、建造、标记、存储/种植、研究、殖民者、医疗、战斗、右键操作、网格可视化、弹框操作、TODO 系统、基地模板等类别。通过 Claude Code Companion 实现游戏内 AI 助手——事件监控与推送、聊天窗口、自动截图分析、无缝工具执行。支持 6 个领域知识 Skill 系统及 OSS 截图上传。</description>
+  <description>
+===== 快速上手 =====
+
+1. 订阅前置 Harmony Mod
+2. 订阅本 Mod
+3. 进游戏 → 选项 → Mod 设置 → RimWorld MCP → 点击"安装 Claude Code 依赖"
+4. 安装完成后，加载存档即可使用
+
+===== 两种运行模式 =====
+
+【自动启动】（默认开启，推荐）
+加载存档时自动启动 AI 助手，无需任何手动操作。聊天窗 Ctrl+Shift+C 随时呼出。Companion 进程随游戏自动启停，退出即清理。
+
+【手动启动】（关闭"自动启动"）
+适合调试或想自己控制时机：先在终端 cd 到 Mod 的 cc-companion/ 目录，执行 npm start，再加载存档。
+
+===== 能做什么 =====
+
+内置 78 个 Tool，AI 可以操控 RimWorld 的一切——读状态（殖民者、资源、地图）、写操作（建造、战斗、医疗、制造、种植），用自然语言对话即可。支持 6 个领域知识 Skill 系统、OSS 截图上传、TODO 任务面板、基地模板。自带中文翻译。
+
+聊天面板：浏览器打开 http://127.0.0.1:19999/ 可实时查看 AI 对话。
+  </description>
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>
