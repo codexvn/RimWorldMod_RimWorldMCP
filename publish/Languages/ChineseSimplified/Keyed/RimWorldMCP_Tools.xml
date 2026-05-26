@@ -40,6 +40,8 @@
   <RimWorldMCP_Tool_find_equipment>搜索装备</RimWorldMCP_Tool_find_equipment>
   <RimWorldMCP_Tool_equip_pawn>强制装备</RimWorldMCP_Tool_equip_pawn>
   <RimWorldMCP_Tool_drop_equipment>丢弃装备</RimWorldMCP_Tool_drop_equipment>
+  <RimWorldMCP_Tool_get_recommended_apparel>推荐衣物</RimWorldMCP_Tool_get_recommended_apparel>
+  <RimWorldMCP_Tool_get_recommended_weapon>推荐武器</RimWorldMCP_Tool_get_recommended_weapon>
 
   <!-- 截图 -->
   <RimWorldMCP_Tool_take_screenshot>截图</RimWorldMCP_Tool_take_screenshot>
