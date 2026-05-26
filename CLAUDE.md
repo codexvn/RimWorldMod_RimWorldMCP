@@ -165,16 +165,34 @@ node --import tsx/esm companion/companion.ts
 
 ### 事件推送与自动暂停
 
-AI 正常思考/调工具时**游戏照常运行**。当有新事件（任何类型）产生时：
+`BridgeLifecycle.CCEventTick()` 每帧主线程运行，分 4 层处理：
 
-1. 暂停游戏 + 设置 `DangerPaused=true`
-2. 事件详情通过 `SendCCEvents`/`SendCCMessage` 推送到聊天
-3. 每个后续工具调用返回末尾注入短摘要（`DangerSummary`）：`⚠ 待处理: 🔴x2 🟡x1 | 已暂停，请尽快完成`
-4. AI 工作完成 → 恢复游戏（仅当是我们暂停的）
+**第 1 层 — 事件驱动暂停**：当有新事件且 AI 正在工作时，立即暂停游戏，注入提示催促 AI 收尾。
 
-**分级**: `🔴` 高危（`IsHighDanger=true`）、`🟡` 警告（Letter/Message 非高危）、`ℹ️` 其他。
+```
+任何待推送事件 && ChatDisplayState.IsBusy
+  → DangerPauseIfBusy()           // 暂停游戏 + 设置 DangerPaused=true
+  → DangerSummary = BuildDangerSummary()  // 构建 ≤60 字符摘要
+  → 事件详情通过 SendCCEvents/SendCCMessage 推送到聊天
+  → ToolRegistry.ExecuteAsync 在每个工具返回末尾注入: "⚠ 待处理: 🔴x2 🟡x1 | 已暂停，请尽快完成"
+  → AI 完成 → AutoPauseGuard 检测 !IsBusy → DangerPaused=false → 恢复（仅当是我们暂停的）
+```
+
+**分级与摘要**:
+
+| 级别 | 来源 | 包含 |
+|------|------|------|
+| 🔴 高危 | `IsHighDanger=true` | 袭击、死亡、负面事件、游戏减速 |
+| 🟡 警告 | Letter/Message 非高危 | 殖民者心情、资源告警等 |
+| ℹ️ 其他 | AlertStart 等 | 兜底，仅显示数量 |
 
 **缓存设计**: 摘要 ≤60 字符，用 emoji 编码等级；事件详情不重复在提示中（已在聊天消息中），避免重复内容挤占 prompt cache。
+
+**第 2 层** — 定期轮询（120 tick + wall clock 兜底）：殖民者数量变化、空闲兜底、弹框检测。
+
+**第 3 层** — 空闲兜底（120 秒无交互）：推送殖民地概览。
+
+**第 4 层** — 暂停过久提醒（30s 首次，之后每 60s 重复）：AI 工作中抑制计时，空闲后触发。
 
 ### 中断通知
 
@@ -187,6 +205,18 @@ AI 正常思考/调工具时**游戏照常运行**。当有新事件（任何类
 | Letter: 负面 | `LetterDefOf.NegativeEvent` |
 | Message: 大威胁/小威胁/死亡/负面 | 实时消息 |
 | AlertStart: 全部 | 饥饿、崩溃风险等 |
+
+### 任务队列
+
+9 个日常操作工具支持 `queue` 参数（默认 `true`）——空闲时立即执行，忙碌时加入队列末尾（等价游戏内 Shift+右键）。
+
+| 有 `queue` 参数 | 无 `queue`（永远打断） |
+|---------------|---------------------|
+| haul_item, pick_up_item, equip_pawn, move_pawn | attack_pawn, force_attack |
+| force_dress, ingest_item, strip_pawn | arrest_pawn, capture_pawn |
+| drop_equipment, drop_carried | rescue_pawn, tend_now |
+
+`get_colonists` 的"当前活动"列会显示排队任务数，如 `建造 (排队:2)`。
 
 ### CC Companion 自动管理
 
