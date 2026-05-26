@@ -14,24 +14,6 @@ namespace RimWorldMCP.Tools
         public string Name => "create_growing_zone";
         public string Description => "在指定矩形区域创建种植区并设置要种植的植物。坐标使用左上→右下模式,不提供 end 则只操作单格。⚠ 调用前应先使用 get_structure_layout 查看当前布局。";
 
-        private static string[] GetGroundPlantEnum()
-        {
-            try
-            {
-                var plants = DefDatabase<ThingDef>.AllDefs
-                    .Where(d => d.category == ThingCategory.Plant
-                        && d.plant?.sowTags?.Contains("Ground") == true)
-                    .Select(d => d.defName)
-                    .OrderBy(n => n)
-                    .ToArray();
-                return plants.Length > 0 ? plants : new[] { "Plant_Potato", "Plant_Rice", "Plant_Corn" };
-            }
-            catch
-            {
-                return new[] { "Plant_Potato", "Plant_Rice", "Plant_Corn" };
-            }
-        }
-
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
@@ -46,8 +28,7 @@ namespace RimWorldMCP.Tools
                 plant_defName = new
                 {
                     type = "string",
-                    description = "要种植的植物 DefName",
-                    @enum = GetGroundPlantEnum()
+                    description = "要种植的植物 DefName，先用 search_thing_def(keyword=\"水稻\", category=\"plant\") 查可用植物"
                 }
             },
             required = new[] { "pos_x", "pos_y", "plant_defName" }

@@ -12,24 +12,6 @@ namespace RimWorldMCP.Tools
         public string Name => "set_grower_plant";
         public string Description => "设置水栽培盆或已有种植区的植物类型。自动识别坐标处的种植器（水栽培盆/种植区）。";
 
-        private static string[] GetPlantableEnum()
-        {
-            try
-            {
-                var plants = DefDatabase<ThingDef>.AllDefs
-                    .Where(d => d.category == ThingCategory.Plant
-                        && d.plant?.sowTags?.Count > 0)
-                    .Select(d => d.defName)
-                    .OrderBy(n => n)
-                    .ToArray();
-                return plants.Length > 0 ? plants : new[] { "Plant_Potato", "Plant_Rice", "Plant_Corn", "Plant_Cotton", "Plant_Healroot" };
-            }
-            catch
-            {
-                return new[] { "Plant_Potato", "Plant_Rice", "Plant_Corn", "Plant_Cotton", "Plant_Healroot" };
-            }
-        }
-
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
@@ -40,8 +22,7 @@ namespace RimWorldMCP.Tools
                 plant_defName = new
                 {
                     type = "string",
-                    description = "要种植的植物 DefName",
-                    @enum = GetPlantableEnum()
+                    description = "要种植的植物 DefName，先用 search_thing_def(keyword=\"水稻\", category=\"plant\") 查可用植物"
                 }
             },
             required = new[] { "pos_x", "pos_y", "plant_defName" }

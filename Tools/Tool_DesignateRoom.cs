@@ -25,7 +25,7 @@ namespace RimWorldMCP.Tools
                 pos_y = new { type = "integer", description = "左上角 Y 坐标" },
                 end_x = new { type = "integer", description = "右下角 X 坐标" },
                 end_y = new { type = "integer", description = "右下角 Y 坐标" },
-                wall_stuff = new { type = "string", description = "墙体材料 DefName（可选，默认 Steel）", @enum = BuildingMaterialHelper.GetStuffEnum() },
+                wall_stuff = new { type = "string", description = "墙体材料 DefName（可选，默认 Steel），先用 search_thing_def(keyword=\"花岗岩\", flags=\"stuff\") 查可用材料" },
                 door_positions = new { type = "string", description = "门的位置，多个用逗号分隔。可选: top, bottom, left, right, center_top, center_bottom, center_left, center_right" },
                 door_defName = new { type = "string", description = "门的 DefName，默认 Door", @default = "Door" },
                 floor_defName = new { type = "string", description = "地板 DefName，可选" },

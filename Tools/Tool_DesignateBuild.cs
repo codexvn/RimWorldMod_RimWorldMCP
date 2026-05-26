@@ -23,7 +23,7 @@ namespace RimWorldMCP.Tools
                 pos_x = new { type = "integer", description = "X 坐标" },
                 pos_y = new { type = "integer", description = "Y 坐标" },
                 rotation = new { type = "string", description = "旋转方向", @enum = new[] { "North", "East", "South", "West" } },
-                stuff_defName = new { type = "string", description = "建筑材料 DefName（可选）", @enum = BuildingMaterialHelper.GetStuffEnum() },
+                stuff_defName = new { type = "string", description = "建筑材料 DefName（可选），先用 search_thing_def(keyword=\"花岗岩\", flags=\"stuff\") 查可用材料" },
                 ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" },
             },
             required = new[] { "thingDef_name", "pos_x", "pos_y" }

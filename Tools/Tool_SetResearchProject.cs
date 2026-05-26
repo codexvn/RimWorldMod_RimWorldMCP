@@ -22,28 +22,11 @@ namespace RimWorldMCP.Tools
                 project_defName = new
                 {
                     type = "string",
-                    description = "研究项目 defName",
-                    @enum = GetResearchProjectEnum()
+                    description = "研究项目 defName，先用 list_research_projects 查询"
                 }
             },
             required = new[] { "project_defName" }
         });
-
-        private static string[] GetResearchProjectEnum()
-        {
-            try
-            {
-                var projects = DefDatabase<ResearchProjectDef>.AllDefsListForReading
-                    .Select(d => d.defName)
-                    .OrderBy(n => n)
-                    .ToArray();
-                return projects.Length > 0 ? projects : new[] { "Please_call_list_research_projects_first" };
-            }
-            catch
-            {
-                return new[] { "Please_call_list_research_projects_first" };
-            }
-        }
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
