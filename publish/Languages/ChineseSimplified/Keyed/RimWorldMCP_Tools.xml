@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <LanguageData>
   <!-- 通用查询 -->
-  <RimWorldMCP_Tool_get_game_context>游戏状态</RimWorldMCP_Tool_get_game_context>
+  <RimWorldMCP_Tool_get_game_context>全局快照</RimWorldMCP_Tool_get_game_context>
   <RimWorldMCP_Tool_get_resources>资源库存</RimWorldMCP_Tool_get_resources>
   <RimWorldMCP_Tool_check_colony>殖民地检查</RimWorldMCP_Tool_check_colony>
-  <RimWorldMCP_Tool_toggle_pause>暂停切换</RimWorldMCP_Tool_toggle_pause>
+  <RimWorldMCP_Tool_toggle_pause>切换暂停</RimWorldMCP_Tool_toggle_pause>
 
   <!-- 网格查询 -->
   <RimWorldMCP_Tool_get_tile_detail>坐标详情</RimWorldMCP_Tool_get_tile_detail>
@@ -18,7 +18,7 @@
 
   <!-- 建造 -->
   <RimWorldMCP_Tool_designate_build>建造蓝图</RimWorldMCP_Tool_designate_build>
-  <RimWorldMCP_Tool_designate_room>快速房间</RimWorldMCP_Tool_designate_room>
+  <RimWorldMCP_Tool_designate_room>快速建造房间</RimWorldMCP_Tool_designate_room>
   <RimWorldMCP_Tool_uninstall_building>拆卸建筑</RimWorldMCP_Tool_uninstall_building>
   <RimWorldMCP_Tool_install_minified_thing>安装微缩物品</RimWorldMCP_Tool_install_minified_thing>
 
@@ -38,7 +38,7 @@
 
   <!-- 装备 -->
   <RimWorldMCP_Tool_find_equipment>搜索装备</RimWorldMCP_Tool_find_equipment>
-  <RimWorldMCP_Tool_equip_pawn>装备物品</RimWorldMCP_Tool_equip_pawn>
+  <RimWorldMCP_Tool_equip_pawn>强制装备</RimWorldMCP_Tool_equip_pawn>
   <RimWorldMCP_Tool_drop_equipment>丢弃装备</RimWorldMCP_Tool_drop_equipment>
 
   <!-- 截图 -->
@@ -53,7 +53,7 @@
   <RimWorldMCP_Tool_get_colonists>殖民者信息</RimWorldMCP_Tool_get_colonists>
   <RimWorldMCP_Tool_get_colonist_needs>殖民者需求</RimWorldMCP_Tool_get_colonist_needs>
   <RimWorldMCP_Tool_get_work_priorities>工作优先级</RimWorldMCP_Tool_get_work_priorities>
-  <RimWorldMCP_Tool_set_work_priority>设置工作</RimWorldMCP_Tool_set_work_priority>
+  <RimWorldMCP_Tool_set_work_priority>设置工作优先级</RimWorldMCP_Tool_set_work_priority>
   <RimWorldMCP_Tool_get_colonist_health>健康报告</RimWorldMCP_Tool_get_colonist_health>
   <RimWorldMCP_Tool_schedule_operation>安排手术</RimWorldMCP_Tool_schedule_operation>
 
@@ -96,11 +96,11 @@
 
   <!-- Skill -->
   <RimWorldMCP_Tool_get_skills>领域技能</RimWorldMCP_Tool_get_skills>
-  <RimWorldMCP_Tool_active_skill>激活技能</RimWorldMCP_Tool_active_skill>
+  <RimWorldMCP_Tool_active_skill>加载知识库</RimWorldMCP_Tool_active_skill>
 
   <!-- 研究 -->
   <RimWorldMCP_Tool_stop_research>停止研究</RimWorldMCP_Tool_stop_research>
-  <RimWorldMCP_Tool_get_research_speed>研究速度</RimWorldMCP_Tool_get_research_speed>
+  <RimWorldMCP_Tool_get_research_speed>研究速度详情</RimWorldMCP_Tool_get_research_speed>
 
   <!-- 医疗 -->
   <RimWorldMCP_Tool_tend_now>立即治疗</RimWorldMCP_Tool_tend_now>
@@ -109,7 +109,7 @@
 
   <!-- 区域 -->
   <RimWorldMCP_Tool_expand_zone>扩展区域</RimWorldMCP_Tool_expand_zone>
-  <RimWorldMCP_Tool_set_bed_owner_type>床位归属</RimWorldMCP_Tool_set_bed_owner_type>
+  <RimWorldMCP_Tool_set_bed_owner_type>设置床位类型</RimWorldMCP_Tool_set_bed_owner_type>
   <RimWorldMCP_Tool_set_temp_control>温度控制</RimWorldMCP_Tool_set_temp_control>
 
   <!-- 反馈 -->
@@ -119,7 +119,7 @@
   <RimWorldMCP_Tool_regenerate_map>重新生成地图</RimWorldMCP_Tool_regenerate_map>
 
   <!-- 腐坏追踪 -->
-  <RimWorldMCP_Tool_get_deteriorating_items>腐坏物品</RimWorldMCP_Tool_get_deteriorating_items>
+  <RimWorldMCP_Tool_get_deteriorating_items>腐坏物品清单</RimWorldMCP_Tool_get_deteriorating_items>
 
   <!-- TODO 系统 -->
   <RimWorldMCP_Tool_todo_add>添加任务</RimWorldMCP_Tool_todo_add>
