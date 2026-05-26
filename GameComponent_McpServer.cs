@@ -75,6 +75,7 @@ namespace RimWorldMCP
 
             McpLog.Flush();
             McpCommandQueue.ProcessPending();
+            Tool_AdvanceTick.ProcessPending();
             BridgeLifecycle.Tick();
             McpOssUploader.ProcessPendingUploads();
             McpCommandQueue.ProcessDeferredCleanup();

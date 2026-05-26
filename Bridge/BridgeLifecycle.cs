@@ -18,7 +18,6 @@ namespace RimWorldMCP
     /// <summary>CC 桥接连接生命周期管理</summary>
     public static class BridgeLifecycle
     {
-        private static bool _autoPaused;
         private static int _nextCCEventTick;
         private const int CCEventCheckInterval = 120;
         private static int _nextCCFallbackMs;
@@ -108,27 +107,62 @@ namespace RimWorldMCP
 
         // ========== CC 事件转发 ==========
 
-        /// <summary>AI 工作时自动暂停游戏，处理完后自动恢复。玩家手动取消暂停会尊重选择。</summary>
+        /// <summary>AI 工作期间有新事件时暂停游戏，AI 完成后恢复。AI 正常思考时不干预。</summary>
+        public static bool DangerPaused { get; private set; }
+        public static string DangerSummary { get; private set; } = "";
+        private static bool _dangerShouldResume;
+
         private static void AutoPauseGuard()
         {
             bool busy = ChatDisplayState.IsBusy;
-            bool paused = Find.TickManager?.Paused ?? true;
 
-            if (busy && !paused && !_autoPaused)
+            // advance_tick 运行时不干预
+            if (Tool_AdvanceTick.IsActive) return;
+
+            if (!busy && DangerPaused)
+            {
+                DangerPaused = false;
+                DangerSummary = "";
+                if (_dangerShouldResume)
+                {
+                    Find.TickManager!.CurTimeSpeed = TimeSpeed.Normal;
+                    _dangerShouldResume = false;
+                }
+            }
+        }
+
+        /// <summary>有新事件 → 暂停游戏 + 构建摘要，每个工具调用注入摘要催促 AI 收尾</summary>
+        private static void DangerPauseIfBusy(List<Notification> drained)
+        {
+            if (DangerPaused) return;
+            if (!ChatDisplayState.IsBusy) return;
+
+            DangerPaused = true;
+            DangerSummary = BuildDangerSummary(drained);
+            if (Find.TickManager?.Paused != true)
             {
                 Find.TickManager!.CurTimeSpeed = TimeSpeed.Paused;
-                _autoPaused = true;
+                _dangerShouldResume = true;
             }
-            else if (!busy && _autoPaused)
+            McpLog.Info($"[cc] 事件暂停 → {DangerSummary}");
+        }
+
+        /// <summary>构建缓存友好的事件摘要（≤60 字符）</summary>
+        private static string BuildDangerSummary(List<Notification> list)
+        {
+            int high = 0, warn = 0;
+            foreach (var n in list)
             {
-                Find.TickManager!.CurTimeSpeed = TimeSpeed.Normal;
-                _autoPaused = false;
+                if (NotificationBus.IsHighDanger(n.Type, n.DangerLabel, n.Priority))
+                    high++;
+                else if (n.Type == NotificationType.Letter || n.Type == NotificationType.Message)
+                    warn++;
             }
-            else if (_autoPaused && !paused)
-            {
-                // 玩家手动取消暂停 → 尊重玩家选择，不再自动管理
-                _autoPaused = false;
-            }
+            var parts = new List<string>(3);
+            if (high > 0) parts.Add($"🔴x{high}");
+            if (warn > 0) parts.Add($"🟡x{warn}");
+            if (parts.Count == 0) parts.Add($"ℹ️x{list.Count}");
+            return $"待处理: {string.Join(" ", parts)}";
         }
 
         private static void CCEventTick()
@@ -143,11 +177,12 @@ namespace RimWorldMCP
             int colonistCount = colonists.Count;
             int nowMs = Environment.TickCount;
 
-            // === 第1层：高危事件 — 每帧立即推送，不受暂停/Tick 影响 ===
-            if (NotificationBus.HighDangerPending)
+            // === 第1层：任何待推送事件 — AI 工作时暂停游戏 + 立即推送，不受 Tick 影响 ===
+            if (NotificationBus.HighDangerPending || (ChatDisplayState.IsBusy && !NotificationBus.Pending.IsEmpty))
             {
                 NotificationBus.HighDangerPending = false;
                 var emergencyList = NotificationBus.Drain();
+                DangerPauseIfBusy(emergencyList);
                 if (emergencyList.Count > 0)
                 {
                     // 高危单独推送，非高危合并到定期批次

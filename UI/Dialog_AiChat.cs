@@ -713,7 +713,7 @@ namespace RimWorldMCP
             // 流式时预分配 2 行 + 只增不减，避免换行瞬时高度突变闪烁
             if (streaming)
             {
-                newH += 28f;
+                newH += 14f; // 预留 1 行缓冲
                 if (newH < entry.CachedHeight) newH = entry.CachedHeight;
             }
             entry.CachedHeight = newH;

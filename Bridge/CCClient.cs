@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using RimWorldMCP.Mcp;
+using RimWorldMCP.Tools;
 
 namespace RimWorldMCP
 {
@@ -241,8 +242,9 @@ namespace RimWorldMCP
                                 break;
 
                             case "aborted":
-                                // 中断确认 → 标记最后一个流式条目
+                                // 中断确认 → 标记最后一个流式条目 + 取消 advance_tick
                                 ChatDisplayState.MarkLastAborted();
+                                Tool_AdvanceTick.CancelAll();
                                 break;
 
                             case "error":

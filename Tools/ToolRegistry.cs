@@ -115,6 +115,10 @@ namespace RimWorldMCP.Tools
 
                     var result = await tool.ExecuteAsync(args);
 
+                    // 事件暂停中 → 每个工具调用后注入简短摘要（≤60 字符，缓存友好）
+                    if (BridgeLifecycle.DangerPaused)
+                        result = ToolResult.Success((result.Text ?? "") + $"\n\n⚠ {BridgeLifecycle.DangerSummary} | 已暂停，请尽快完成");
+
                     // 工具结束时补推剩余通知
                     try
                     {

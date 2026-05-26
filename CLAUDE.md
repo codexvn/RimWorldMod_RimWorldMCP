@@ -163,9 +163,18 @@ node --import tsx/esm companion/companion.ts
 #   CCB_AUTH_TOKEN          → WS 握手认证（可选）
 ```
 
-### 事件推送
+### 事件推送与自动暂停
 
-`BridgeLifecycle.CCEventTick()` 每帧检查 `NotificationBus`，高危通知即时推送，普通通知每 120 tick 批量。事件格式化在 C# 端完成（`FormatGameEvent()`），companion 透传文本。
+AI 正常思考/调工具时**游戏照常运行**。当有新事件（任何类型）产生时：
+
+1. 暂停游戏 + 设置 `DangerPaused=true`
+2. 事件详情通过 `SendCCEvents`/`SendCCMessage` 推送到聊天
+3. 每个后续工具调用返回末尾注入短摘要（`DangerSummary`）：`⚠ 待处理: 🔴x2 🟡x1 | 已暂停，请尽快完成`
+4. AI 工作完成 → 恢复游戏（仅当是我们暂停的）
+
+**分级**: `🔴` 高危（`IsHighDanger=true`）、`🟡` 警告（Letter/Message 非高危）、`ℹ️` 其他。
+
+**缓存设计**: 摘要 ≤60 字符，用 emoji 编码等级；事件详情不重复在提示中（已在聊天消息中），避免重复内容挤占 prompt cache。
 
 ### 中断通知
 
@@ -267,6 +276,7 @@ mklink /D F:\SteamLibrary\steamapps\common\RimWorld\Mods\RimWorldMCP F:\RiderPro
 | `get_resources` | 资源库存报告 | `map.resourceCounter.AllCountedAmounts` |
 | `check_colony` | 殖民地提醒（空闲/崩溃/流血/食物/防御） | `PawnsFinder`, `map.wealthWatcher` |
 | `toggle_pause` | 切换游戏暂停状态，恢复时设为最大速度 | `Find.TickManager.CurTimeSpeed` (入队) |
+| `advance_tick` | 让游戏运行指定 tick 数后暂停返回状态，用于观察结果避免过度思考 | `Find.TickManager` (入队) |
 
 ### 网格查询 (2)
 | Tool | 说明 | 参数 |
