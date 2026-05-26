@@ -106,7 +106,6 @@ namespace RimWorldMCP.Tools
                 if (map == null) return ToolResult.Error("没有当前地图");
 
                 ITrader trader = null!;
-                bool virtualTrader = false;
                 string traderLabel = "";
 
                 try
@@ -179,7 +178,6 @@ namespace RimWorldMCP.Tools
                         map.passingShipManager.AddShip(virtShip);
                         trader = virtShip;
                         traderLabel = $"{faction.Name}/{traderKind.label}";
-                        virtualTrader = true;
                     }
 
                     var pawn = PawnsFinder.AllMaps_FreeColonistsSpawned
@@ -225,12 +223,12 @@ namespace RimWorldMCP.Tools
 
                     if (sellValue == 0 && buyValue == 0)
                     {
-                        ResetSession(virtualTrader ? trader as TradeShip : null);
+                        ResetSession(trader);
                         return ToolResult.Error("没有成功匹配到任何物品");
                     }
 
                     bool ok = deal.TryExecute(out bool actuallyTraded);
-                    ResetSession(virtualTrader ? trader as TradeShip : null);
+                    ResetSession(trader);
 
                     if (!ok) return ToolResult.Error("交易执行失败");
                     if (!actuallyTraded) return ToolResult.Error("交易未产生实际交换（可能资金不足）");
@@ -239,19 +237,23 @@ namespace RimWorldMCP.Tools
                 }
                 catch (Exception ex)
                 {
-                    ResetSession(virtualTrader ? trader as TradeShip : null);
+                    ResetSession(trader);
                     return ToolResult.Error($"交易失败: {ex.Message}");
                 }
             });
         }
 
-        private static void ResetSession(TradeShip? virtualShip = null)
+        private static void ResetSession(ITrader? trader = null)
         {
             TradeSession.trader = null!;
             TradeSession.playerNegotiator = null!;
-            if (virtualShip != null)
+            if (trader is TradeShip virtShip)
             {
-                virtualShip.Depart();
+                virtShip.Depart();
+                // 虚拟商船立即从 passingShipManager 移除，不等到下个 tick 清理
+                var map = Find.CurrentMap;
+                if (map != null && virtShip.Map == map)
+                    map.passingShipManager.RemoveShip(virtShip);
             }
         }
 
