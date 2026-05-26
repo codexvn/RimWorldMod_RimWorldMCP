@@ -9,6 +9,7 @@ namespace RimWorldMCP
         public static RimWorldMCPMod Instance { get; private set; } = null!;
         public McpModSettings Settings { get; private set; }
         private Vector2 _scrollPos;
+        private Vector2 _jsonScrollPos;
 
         public RimWorldMCPMod(ModContentPack content) : base(content)
         {
@@ -97,7 +98,12 @@ namespace RimWorldMCP
             listing.Label("项目设置 JSON 模板（写出为 .claude/settings.json）");
             listing.Gap(2f);
             var textAreaRect = listing.GetRect(180f);
-            Settings.CCBProjectSettingsJson = Widgets.TextArea(textAreaRect, Settings.CCBProjectSettingsJson);
+            var textContent = new GUIContent(Settings.CCBProjectSettingsJson);
+            var textHeight = GUI.skin.textArea.CalcHeight(textContent, textAreaRect.width);
+            var jsonViewRect = new Rect(0f, 0f, textAreaRect.width - 16f, Mathf.Max(textHeight, 180f));
+            Widgets.BeginScrollView(textAreaRect, ref _jsonScrollPos, jsonViewRect);
+            Settings.CCBProjectSettingsJson = GUI.TextArea(jsonViewRect, Settings.CCBProjectSettingsJson);
+            Widgets.EndScrollView();
             listing.Gap(6f);
             if (listing.ButtonText("复位为默认值"))
             {

@@ -9,7 +9,7 @@ namespace RimWorldMCP.Tools
     public class Tool_TogglePause : ITool
     {
         public string Name => "toggle_pause";
-        public string Description => "切换游戏暂停状态。如果已暂停则恢复并设为最大速度，如果运行中则暂停。Toggle pause. Resume at max speed or pause.";
+        public string Description => "切换游戏暂停状态。如果已暂停则恢复并设为极速，如果运行中则暂停。Toggle pause. Resume at ultrafast speed or pause.";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
@@ -32,7 +32,7 @@ namespace RimWorldMCP.Tools
                     if (wasPaused)
                     {
                         // 恢复时设置最大速度
-                        tm.CurTimeSpeed = TimeSpeed.Superfast;
+                        tm.CurTimeSpeed = TimeSpeed.Ultrafast;
                     }
                     else
                     {
@@ -40,7 +40,7 @@ namespace RimWorldMCP.Tools
                     }
 
                     var nowPaused = tm.Paused;
-                    string state = nowPaused ? "已暂停" : (wasPaused ? "运行中（超快速度）" : "运行中");
+                    string state = nowPaused ? "已暂停" : (wasPaused ? "运行中（急速）" : "运行中");
 
                     // 收集无法切换的原因
                     var reasons = new List<string>();

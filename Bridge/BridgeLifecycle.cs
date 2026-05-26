@@ -534,14 +534,33 @@ namespace RimWorldMCP
                         return;
                     }
                     McpLog.Info($"[cc] 使用 npm: {npmPath}");
-                    var psi = new ProcessStartInfo(npmPath, "install")
+                    // ⚠ Process.Start(UseShellExecute=false) 通过 CreateProcess 直接启动，
+                    // 只支持 .exe，不能运行 .cmd 或无扩展名的脚本文件。
+                    // 检测到非 .exe 时用 cmd /c 包装（兼容 Scoop 等无扩展名路径）。
+                    ProcessStartInfo psi;
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                        && !npmPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                     {
-                        WorkingDirectory = dir,
-                        UseShellExecute = false,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        CreateNoWindow = true,
-                    };
+                        psi = new ProcessStartInfo("cmd", $"/c \"{npmPath}\" install")
+                        {
+                            WorkingDirectory = dir,
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true,
+                        };
+                    }
+                    else
+                    {
+                        psi = new ProcessStartInfo(npmPath, "install")
+                        {
+                            WorkingDirectory = dir,
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true,
+                        };
+                    }
                     using var proc = Process.Start(psi);
                     if (proc == null) { InstallStatus = "无法启动 npm install"; IsInstalling = false; return; }
                     proc.OutputDataReceived += (_, e) =>
@@ -814,10 +833,10 @@ namespace RimWorldMCP
             if (string.IsNullOrWhiteSpace(template))
                 template = BuildProjectSettingsJson(mcpPort);
 
-            // C# 直接写出 .claude/settings.json（pretty JSON，支持多行编辑）
+            // C# 写出 .claude/settings.local.json（local 层不受 trust filter 限制）
             var settingsDir = Path.Combine(baseSessionsDir, ".claude");
             Directory.CreateDirectory(settingsDir);
-            File.WriteAllText(Path.Combine(settingsDir, "settings.json"), template, Encoding.UTF8);
+            File.WriteAllText(Path.Combine(settingsDir, "settings.local.json"), template, Encoding.UTF8);
 
             var args = $"--import tsx/esm companion/companion.ts"
                 + $" --idle-timeout 30000";
@@ -871,10 +890,10 @@ namespace RimWorldMCP
         {
             var obj = new Dictionary<string, object?>
             {
-                ["permissionMode"] = "bypassPermissions",
                 ["disallowedTools"] = new[] { "Bash", "FileWrite", "FileEdit" },
                 ["permissions"] = new Dictionary<string, object>
                 {
+                    ["defaultMode"] = "bypassPermissions",
                     ["allow"] = new[] { "mcp:*" }
                 },
                 ["mcpServers"] = new Dictionary<string, object>

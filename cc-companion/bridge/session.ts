@@ -56,7 +56,6 @@ export function createSession(sdk: any, config: CompanionConfig, abortController
   const options = {
     cwd: config.projectPath,
     model: config.modelName || undefined,
-    enableFileCheckpointing: true,
     abortController,
     settingSources: config.settingSources,
     systemPrompt: [buildSystemPrompt(), SYSTEM_PROMPT_DYNAMIC_BOUNDARY],
