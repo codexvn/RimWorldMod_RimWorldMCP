@@ -925,7 +925,6 @@ namespace RimWorldMCP
         {
             var obj = new Dictionary<string, object?>
             {
-                ["disallowedTools"] = new[] { "Bash", "FileWrite", "FileEdit" },
                 ["mcpServers"] = new Dictionary<string, object>
                 {
                     ["rimworld"] = new Dictionary<string, string>

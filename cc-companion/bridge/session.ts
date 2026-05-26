@@ -59,6 +59,7 @@ export function createSession(sdk: any, config: CompanionConfig, abortController
     abortController,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
+    disallowedTools: ['Bash', 'FileWrite', 'FileEdit'],
     settingSources: config.settingSources,
     systemPrompt: [buildSystemPrompt(), SYSTEM_PROMPT_DYNAMIC_BOUNDARY],
     stderr: (data: string | Buffer) => {
