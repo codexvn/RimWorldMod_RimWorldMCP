@@ -48,6 +48,7 @@ namespace RimWorldMCP
             var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
 
             sb.AppendLine("## 殖民地概况");
+            sb.AppendLine($"- {BuildPauseStatus()}");
             sb.AppendLine($"- 地图: {map?.Tile ?? -1} | 大小: {map?.Size.x ?? 0}x{map?.Size.z ?? 0} | 时间: {GameTimeHelper.CurrentTime()}");
 
             int freeColonists = colonists.Count;

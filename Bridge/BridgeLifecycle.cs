@@ -33,6 +33,12 @@ namespace RimWorldMCP
         private static int _lastDialogCount;
         private static string _lastDialogKey = "";
 
+        // 暂停过久提醒
+        private static int _pauseStartRealMs;
+        private static int _lastPauseRemindMs;
+        private const int PauseRemindFirstMs = 30000;   // 首次提醒：暂停 30 秒后
+        private const int PauseRemindRepeatMs = 60000;  // 重复提醒：每隔 60 秒
+
         public static async Task StartAsync(string sessionId)
         {
             _currentSessionId = sessionId;
@@ -191,6 +197,36 @@ namespace RimWorldMCP
             {
                 var overview = GameContextProvider.BuildColonyOverview(map, colonists, colonistCount);
                 SendCCMessage("IdleDetected", overview, BuildColonyStats(map, colonists));
+            }
+
+            // === 第4层：暂停过久提醒 ===
+            var paused = Find.TickManager?.Paused ?? false;
+            if (paused)
+            {
+                if (_pauseStartRealMs == 0)
+                {
+                    _pauseStartRealMs = nowMs;
+                    _lastPauseRemindMs = 0;
+                }
+                else if (_lastPauseRemindMs == 0
+                    && unchecked((uint)(nowMs - _pauseStartRealMs) >= PauseRemindFirstMs))
+                {
+                    _lastPauseRemindMs = nowMs;
+                    var status = GameContextProvider.BuildPauseStatus();
+                    SendCCMessage("PauseRemind", $"游戏已暂停较长时间（{(nowMs - _pauseStartRealMs) / 1000}秒）\n{status}\n\n请检查是否需要继续游戏。");
+                }
+                else if (_lastPauseRemindMs > 0
+                    && unchecked((uint)(nowMs - _lastPauseRemindMs) >= PauseRemindRepeatMs))
+                {
+                    _lastPauseRemindMs = nowMs;
+                    var status = GameContextProvider.BuildPauseStatus();
+                    SendCCMessage("PauseRemind", $"游戏仍在暂停中（共 {(nowMs - _pauseStartRealMs) / 1000} 秒）\n{status}\n\n如需继续请使用 toggle_pause 恢复游戏。");
+                }
+            }
+            else
+            {
+                _pauseStartRealMs = 0;
+                _lastPauseRemindMs = 0;
             }
         }
 

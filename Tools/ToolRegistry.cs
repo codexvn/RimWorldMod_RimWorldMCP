@@ -115,24 +115,14 @@ namespace RimWorldMCP.Tools
 
                     var result = await tool.ExecuteAsync(args);
 
-                    // 工具结束时补推剩余通知 + 检查暂停状态
+                    // 工具结束时补推剩余通知
                     try
                     {
-                        var afterResult = await McpCommandQueue.DispatchAsync(() =>
+                        await McpCommandQueue.DispatchAsync(() =>
                         {
-                            var remainingStr = NotificationBus.DrainFormatted();
-                            var pauseStatus = GameContextProvider.BuildPauseStatus();
-                            var paused = Find.TickManager?.Paused ?? false;
-                            return new { Remaining = remainingStr, IsPaused = paused, PauseStatus = pauseStatus };
+                            NotificationBus.DrainFormatted();
+                            return true;
                         });
-                        if (!string.IsNullOrEmpty(afterResult.Remaining))
-                        {
-                            // 通知已发送到 CC Companion，无需额外入队
-                        }
-                        if (afterResult.IsPaused)
-                        {
-                            result.Text = $"{afterResult.PauseStatus}\n\n{result.Text}";
-                        }
                     }
                     catch { /* 调度失败不影响工具结果 */ }
 
