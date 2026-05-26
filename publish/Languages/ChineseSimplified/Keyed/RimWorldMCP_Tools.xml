@@ -88,6 +88,7 @@
 
   <!-- 移动 -->
   <RimWorldMCP_Tool_move_pawn>移动角色</RimWorldMCP_Tool_move_pawn>
+  <RimWorldMCP_Tool_move_camera>移动视角</RimWorldMCP_Tool_move_camera>
 
   <!-- 弹框 -->
   <RimWorldMCP_Tool_get_open_dialogs>弹框列表</RimWorldMCP_Tool_get_open_dialogs>
