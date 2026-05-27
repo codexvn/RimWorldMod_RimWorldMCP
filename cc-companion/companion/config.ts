@@ -59,6 +59,7 @@ export function parseArgs(argv: string[]): void {
     else if (arg === '--local-setting-sources' && argv[i + 1]) CONFIG.localSettingSources = argv[++i];
     else if (arg === '--help') { printHelp(); process.exit(0); }
   }
+  console.info(JSON.stringify(CONFIG, null, 2));
 }
 
 export function printHelp(): void {

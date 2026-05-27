@@ -1133,12 +1133,10 @@ namespace RimWorldMCP
             // 从设置读 ProjectSettingsJson 模板，空则用默认值
             var template = settings?.CCBProjectSettingsJson;
             if (string.IsNullOrWhiteSpace(template))
-                template = BuildProjectSettingsJson(mcpPort);
+                template = BuildMcpJson(mcpPort);
 
-            // C# 写出 .claude/settings.json（project 层）
-            var settingsDir = Path.Combine(baseSessionsDir, ".claude");
-            Directory.CreateDirectory(settingsDir);
-            File.WriteAllText(Path.Combine(settingsDir, "settings.local.json"), template, Encoding.UTF8);
+            // 写出 .mcp.json（MCP 服务器配置标准文件）
+            File.WriteAllText(Path.Combine(baseSessionsDir, ".mcp.json"), template, Encoding.UTF8);
 
             var args = $"--import tsx/esm companion/companion.ts"
                 + $" --idle-timeout 30000"
@@ -1202,7 +1200,7 @@ namespace RimWorldMCP
             catch (Exception ex) { McpLog.Error($"[cc] 启动 Companion 进程失败: {ex.Message}"); return false; }
         }
 
-        internal static string BuildProjectSettingsJson(int mcpPort)
+        internal static string BuildMcpJson(int mcpPort)
         {
             var obj = new Dictionary<string, object?>
             {

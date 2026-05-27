@@ -187,7 +187,7 @@ namespace RimWorldMCP
             listing.Gap(12f);
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(0.5f, 0.5f, 0.55f, 1f);
-            listing.Label("  项目设置 JSON 模板 (.claude/settings.local.json)");
+            listing.Label("  MCP 服务器配置模板 (.mcp.json)");
             GUI.color = Color.white;
             Text.Font = GameFont.Small;
             var textAreaRect = listing.GetRect(180f);
@@ -197,7 +197,7 @@ namespace RimWorldMCP
             Settings.CCBProjectSettingsJson = GUI.TextArea(jsonViewRect, Settings.CCBProjectSettingsJson);
             Widgets.EndScrollView();
             if (listing.ButtonText("  复位为默认值"))
-                Settings.CCBProjectSettingsJson = BridgeLifecycle.BuildProjectSettingsJson(Settings.McpPort);
+                Settings.CCBProjectSettingsJson = BridgeLifecycle.BuildMcpJson(Settings.McpPort);
 
             // --- 安装状态 ---
             var installed = BridgeLifecycle.IsCompanionInstalled();

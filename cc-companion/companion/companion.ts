@@ -102,34 +102,6 @@ async function main(): Promise<void> {
   let abortController = new AbortController();
   let { inputStream, queryIterator } = createSession(sdk, CONFIG, abortController);
 
-  // 解析 SDK 合并配置，提取模型名（WS server 创建前暂存）
-  let resolvedModel = CONFIG.modelName || '';
-  try {
-    const resolved = await (sdk as any).resolveSettings?.({
-      cwd: CONFIG.projectPath,
-      settingSources: CONFIG.settingSources,
-    });
-    if (resolved) {
-      const effective = resolved.effective || {};
-      resolvedModel = effective.model || resolvedModel || '';
-
-      // 打印各配置层的完整内容
-      const sources = (resolved as any).sources || [];
-      if (sources.length > 0) {
-        console.log('[cc-companion] === 逐层配置 (优先级 低→高) ===');
-        sources.forEach((src: any, i: number) => {
-          console.log(`[cc-companion] --- [${src.source}] ${src.path || '(无路径)'} ---`);
-          console.log(JSON.stringify(src.settings, null, 2));
-        });
-      }
-
-      console.log('[cc-companion] === 合并后配置 (effective) ===');
-      console.log(JSON.stringify(effective, null, 2));
-    }
-  } catch (err: any) {
-    console.log(`[cc-companion] 解析合并配置失败 (非致命): ${err.message}`);
-  }
-
   let bus: MessageBus;
 
   let currentProc = createResponseProcessor(
@@ -253,9 +225,6 @@ async function main(): Promise<void> {
 
   // 初始化消息总线
   bus = new MessageBus((data) => server.broadcast(data));
-
-  // 将解析后的模型名存入 CONFIG，供 ws-server 握手时推送
-  RuntimeState.resolvedModel = resolvedModel;
 
   // HTTP 路由 — 聊天页面
   if (CONFIG.chatPageEnabled && chatPageHtml) {
