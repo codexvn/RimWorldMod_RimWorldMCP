@@ -10,7 +10,7 @@ namespace RimWorldMCP.Tools
     public static class CameraHelper
     {
         private const float MaxZoomOut = 45f;
-        private const float MinZoomIn = 12f;
+        private const float MinZoomIn = 25f;
 
         /// <summary>移动到区域中心，自动缩放到舒适视野（12~45 格）</summary>
         public static async Task MoveToRange(int minX, int minZ, int maxX, int maxZ)
@@ -59,7 +59,7 @@ namespace RimWorldMCP.Tools
         private static double _lastAutoTrackCheckReal;
         private static double _noColonistVisibleSince;
         private const double AutoTrackCheckIntervalSec = 5.0;
-        private const double AutoTrackTriggerDelaySec = 15.0;
+        private const double AutoTrackTriggerDelaySec = 3.0;
         private const float ClusterDistance = 20f;
 
         /// <summary>
@@ -81,25 +81,27 @@ namespace RimWorldMCP.Tools
             if (map == null) return;
 
             var colonists = map.mapPawns.FreeColonistsSpawned;
-            if (colonists.Count == 0) return;
 
-            var viewRect = Find.CameraDriver.CurrentViewRect;
-
-            // 检查当前视野内是否有殖民者
-            bool anyVisible = false;
-            foreach (var c in colonists)
+            if (colonists.Count > 0)
             {
-                if (viewRect.Contains(c.Position))
+                var viewRect = Find.CameraDriver.CurrentViewRect;
+
+                // 检查当前视野内是否有殖民者
+                bool anyVisible = false;
+                foreach (var c in colonists)
                 {
-                    anyVisible = true;
-                    break;
+                    if (viewRect.Contains(c.Position))
+                    {
+                        anyVisible = true;
+                        break;
+                    }
                 }
-            }
 
-            if (anyVisible)
-            {
-                _noColonistVisibleSince = now;
-                return;
+                if (anyVisible)
+                {
+                    _noColonistVisibleSince = now;
+                    return;
+                }
             }
 
             // 累计未见到殖民者的时间
@@ -108,12 +110,20 @@ namespace RimWorldMCP.Tools
             if (now - _noColonistVisibleSince < AutoTrackTriggerDelaySec)
                 return;
 
-            // 触发追踪：聚类 + 评分 + 移动（fire-and-forget，不阻塞帧）
-            var bestCluster = FindBestCluster(colonists);
-            if (bestCluster == null) return;
+            if (colonists.Count > 0)
+            {
+                // 触发追踪：聚类 + 评分 + 移动（fire-and-forget，不阻塞帧）
+                var bestCluster = FindBestCluster(colonists);
+                if (bestCluster == null) return;
 
-            _ = MoveToRange(bestCluster.Value.minX, bestCluster.Value.minZ,
-                           bestCluster.Value.maxX, bestCluster.Value.maxZ);
+                _ = MoveToRange(bestCluster.Value.minX, bestCluster.Value.minZ,
+                               bestCluster.Value.maxX, bestCluster.Value.maxZ);
+            }
+            else
+            {
+                // 无殖民者：全景俯瞰地图中心
+                _ = MoveToRange(0, 0, map.Size.x - 1, map.Size.z - 1);
+            }
         }
 
         /// <summary>殖民者工作 -> 权重映射</summary>

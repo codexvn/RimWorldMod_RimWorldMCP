@@ -317,7 +317,7 @@ namespace RimWorldMCP
                     {
                         _lastNoColonistsSendMs = nowMs;
                         SendCCMessage("NoColonists",
-                            "所有殖民者已死亡，殖民地覆灭。\n"
+                            "所有殖民者已死亡，殖民地覆灭。"
                             + "请调用 `regenerate_map` 工具重开游戏（需传 `i_know_danger=true`）。");
                     }
                 }
