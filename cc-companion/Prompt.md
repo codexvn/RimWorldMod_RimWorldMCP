@@ -79,6 +79,7 @@
 | 后期(3年+) | 动力装甲+电荷步枪+飞船 | MedicineProduction→ShipReactor | 铀转机枪+迫击炮群+三道防线 | 碾压威胁时冲飞船 |
 
 ## 房间与建造
+- **建造前先画规划草图**：plan_add 画区域→plan_list 查看→确认布局→再建造
 - 共用墙壁节省材料，外墙围起+入口设防
 - 厨房/医院/研究室需无菌地板，冷库需双门气闸
 - 雕像最便宜的印象来源。详细尺寸和设计准则用 `active_skill base-building`
@@ -102,14 +103,15 @@
 | check_colony | 问题提醒                                                                    |
 | get_colonists | 殖民者详情                                                                   |
 | set_work_priority | 工作优先级                                                                   |
-| designate_room | 造标准间。坐标必须来自 apply_base_template 返回结果。严禁手算坐标。 |
-| designate_build | 放置蓝图。⚠ 先调用get_structure_layout了解当前布局 |
+| designate_room | 造标准间。⚠ 先用plan_add/plan_list画草图确认布局，再用apply_base_template获取精确坐标。 |
+| designate_build | 放置蓝图。⚠ 先plan_add画草图→plan_list确认→再建造 |
 | create_stockpile | 创建储藏区。⚠ 先调用get_structure_layout了解现有存储区位置 |
 | list_recipes / create_production_bill | 管理生产                                                                    |
 | draft_pawn / equip_pawn | 战斗准备                                                                    |
 | get_recommended_apparel | 按评分排名推荐衣物                                                              |
 | get_recommended_weapon | 按科技等级排名推荐武器（远程/近战）                                                   |
 | schedule_operation | 安排手术                                                                    |
+| plan_add / plan_list / plan_remove | 规划画板：画草图→查看→确认布局→真正建造 |
 | get_tile_grid / get_tile_detail | 查看地图                                                                    |
 | designate_mine / designate_plants_cut / designate_harvest | 资源采集                                                                    |
 | get_open_dialogs / select_dialog_option | 弹框拦截：读取选项并程序化选择                                                         |
