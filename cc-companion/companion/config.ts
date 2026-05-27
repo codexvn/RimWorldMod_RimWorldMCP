@@ -17,6 +17,8 @@ export interface CompanionConfig {
   tokenBudgetLimit: number;
   tokenBudgetUsed: number;
   tokenBudgetAction: string;
+  // SDK 解析后的实际模型名（由 resolveSettings 写入）
+  resolvedModel: string;
 }
 
 export const CONFIG: CompanionConfig = {
@@ -36,6 +38,7 @@ export const CONFIG: CompanionConfig = {
   tokenBudgetLimit: 0,
   tokenBudgetUsed: 0,
   tokenBudgetAction: 'Block',
+  resolvedModel: '',
 };
 
 export function parseArgs(argv: string[]): void {

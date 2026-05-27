@@ -59,7 +59,7 @@ export function createSession(sdk: any, config: CompanionConfig, abortController
     abortController,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
-    disallowedTools: ['Bash', 'FileWrite', 'FileEdit', 'Read', 'Glob', 'Grep', 'NotebookEdit', 'WebFetch', 'EnterWorktree', 'ExitWorktree'],
+    disallowedTools: ['Bash', 'FileWrite', 'FileEdit', 'Write', 'Read', 'Glob', 'Grep', 'NotebookEdit', 'WebFetch', 'EnterWorktree', 'ExitWorktree', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup', 'AskUserQuestion'],
     includePartialMessages: true,
     settingSources: config.settingSources,
     systemPrompt: [buildSystemPrompt(), SYSTEM_PROMPT_DYNAMIC_BOUNDARY],
@@ -129,14 +129,14 @@ export function createResponseProcessor(
                 const text = block.text?.substring(0, 200) || '';
                 console.log(`[assistant] ${text}${block.text?.length > 200 ? '...' : ''}`);
               } else if (block.type === 'tool_use') {
-                console.log(`[tool_use] ${block.name}`);
+                const inputSummary = block.input ? JSON.stringify(block.input).substring(0, 300) : '(无参数)';
+                console.log(`[tool_use] ${block.name} | ${inputSummary}`);
               }
             }
           }
         }
 
         if (msgType === 'result') {
-          // 附加当前模型名
           if (currentModel) (message as any).model = currentModel;
           const usage = message.usage;
           const durationMs = message.duration_ms;
@@ -151,10 +151,6 @@ export function createResponseProcessor(
             const durationSec = durationMs ? (durationMs / 1000).toFixed(1) : '?';
             const fmt = (v: number) => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(v);
             console.log(`[result] 耗时${durationSec}s | Token ${fmt(totalTokens)} | 缓存 ${fmt(cacheRead)}(${cacheHitRate}%) | 输出 ${fmt(outputTokens)}`);
-            (message as any)._usageText = [
-              `耗时 ${durationSec}s | Token 合计 ${fmt(totalTokens)}`,
-              `缓存命中 ${fmt(cacheRead)} (${cacheHitRate}%) | 输出 ${fmt(outputTokens)} | 新建 ${fmt(cacheCreate)}`,
-            ].join('\n');
           } else {
             const summary = message.subtype === 'success'
               ? '执行成功' : `执行失败: ${message.errors?.join(', ') || 'unknown'}`;

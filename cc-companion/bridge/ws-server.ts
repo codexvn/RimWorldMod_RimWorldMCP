@@ -56,6 +56,13 @@ export function createWSServer(
     onStatusChange?.({ status: 'error', error: err.message });
   });
 
+  // 广播给所有已认证客户端
+  function broadcast(data: string): void {
+    for (const c of wss.clients) {
+      if (c.readyState === WebSocket.OPEN) c.send(data);
+    }
+  }
+
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     const clientIp = req.socket.remoteAddress;
     console.log(`[cc-companion] 新连接: ${clientIp}`);
@@ -100,6 +107,13 @@ export function createWSServer(
           }
           console.log(`[cc-companion] 握手完成: ${msg.client?.name || 'unknown'} v${msg.client?.version || '?'}`);
           sendJson(ws, { type: 'hello-ok' });
+          // 广播 Token 预算状态给聊天页面
+          broadcast(JSON.stringify({
+            type: 'budget-status',
+            limit: CONFIG.tokenBudgetLimit,
+            used: CONFIG.tokenBudgetUsed,
+            action: CONFIG.tokenBudgetAction,
+          }));
           onStatusChange?.({ status: 'connected', client: msg.client });
           break;
 

@@ -14,6 +14,7 @@ import { createWSServer } from '../bridge/ws-server.js';
 import { createSession, createResponseProcessor } from '../bridge/session.js';
 import { getChatPageHtml } from '../chat/chat-page.js';
 import { setupChatHttp } from '../chat/chat-http.js';
+import { MessageBus } from '../bridge/message-bus.js';
 
 parseArgs(process.argv);
 
@@ -57,32 +58,78 @@ async function main(): Promise<void> {
   // 4. 启动 WebSocket 服务器（先于 session，broadcast 需要引用）
   console.log('[cc-companion] 启动 WebSocket 服务器...');
 
+  let lastInitSnapshot = '';
   const onInit = (msg: any) => {
-    console.log('');
-    console.log('[cc-companion] SDK 初始化完成:');
-    console.log(`  模型: ${msg.model || '?'}`);
-    console.log(`  版本: ${msg.claude_code_version || '?'}`);
-    console.log(`  API Key: ${msg.apiKeySource || '?'}`);
-    console.log(`  权限模式: ${msg.permissionMode || '?'}`);
-    console.log(`  数据目录: ${msg.cwd || '?'}`);
-    console.log(`  会话 ID: ${msg.session_id || '?'}`);
-    if (msg.mcp_servers?.length) {
-      for (const s of msg.mcp_servers) {
-        console.log(`  MCP 服务: ${s.name} (${s.status})`);
+    const parts: string[] = [];
+    parts.push('模型=' + (msg.model || '?'));
+    parts.push('版本=' + (msg.claude_code_version || '?'));
+    parts.push('Key=' + (msg.apiKeySource || '?'));
+    parts.push('权限=' + (msg.permissionMode || '?'));
+    parts.push('会话=' + (msg.session_id || '?'));
+    if (msg.tools?.length) parts.push('工具=' + msg.tools.length);
+    if (msg.mcp_servers?.length) parts.push('MCP=' + msg.mcp_servers.map((s: any) => s.name).join(','));
+    const snapshot = parts.join(' | ');
+
+    // 首次或变更时才输出日志 + 推送 bus
+    if (!lastInitSnapshot || snapshot !== lastInitSnapshot) {
+      lastInitSnapshot = snapshot;
+      console.log('[cc-companion] SDK 初始化完成 | ' + snapshot);
+      if (msg.model) {
+        CONFIG.resolvedModel = msg.model;
+        bus?.publishModelInfo(msg.model);
       }
     }
-    if (msg.tools?.length) {
-      console.log(`  工具数: ${msg.tools.length}`);
-    }
-    console.log('');
   };
 
   let abortController = new AbortController();
   let { inputStream, queryIterator } = createSession(sdk, CONFIG, abortController);
+
+  // 解析 SDK 合并配置，提取模型名（WS server 创建前暂存）
+  let resolvedModel = CONFIG.modelName || '';
+  try {
+    const resolved = await (sdk as any).resolveSettings?.({
+      cwd: CONFIG.projectPath,
+      settingSources: CONFIG.settingSources,
+    });
+    if (resolved) {
+      const effective = resolved.effective || {};
+      resolvedModel = effective.model || resolvedModel || '';
+
+      // 提取配置来源文件，按优先级排列
+      const provenance: Record<string, { source?: string; path?: string }> = resolved.provenance || {};
+      const fileKeys = new Map<string, { count: number; source: string }>();
+      for (const key of Object.keys(provenance)) {
+        const p = provenance[key];
+        const fp = p?.path;
+        if (fp) {
+          const entry = fileKeys.get(fp);
+          if (entry) { entry.count++; }
+          else { fileKeys.set(fp, { count: 1, source: p.source || 'unknown' }); }
+        }
+      }
+      if (fileKeys.size > 0) {
+        const priority: Record<string, number> = { user: 0, project: 1, local: 2 };
+        const sorted = Array.from(fileKeys.entries()).sort((a, b) => {
+          return (priority[a[1].source] || 0) - (priority[b[1].source] || 0);
+        });
+        console.log('[cc-companion] 配置来源文件 (优先级 低→高):');
+        sorted.forEach(([fp, info], i) => {
+          console.log('  ' + (i + 1) + '. [' + info.source + '] ' + fp + ' (' + info.count + ' 项)');
+        });
+      } else {
+        console.log('[cc-companion] 配置来源文件: (无)');
+      }
+    }
+  } catch (err: any) {
+    console.log(`[cc-companion] 解析合并配置失败 (非致命): ${err.message}`);
+  }
+
+  let bus: MessageBus;
+
   let currentProc = createResponseProcessor(
     queryIterator,
     CONFIG.projectPath,
-    (msg) => server.broadcast(JSON.stringify(msg)),
+    (msg) => bus.publishSdkMessage(msg as Record<string, unknown>),
     onInit,
   );
   let processResponses = currentProc.process;
@@ -95,7 +142,7 @@ async function main(): Promise<void> {
     currentProc = createResponseProcessor(
       queryIterator,
       CONFIG.projectPath,
-      (msg) => server.broadcast(JSON.stringify(msg)),
+      (msg) => bus.publishSdkMessage(msg as Record<string, unknown>),
       onInit,
     );
     processResponses = currentProc.process;
@@ -111,16 +158,21 @@ async function main(): Promise<void> {
       const payload = (wsMessage.payload || {}) as Record<string, unknown>;
       const text: string = (payload.text as string) || '';
 
+      // 直接广播用户消息给聊天页面（不经 SDK 转发）
+      if (text) {
+        bus.publishUserMessage(text);
+      }
+
       // 提取结构化殖民地统计并直接广播给聊天页（不经 SDK 转发）
       const colonyStats = payload.colonyStats as Record<string, unknown> | undefined;
       if (colonyStats && (colonyStats.colonistCount !== undefined || colonyStats.avgMood !== undefined)) {
-        server.broadcast(JSON.stringify({ type: 'colony-stats', ...colonyStats }));
+        bus.publishColonyStats(colonyStats as any);
       }
 
       // 提取 TODO 状态并直接广播给聊天页（纯 UI 消息，不经 SDK）
       const todoItems = payload.todoItems as Array<Record<string, unknown>> | undefined;
       if (todoItems) {
-        server.broadcast(JSON.stringify({ type: 'todo-state', todoItems }));
+        bus.publishTodoState(todoItems);
       }
       if (wsMessage.event === 'todo-state') return;
 
@@ -130,10 +182,7 @@ async function main(): Promise<void> {
       if (CONFIG.tokenBudgetLimit > 0 && CONFIG.tokenBudgetUsed >= CONFIG.tokenBudgetLimit) {
         if (CONFIG.tokenBudgetAction === 'Block') {
           console.log(`[cc-companion] Token 预算已用尽(${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit})，阻止消息`);
-          server.broadcast(JSON.stringify({
-            type: 'error',
-            error: `Token 预算已用尽 (${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit})`
-          }));
+          bus.publishError(`Token 预算已用尽 (${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit})`);
           return;
         }
         console.log(`[cc-companion] Token 预算已用尽，但为 Warn 模式，继续发送`);
@@ -163,10 +212,16 @@ async function main(): Promise<void> {
     // onAbort
     () => {
       abortController.abort();
-      server.broadcast(JSON.stringify({ type: 'result', subtype: 'aborted' }));
+      bus.publishAborted();
       startNewSession();
     },
   );
+
+  // 初始化消息总线
+  bus = new MessageBus((data) => server.broadcast(data));
+
+  // 将解析后的模型名存入 CONFIG，供 ws-server 握手时推送
+  CONFIG.resolvedModel = resolvedModel;
 
   // HTTP 路由 — 聊天页面
   if (CONFIG.chatPageEnabled && chatPageHtml) {

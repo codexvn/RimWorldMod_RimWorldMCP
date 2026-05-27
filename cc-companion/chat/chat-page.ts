@@ -23,34 +23,34 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 <style>
   /* ===== Design Tokens ===== */
   :root {
-    --bg: #0b0d12;
-    --card: #12151e;
-    --surface: #181c28;
-    --hover: #1e2332;
-    --text: #d1d3da;
-    --text-strong: #edf0f5;
-    --muted: #636879;
-    --muted-subtle: #424657;
-    --border: #1e2230;
-    --border-strong: #2a3040;
-    --accent: #ff5c5c;
-    --blue: #4a8cf7;
-    --blue-bg: rgba(74,140,247,0.07);
-    --blue-border: rgba(74,140,247,0.15);
-    --green: #3ecf6e;
-    --green-bg: rgba(62,207,110,0.06);
-    --green-border: rgba(62,207,110,0.20);
-    --amber: #f0a840;
-    --amber-bg: rgba(240,168,64,0.06);
-    --amber-border: rgba(240,168,64,0.20);
-    --red: #f44b4b;
-    --cyan: #3cc8c8;
+    --bg: #f5f6f9;
+    --card: #ffffff;
+    --surface: #eeeff3;
+    --hover: #e4e6ec;
+    --text: #1a1c24;
+    --text-strong: #0c0d14;
+    --muted: #6f7488;
+    --muted-subtle: #9ca1b5;
+    --border: #e2e4eb;
+    --border-strong: #ccd0d9;
+    --accent: #e54b4b;
+    --blue: #3570d6;
+    --blue-bg: rgba(53,112,214,0.07);
+    --blue-border: rgba(53,112,214,0.16);
+    --green: #1d914d;
+    --green-bg: rgba(29,145,77,0.06);
+    --green-border: rgba(29,145,77,0.18);
+    --amber: #c4890c;
+    --amber-bg: rgba(196,137,12,0.06);
+    --amber-border: rgba(196,137,12,0.18);
+    --red: #d93d3d;
+    --cyan: #188585;
     --mono: "Cascadia Code","Fira Code","JetBrains Mono","Consolas",monospace;
     --font: system-ui,-apple-system,"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
     --radius-sm: 6px;
     --radius: 10px;
     --radius-lg: 14px;
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -61,9 +61,47 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     -webkit-font-smoothing: antialiased;
   }
   #app {
-    display: flex; flex-direction: column;
-    height: 100vh; max-width: 860px; margin: 0 auto; width: 100%;
+    display: grid;
+    grid-template-columns: 90px 1fr minmax(420px, 720px) 1fr 200px;
+    height: 100vh; width: 100%;
   }
+  #sidebar { grid-column: 1; }
+  #main {
+    grid-column: 3;
+    display: flex; flex-direction: column;
+    min-width: 0; overflow: hidden;
+  }
+  #rightbar { grid-column: 5; }
+  #sidebar {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px 6px;
+    border-right: 1px solid var(--border);
+    background: var(--card);
+    overflow-y: auto;
+  }
+  #rightbar {
+    display: flex; flex-direction: column;
+    border-left: 1px solid var(--border);
+    background: var(--card);
+    overflow-y: auto;
+    font-size: 12px; font-family: var(--mono);
+  }
+  .sb-stat {
+    text-align: center; padding: 6px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    overflow-wrap: break-word; word-break: break-word;
+  }
+  .sb-stat .sb-val {
+    font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--text-strong); line-height: 1.3;
+  }
+  .sb-stat .sb-label {
+    font-size: 10px; color: var(--muted); margin-top: 2px;
+  }
+  .sb-stat .sb-val.danger { color: var(--red); }
+  .sb-stat .sb-val.warning { color: var(--amber); }
+  .sb-stat .sb-val.ok { color: var(--green); }
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 5px; }
@@ -85,7 +123,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
     transition: background 0.3s, box-shadow 0.3s;
   }
-  #status-dot.connected { background: var(--green); box-shadow: 0 0 5px rgba(62,207,110,0.4); }
+  #status-dot.connected { background: var(--green); box-shadow: 0 0 5px rgba(29,145,77,0.25); }
   #status-dot.connecting { background: var(--amber); animation: dot-blink 1.2s ease-in-out infinite; }
   #status-dot.disconnected { background: var(--red); }
   @keyframes dot-blink { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
@@ -108,53 +146,52 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
   #info-btn:hover { background: var(--surface); color: var(--text); border-color: var(--muted-subtle); }
 
-  /* Stats */
-  .header-stats {
-    display: flex; align-items: center; gap: 6px;
-    margin-top: 8px; font-size: 12px;
+  /* Header budget / tools */
+  .header-meta {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 6px; font-size: 11px;
   }
-  .header-stats .stat {
-    display: inline-flex; align-items: center; gap: 3px;
+  .header-meta .meta-item {
+    display: inline-flex; align-items: center; gap: 4px;
     padding: 2px 8px; border-radius: 4px;
     background: var(--surface); color: var(--muted);
+    font-family: var(--mono); white-space: nowrap;
   }
-  .header-stats .stat-label { color: var(--muted); }
-  .header-stats .stat-value { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
-  .header-stats .stat-value.danger { color: var(--red); }
-  .header-stats .stat-value.warning { color: var(--amber); }
-  .header-stats .stat-value.ok { color: var(--green); }
+  .header-meta .meta-val { color: var(--text); font-weight: 500; }
+  .hdr-budget {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 11px;
+    padding: 1px 8px; border-radius: 4px;
+    background: var(--surface); color: var(--muted);
+    white-space: nowrap;
+  }
+  .hdr-budget .budget-bar {
+    display: inline-block; height: 4px; border-radius: 2px;
+    background: var(--green); vertical-align: middle; width: 32px;
+    transition: background 0.3s;
+  }
+  .hdr-budget .budget-bar.warning { background: var(--amber); }
+  .hdr-budget .budget-bar.danger { background: var(--red); }
 
-  /* ===== TODO Panel ===== */
-  #todo-panel {
-    flex-shrink: 0;
-    background: var(--card);
-    border-top: 1px solid var(--border);
-    padding: 0;
-    max-height: 180px;
-    overflow-y: auto;
-    display: none;
-    font-size: 12px;
-    font-family: var(--mono);
-  }
-  #todo-panel.visible { display: block; }
+  /* ===== TODO Panel (rightbar) ===== */
   #todo-panel-header {
     display: flex; align-items: center; gap: 6px;
-    padding: 3px 12px;
+    padding: 8px 10px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     color: var(--muted);
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 11px; font-weight: 600;
     position: sticky; top: 0; z-index: 1;
   }
   #todo-panel-header .todo-count { color: var(--cyan); }
+  #todo-list { padding: 4px 0; }
   .todo-item {
-    display: flex; align-items: center; gap: 5px;
-    padding: 2px 12px;
-    border-bottom: 1px solid rgba(39,39,42,0.4);
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 10px;
+    border-bottom: 1px solid var(--border);
   }
   .todo-item:last-child { border-bottom: none; }
-  .todo-item .todo-prio { flex-shrink: 0; width: 22px; font-size: 10px; font-weight: 700; }
+  .todo-item .todo-prio { flex-shrink: 0; width: 18px; font-size: 10px; font-weight: 700; }
   .todo-item .todo-prio.p-high { color: var(--red); }
   .todo-item .todo-prio.p-mid { color: var(--amber); }
   .todo-item .todo-prio.p-low { color: var(--muted); }
@@ -165,15 +202,15 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   /* ===== Info Overlay ===== */
   #info-overlay {
     display: none; position: fixed; inset: 0;
-    z-index: 100; background: rgba(0,0,0,0.55);
+    z-index: 100; background: rgba(0,0,0,0.25);
     backdrop-filter: blur(2px);
   }
   #info-panel {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
     background: var(--card); border: 1px solid var(--border-strong);
     border-radius: var(--radius); padding: 18px 20px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-    width: 380px; max-width: 90vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+    width: 460px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
   }
   #info-close {
     float: right; background: none; border: none; color: var(--muted);
@@ -190,6 +227,8 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
   .info-table th { color: var(--muted); width: 68px; font-weight: 400; }
   .info-table td { color: var(--text); word-break: break-all; font-family: var(--mono); font-size: 11px; }
+  .info-list { max-height: 120px; overflow-y: auto; line-height: 1.6; }
+  .info-list div { white-space: nowrap; }
 
   /* ===== Messages ===== */
   #messages {
@@ -244,6 +283,46 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     color: var(--text);
   }
 
+  /* --- THINKING --- */
+  .msg-thinking {
+    align-self: stretch; margin: 2px 0;
+  }
+  .msg-thinking .th-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer; user-select: none;
+    font-size: 11px; color: var(--muted);
+    transition: background 0.15s;
+  }
+  .msg-thinking .th-header:hover { background: var(--card); }
+  .msg-thinking .th-icon { font-size: 12px; transition: transform 0.2s; width: 14px; text-align: center; }
+  .msg-thinking.collapsed .th-icon { transform: rotate(-90deg); }
+  .msg-thinking .th-label { font-weight: 500; }
+  .msg-thinking .th-status {
+    font-size: 10px; opacity: 0.6;
+  }
+  .msg-thinking .th-cursor {
+    display: inline-block; width: 2px; height: 12px;
+    background: var(--muted); margin-left: 2px;
+    animation: think-cursor 0.8s ease infinite;
+  }
+  @keyframes think-cursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .msg-thinking .th-body {
+    border-left: 2px solid var(--border-strong);
+    margin-left: 11px; padding: 4px 0 8px 12px;
+    font-size: 12px; line-height: 1.6;
+    color: var(--muted); font-style: italic;
+    white-space: pre-wrap; word-wrap: break-word;
+    display: none;
+  }
+  .msg-thinking:not(.collapsed) .th-body { display: block; }
+  .msg-thinking.done .th-cursor { display: none; }
+  .msg-thinking.done .th-header { cursor: pointer; }
+
   /* --- TOOL --- */
   .msg-tool {
     align-self: stretch;
@@ -259,6 +338,10 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
   .msg-tool .msg-header .msg-label {
     color: var(--amber); margin-bottom: 0; font-size: 10px;
+  }
+  .msg-tool .msg-header .tgl-arrow {
+    font-size: 10px; color: var(--muted); transition: transform 0.15s;
+    width: 10px; text-align: center; flex-shrink: 0;
   }
   .msg-tool .msg-header .tool-name {
     font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text);
@@ -283,7 +366,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 
   /* Tool expand/collapse */
   .tool-output-wrap {
-    max-height: 200px; overflow: hidden; position: relative;
+    max-height: 120px; overflow: hidden; position: relative;
     transition: max-height 0.25s ease;
   }
   .tool-output-wrap.expanded { max-height: none; }
@@ -314,16 +397,12 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     white-space: nowrap; user-select: none;
     font-family: var(--mono);
   }
-  .msg-result .result-label.ok { color: var(--green); border-color: rgba(62,207,110,0.25); }
-  .msg-result .result-label.error { color: var(--red); border-color: rgba(244,75,75,0.25); }
-  .msg-result .result-label.warn { color: var(--amber); border-color: rgba(240,168,64,0.25); }
+  .msg-result .result-label.ok { color: var(--green); border-color: var(--green-border); }
+  .msg-result .result-label.error { color: var(--red); border-color: rgba(217,61,61,0.25); }
+  .msg-result .result-label.warn { color: var(--amber); border-color: var(--amber-border); }
 
   /* Token usage */
-  .msg-usage {
-    font-family: var(--mono); font-size: 11px; line-height: 1.6;
-    color: var(--muted); text-align: center;
-    margin: 0 8px 4px; white-space: pre-wrap;
-  }
+  /* Header budget */
 
   /* --- Typing indicator --- */
   .typing-indicator {
@@ -350,7 +429,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     border: 1px solid var(--border-strong); border-radius: 20px;
     margin: 2px auto; z-index: 10;
     font-weight: 500; transition: all 0.15s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
   }
   #new-msg-pill:hover { border-color: var(--muted-subtle); color: var(--text); }
 
@@ -367,9 +446,9 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   #chat-input {
     flex: 1; background: var(--surface); border: 1px solid var(--border-strong);
     border-radius: 8px; outline: none;
-    color: var(--text); font-family: var(--font); font-size: 14px;
-    line-height: 1.5; padding: 7px 12px;
-    min-height: 36px; max-height: 130px; resize: none;
+    color: var(--text); font-family: var(--font); font-size: 15px;
+    line-height: 1.5; padding: 10px 14px;
+    min-height: 44px; max-height: 160px; resize: none;
     transition: border-color 0.15s;
   }
   #chat-input:focus { border-color: var(--muted-subtle); }
@@ -388,6 +467,15 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 </head>
 <body>
 <div id="app">
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sb-stat"><div class="sb-val" id="sb-pawns">--</div><div class="sb-label">Pawns</div></div>
+    <div class="sb-stat"><div class="sb-val" id="sb-mood">--</div><div class="sb-label">Mood</div></div>
+    <div class="sb-stat"><div class="sb-val" id="sb-food">--</div><div class="sb-label">Food</div></div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
   <!-- Header -->
   <div id="header">
     <div class="header-row">
@@ -397,20 +485,10 @@ export function getChatPageHtml(config: ChatPageConfig): string {
       <span class="header-colony" id="colony-name">--</span>
       <button id="info-btn" title="SDK 信息">i</button>
     </div>
-    <div class="header-stats" id="header-stats" style="display:none">
-      <span class="stat"><span class="stat-label">Pawns</span> <span class="stat-value" id="stat-pawns">--</span></span>
-      <span class="stat"><span class="stat-label">Mood</span> <span class="stat-value" id="stat-mood">--</span></span>
-      <span class="stat"><span class="stat-label">Food</span> <span class="stat-value" id="stat-food">--</span></span>
+    <div class="header-meta" id="header-meta">
+      <span class="hdr-budget" id="hdr-budget">Token --</span>
+      <span class="meta-item">Tools <span class="meta-val" id="meta-tools">0</span></span>
     </div>
-  </div>
-
-  <!-- TODO Panel -->
-  <div id="todo-panel">
-    <div id="todo-panel-header">
-      <span>&#9744; TODO</span>
-      <span class="todo-count" id="todo-count">0</span>
-    </div>
-    <div id="todo-list"></div>
   </div>
 
   <!-- Info Overlay -->
@@ -424,6 +502,10 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         <tr><th>Session</th><td><span id="info-session">-</span></td></tr>
         <tr><th>Version</th><td><span id="info-version">-</span></td></tr>
         <tr><th>Permission</th><td><span id="info-permission">-</span></td></tr>
+        <tr><th>API Key</th><td><span id="info-apikey">-</span></td></tr>
+        <tr><th>MCP</th><td><div class="info-list" id="info-mcp">-</div></td></tr>
+        <tr><th>Tools</th><td><div class="info-list" id="info-tools">-</div></td></tr>
+        <tr><th>Skills</th><td><div class="info-list" id="info-skills">-</div></td></tr>
       </table>
     </div>
   </div>
@@ -437,6 +519,17 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     <textarea id="chat-input" placeholder="输入消息..." rows="1"></textarea>
     <button id="send-btn" disabled>Send</button>
   </div>
+  </div><!-- /#main -->
+
+  <!-- Rightbar -->
+  <div id="rightbar">
+    <div id="todo-panel-header">
+      <span>&#9744; TODO</span>
+      <span class="todo-count" id="todo-count">0</span>
+    </div>
+    <div id="todo-list"></div>
+  </div>
+
 </div>
 <script>
 (function() {
@@ -450,13 +543,17 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   const statusDot = document.getElementById('status-dot');
   const colonyNameEl = document.getElementById('colony-name');
   const newMsgPill = document.getElementById('new-msg-pill');
-  const headerStats = document.getElementById('header-stats');
-  const statPawns = document.getElementById('stat-pawns');
-  const statMood = document.getElementById('stat-mood');
-  const statFood = document.getElementById('stat-food');
+  // Sidebar stats
+  const sbPawns = document.getElementById('sb-pawns');
+  const sbMood = document.getElementById('sb-mood');
+  const sbFood = document.getElementById('sb-food');
+  // Header meta
+  const hdrBudget = document.getElementById('hdr-budget');
+  const metaTools = document.getElementById('meta-tools');
+  var toolCount = 0;
 
-  // TODO panel
-  const todoPanel = document.getElementById('todo-panel');
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
   const todoListEl = document.getElementById('todo-list');
   const todoCountEl = document.getElementById('todo-count');
 
@@ -476,6 +573,49 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   let connected = false;
   var toolStartTimes = {};
   var readingEl = null;
+  var thinkingPanels = {};     // msgIndex -> panel element (streaming)
+  var currentThinkingIdx = -1; // index of the currently streaming thinking panel
+
+  // ===== Thinking panel helpers =====
+  function createThinkingPanel(text, idx) {
+    var panel = document.createElement('div');
+    panel.className = 'msg-thinking';
+    panel.dataset.tidx = String(idx);
+
+    var header = document.createElement('div');
+    header.className = 'th-header';
+    header.innerHTML = '<span class="th-icon">&#9660;</span>'
+      + '<span class="th-label">思考中...</span>'
+      + '<span class="th-status"></span>'
+      + '<span class="th-cursor"></span>';
+    header.addEventListener('click', function() {
+      panel.classList.toggle('collapsed');
+    });
+    panel.appendChild(header);
+
+    var body = document.createElement('div');
+    body.className = 'th-body';
+    body.textContent = text || '';
+    panel.appendChild(body);
+
+    messagesEl.appendChild(panel);
+    return panel;
+  }
+
+  function finalizeThinkingPanel(panel) {
+    if (!panel || panel.classList.contains('done')) return;
+    panel.classList.add('done');
+    var label = panel.querySelector('.th-label');
+    if (label) label.textContent = '思考过程';
+    var cursor = panel.querySelector('.th-cursor');
+    if (cursor) cursor.style.display = 'none';
+  }
+
+  function appendThinkingDelta(panel, delta) {
+    if (!panel) return;
+    var body = panel.querySelector('.th-body');
+    if (body) body.textContent += delta;
+  }
 
   // ===== WebSocket =====
   function connect() {
@@ -525,20 +665,38 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     if (data.colonyName) {
       colonyNameEl.textContent = data.colonyName;
     }
-    if (data.colonistCount !== undefined) {
-      statPawns.textContent = data.colonistCount;
+    if (data.colonistCount !== undefined && sbPawns) {
+      sbPawns.textContent = data.colonistCount;
     }
-    if (data.avgMood !== undefined) {
+    if (data.avgMood !== undefined && sbMood) {
       var mood = Number(data.avgMood);
-      statMood.textContent = mood + '%';
-      statMood.className = 'stat-value' + (mood < 30 ? ' danger' : mood < 50 ? ' warning' : ' ok');
+      sbMood.textContent = mood + '%';
+      sbMood.className = 'sb-val' + (mood < 30 ? ' danger' : mood < 50 ? ' warning' : ' ok');
     }
-    if (data.foodDays !== undefined) {
+    if (data.foodDays !== undefined && sbFood) {
       var fd = Number(data.foodDays);
-      statFood.textContent = fd + 'd';
-      statFood.className = 'stat-value' + (fd < 1 ? ' danger' : fd < 3 ? ' warning' : ' ok');
+      sbFood.textContent = fd + 'd';
+      sbFood.className = 'sb-val' + (fd < 1 ? ' danger' : fd < 3 ? ' warning' : ' ok');
     }
-    headerStats.style.display = 'flex';
+  }
+
+  function updateBudgetStatus(data) {
+    if (!hdrBudget) return;
+    var limit = data.limit || 0;
+    var used = data.used || 0;
+    var fmt = function(v) { return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : String(v); };
+    if (limit <= 0) {
+      hdrBudget.innerHTML = 'Token ' + (used > 0 ? fmt(used) : '--');
+      return;
+    }
+    var pct = used / limit * 100;
+    var barCls = pct >= 95 ? ' danger' : pct >= 80 ? ' warning' : '';
+    hdrBudget.innerHTML = 'Token ' + fmt(used) + '/' + fmt(limit) +
+      ' <span class="budget-bar' + barCls + '"></span>';
+  }
+
+  function updateToolCount() {
+    if (metaTools) metaTools.textContent = toolCount;
   }
 
   // ===== TODO Panel =====
@@ -546,10 +704,9 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     var pendingCount = 0;
     todoListEl.innerHTML = '';
     if (!items || items.length === 0) {
-      todoPanel.classList.remove('visible');
+      todoCountEl.textContent = '0';
       return;
     }
-    todoPanel.classList.add('visible');
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var isDone = item.status === 'done';
@@ -594,6 +751,10 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         updateColonyStats(msg);
         break;
 
+      case 'budget-status':
+        updateBudgetStatus(msg);
+        break;
+
       case 'todo-state':
         updateTodoPanel(msg.todoItems || []);
         break;
@@ -608,8 +769,75 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         break;
       }
 
+      case 'model-info': {
+        var mel = document.getElementById('info-model');
+        if (mel) mel.textContent = msg.model || '?';
+        break;
+      }
+
       case 'system': {
         if (msg.subtype === 'init') updateSdkInfo(msg);
+        break;
+      }
+
+      case 'stream_event': {
+        var evt = msg.event || {};
+        var evtType = evt.type;
+        // content_block_start
+        if (evtType === 'content_block_start') {
+          var block = evt.content_block || {};
+          var idx = evt.index;
+          if (block.type === 'thinking') {
+            var panel = createThinkingPanel('', idx);
+            thinkingPanels[idx] = panel;
+            currentThinkingIdx = idx;
+          } else if (block.type === 'text') {
+            // thinking done, finalize previous thinking panel
+            if (currentThinkingIdx >= 0) {
+              finalizeThinkingPanel(thinkingPanels[currentThinkingIdx]);
+              currentThinkingIdx = -1;
+            }
+            hideReading();
+          } else if (block.type === 'tool_use') {
+            if (currentThinkingIdx >= 0) {
+              finalizeThinkingPanel(thinkingPanels[currentThinkingIdx]);
+              currentThinkingIdx = -1;
+            }
+            toolCount++;
+            updateToolCount();
+            toolStartTimes[block.id] = Date.now();
+            makeToolUsePanel(block.name, block.input);
+            lastAgentBody = null;
+          }
+        }
+        // content_block_delta
+        else if (evtType === 'content_block_delta') {
+          var delta = evt.delta || {};
+          var dIdx = evt.index;
+          if (delta.type === 'thinking_delta') {
+            appendThinkingDelta(thinkingPanels[dIdx], delta.thinking || '');
+          } else if (delta.type === 'text_delta') {
+            // text delta: show in agent panel (streaming)
+            if (currentThinkingIdx >= 0) {
+              finalizeThinkingPanel(thinkingPanels[currentThinkingIdx]);
+              currentThinkingIdx = -1;
+            }
+            hideReading();
+            var textContent = delta.text || '';
+            if (lastAgentBody) {
+              lastAgentBody.textContent += textContent;
+              checkScroll();
+            } else {
+              var p = makeAgentPanel(textContent, null);
+              lastAgentBody = p.querySelector('.msg-body');
+            }
+          }
+        }
+        // message_start
+        else if (evtType === 'message_start') {
+          lastAgentBody = null;
+        }
+        // message_delta — usage info only, ignore
         break;
       }
 
@@ -620,7 +848,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
                      : '✗ Failed';
         const cls = sub === 'success' ? 'ok' : sub === 'aborted' ? 'warn' : 'error';
         hideReading();
-        addResult(cls, label, msg._usageText);
+        addResult(cls, label);
         break;
       }
     }
@@ -632,6 +860,25 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     el = document.getElementById('info-version'); if (el) el.textContent = msg.claude_code_version || '?';
     el = document.getElementById('info-session'); if (el) el.textContent = msg.session_id || '?';
     el = document.getElementById('info-permission'); if (el) el.textContent = msg.permissionMode || '?';
+    el = document.getElementById('info-apikey'); if (el) el.textContent = msg.apiKeySource || '-';
+    el = document.getElementById('info-mcp'); if (el) {
+      var mcps = msg.mcp_servers || [];
+      el.innerHTML = mcps.length
+        ? mcps.map(function(s) { return '<div>' + esc(s.name) + ' <span style="color:var(--green)">' + esc(s.status) + '</span></div>'; }).join('')
+        : '-';
+    }
+    el = document.getElementById('info-tools'); if (el) {
+      var tools = msg.tools || [];
+      el.innerHTML = tools.length
+        ? tools.map(function(t) { return '<div>' + esc(t) + '</div>'; }).join('')
+        : '-';
+    }
+    el = document.getElementById('info-skills'); if (el) {
+      var skills = msg.skills || [];
+      el.innerHTML = skills.length
+        ? skills.map(function(s) { return '<div>' + esc(s) + '</div>'; }).join('')
+        : '-';
+    }
   }
 
   // ===== Panel builders =====
@@ -669,6 +916,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     panel.appendChild(body);
 
     messagesEl.appendChild(panel);
+    checkScroll();
     return panel;
   }
 
@@ -678,6 +926,12 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 
     var header = document.createElement('div');
     header.className = 'msg-header';
+    header.style.cursor = 'pointer';
+
+    var arrow = document.createElement('span');
+    arrow.className = 'tgl-arrow';
+    arrow.textContent = '▸';
+    header.appendChild(arrow);
 
     var hlabel = document.createElement('span');
     hlabel.className = 'msg-label';
@@ -694,13 +948,50 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     if (input) {
       var body = document.createElement('div');
       body.className = 'msg-body';
+      body.style.display = 'none';
       var argsStr = '';
       try { argsStr = JSON.stringify(input, null, 2); } catch(e) { argsStr = String(input || ''); }
-      body.textContent = argsStr || '(no args)';
+
+      var wrap = document.createElement('div');
+      wrap.className = 'tool-output-wrap';
+      if (argsStr.length > 120) wrap.classList.add('truncated');
+      wrap.textContent = argsStr || '(no args)';
+
+      body.appendChild(wrap);
       panel.appendChild(body);
+
+      // Expand button for long content
+      var expandBtn = null;
+      if (argsStr.length > 120) {
+        expandBtn = document.createElement('button');
+        expandBtn.className = 'tool-expand-btn';
+        expandBtn.textContent = '展开';
+        expandBtn.style.display = 'none';
+        (function(w, fullText, btn) {
+          btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var isExp = w.classList.toggle('expanded');
+            w.classList.toggle('truncated', !isExp);
+            btn.textContent = isExp ? '收起' : '展开';
+            if (isExp) w.textContent = fullText;
+            checkScroll();
+          });
+        })(wrap, argsStr, expandBtn);
+        panel.appendChild(expandBtn);
+      }
+
+      // Header click toggles body + arrow
+      header.addEventListener('click', function() {
+        var hidden = body.style.display === 'none';
+        body.style.display = hidden ? '' : 'none';
+        if (expandBtn) expandBtn.style.display = hidden ? '' : 'none';
+        arrow.textContent = hidden ? '▾' : '▸';
+        checkScroll();
+      });
     }
 
     messagesEl.appendChild(panel);
+    checkScroll();
     return panel;
   }
 
@@ -710,6 +1001,12 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 
     var header = document.createElement('div');
     header.className = 'msg-header';
+    header.style.cursor = 'pointer';
+
+    var arrow = document.createElement('span');
+    arrow.className = 'tgl-arrow';
+    arrow.textContent = '▸';
+    header.appendChild(arrow);
 
     var hlabel = document.createElement('span');
     hlabel.className = 'msg-label';
@@ -736,43 +1033,52 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     else if (Array.isArray(block.content)) content = block.content.map(function(c) { return c.text || ''; }).join('\\n');
     else if (block.content) { try { content = JSON.stringify(block.content, null, 2); } catch(e) { content = String(block.content); } }
 
-    var body = document.createElement('div');
-    body.className = 'msg-body';
-
     if (content) {
+      var body = document.createElement('div');
+      body.className = 'msg-body';
+      body.style.display = 'none';
+
       var wrap = document.createElement('div');
       wrap.className = 'tool-output-wrap';
-
-      if (block.isError) {
-        wrap.style.color = 'var(--red)';
-        wrap.textContent = content;
-      } else if (content.length > 180) {
-        wrap.classList.add('truncated');
-        wrap.textContent = content;
-        wrap.dataset.full = content;
-
-        var btn = document.createElement('button');
-        btn.className = 'tool-expand-btn';
-        btn.textContent = '展开全部';
-        btn.addEventListener('click', function() {
-          var isExp = wrap.classList.toggle('expanded');
-          wrap.classList.toggle('truncated', !isExp);
-          btn.textContent = isExp ? '收起' : '展开全部';
-          if (isExp) { wrap.textContent = wrap.dataset.full; }
-          checkScroll();
-        });
-        panel.appendChild(btn);
-      } else {
-        wrap.textContent = content;
-      }
+      if (content.length > 120) wrap.classList.add('truncated');
+      if (block.isError) wrap.style.color = 'var(--red)';
+      wrap.textContent = content;
 
       body.appendChild(wrap);
-    } else {
-      body.textContent = '(empty)';
+      panel.appendChild(body);
+
+      // Expand button for longer content
+      var expandBtn = null;
+      if (content.length > 120) {
+        expandBtn = document.createElement('button');
+        expandBtn.className = 'tool-expand-btn';
+        expandBtn.textContent = '展开';
+        expandBtn.style.display = 'none';
+        (function(w, fullText, btn) {
+          btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var isExp = w.classList.toggle('expanded');
+            w.classList.toggle('truncated', !isExp);
+            btn.textContent = isExp ? '收起' : '展开';
+            if (isExp) w.textContent = fullText;
+            checkScroll();
+          });
+        })(wrap, content, expandBtn);
+        panel.appendChild(expandBtn);
+      }
+
+      // Header click toggles body + arrow
+      header.addEventListener('click', function() {
+        var hidden = body.style.display === 'none';
+        body.style.display = hidden ? '' : 'none';
+        if (expandBtn) expandBtn.style.display = hidden ? '' : 'none';
+        arrow.textContent = hidden ? '▾' : '▸';
+        checkScroll();
+      });
     }
 
-    panel.appendChild(body);
     messagesEl.appendChild(panel);
+    checkScroll();
     return panel;
   }
 
@@ -803,6 +1109,13 @@ export function getChatPageHtml(config: ChatPageConfig): string {
             var p = makeAgentPanel(block.text || '', null);
             lastAgentBody = p.querySelector('.msg-body');
           }
+        } else if (block.type === 'thinking') {
+          var thText = block.thinking || '';
+          if (thText) {
+            var thPanel = createThinkingPanel(thText, i);
+            finalizeThinkingPanel(thPanel);
+            lastAgentBody = null;
+          }
         } else if (block.type === 'tool_use') {
           toolStartTimes[block.id] = Date.now();
           makeToolUsePanel(block.name, block.input);
@@ -822,22 +1135,13 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
 
   // ===== Result divider =====
-  function addResult(cls, label, usageText) {
+  function addResult(cls, label) {
     var div = document.createElement('div');
     div.className = 'msg-result';
     div.innerHTML = '<span class="result-line"></span>'
       + '<span class="result-label ' + cls + '">' + label + '</span>'
       + '<span class="result-line"></span>';
     messagesEl.appendChild(div);
-
-    // Token 消耗信息
-    if (usageText) {
-      var usageDiv = document.createElement('div');
-      usageDiv.className = 'msg-usage';
-      usageDiv.textContent = usageText;
-      messagesEl.appendChild(usageDiv);
-    }
-
     checkScroll();
   }
 
@@ -889,7 +1193,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 
   function adjustHeight() {
     inputEl.style.height = 'auto';
-    var newH = Math.min(Math.max(inputEl.scrollHeight, 36), 130);
+    var newH = Math.min(Math.max(inputEl.scrollHeight, 44), 160);
     inputEl.style.height = newH + 'px';
   }
 
