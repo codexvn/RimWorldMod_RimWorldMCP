@@ -9,7 +9,7 @@ namespace RimWorldMCP.Tools
     public class Tool_TodoQuery : ITool
     {
         public string Name => "todo_query";
-        public string Description => "查询所有或指定状态的待办事项。默认返回全部。filter 可选 pending 或 done。";
+        public string Description => "查询所有或指定状态的待办事项。默认返回全部。filter 可选 pending/done/cancelled。";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
@@ -19,8 +19,8 @@ namespace RimWorldMCP.Tools
                 filter = new
                 {
                     type = "string",
-                    description = "过滤状态：pending=待办, done=已完成",
-                    @enum = new[] { "pending", "done" }
+                    description = "过滤状态：pending=待办, done=已完成, cancelled=已取消",
+                    @enum = new[] { "pending", "done", "cancelled" }
                 }
             },
             required = new string[] { }
@@ -40,6 +40,7 @@ namespace RimWorldMCP.Tools
                 {
                     "pending" => "目前没有待办的 TODO 事项。",
                     "done" => "目前没有已完成的 TODO 事项。",
+                    "cancelled" => "目前没有已取消的 TODO 事项。",
                     _ => "TODO 列表为空。使用 todo_add 添加待办事项。"
                 };
                 return Task.FromResult(ToolResult.Success(msg));
@@ -54,7 +55,7 @@ namespace RimWorldMCP.Tools
 
             foreach (var item in items)
             {
-                var statusLabel = item.Status == "done" ? " [已完成]" : "";
+                var statusLabel = item.Status == "done" ? " [已完成]" : item.Status == "cancelled" ? " [已取消]" : "";
                 var timeStr = GameTimeHelper.FormatGameTime(item.CreatedAtTick);
                 sb.AppendLine($"  [P{item.Priority}] #{item.Id} {item.Description}{statusLabel}");
                 sb.AppendLine($"         添加于 {timeStr} | 优先级: {item.Priority}/5");

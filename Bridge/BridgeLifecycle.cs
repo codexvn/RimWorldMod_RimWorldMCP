@@ -590,7 +590,7 @@ namespace RimWorldMCP
             sb.AppendLine("1. **全面检查**: 调用 `get_game_context` + `get_colonists` + `check_colony` 获取最新状态");
             sb.AppendLine("2. **总结经验**: 回顾昨日事件，记录重要经验教训（什么做得好、什么需要改进）");
             sb.AppendLine("3. **评估现状**: 分析当前资源缺口、威胁等级、殖民者状态、研究进度");
-            sb.AppendLine("4. **制定计划**: 确定今日优先事项，用 `todo_add` 添加待办任务");
+            sb.AppendLine("4. **制定计划**: 确定今日优先事项，用 `todo_add` 添加待办任务，完成/取消时用 `todo_set_status` 更新状态");
             sb.AppendLine("5. **恢复游戏**: 完成评估和规划后，调用 `toggle_pause` 恢复游戏运行");
 
             return sb.ToString().TrimEnd();

@@ -236,6 +236,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   .todo-item .todo-prio.p-low { color: var(--muted); }
   .todo-item .todo-desc { flex: 1; color: var(--text); word-break: break-all; overflow-wrap: break-word; }
   .todo-item.done .todo-desc { color: var(--muted); text-decoration: line-through; }
+  .todo-item.cancelled .todo-desc { color: var(--muted-subtle); text-decoration: line-through; }
   .todo-item .todo-id { font-size: 10px; color: var(--muted); flex-shrink: 0; }
 
   /* SDKTasks */
