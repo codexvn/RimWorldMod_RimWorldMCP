@@ -24,24 +24,14 @@ namespace RimWorldMCP.Tools
 
             try
             {
-                var rootDir = RimWorldMCPMod.Instance?.Content?.RootDir;
-                if (!string.IsNullOrEmpty(rootDir))
-                {
-                    _filePath = Path.Combine(rootDir, "memory.json");
-                    return _filePath;
-                }
-            }
-            catch { }
-
-            try
-            {
+                // Assembly 在 publish/1.6/Assemblies/，往上 3 级 = 项目根目录
                 var asmPath = typeof(MemoryManager).Assembly.Location;
                 if (!string.IsNullOrEmpty(asmPath))
                 {
                     var asmDir = Path.GetDirectoryName(asmPath);
                     if (asmDir != null)
                     {
-                        _filePath = Path.GetFullPath(Path.Combine(asmDir, "..", "..", "memory.json"));
+                        _filePath = Path.GetFullPath(Path.Combine(asmDir, "..", "..", "..", "memory.json"));
                         return _filePath;
                     }
                 }
