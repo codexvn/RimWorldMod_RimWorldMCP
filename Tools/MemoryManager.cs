@@ -24,7 +24,17 @@ namespace RimWorldMCP.Tools
 
             try
             {
-                // Assembly 在 publish/1.6/Assemblies/，往上 3 级 = 项目根目录
+                var dir = BridgeLifecycle.FindCompanionDir();
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    _filePath = Path.Combine(dir, "memory.json");
+                    return _filePath;
+                }
+            }
+            catch { }
+
+            try
+            {
                 var asmPath = typeof(MemoryManager).Assembly.Location;
                 if (!string.IsNullOrEmpty(asmPath))
                 {
