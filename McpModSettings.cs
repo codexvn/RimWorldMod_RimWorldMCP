@@ -3,6 +3,7 @@ using Verse;
 namespace RimWorldMCP
 {
     public enum TokenBudgetExceedAction { Block, Warn }
+    public enum ThinkingMode { Default, Disabled, Adaptive, Fixed }
 
     public class McpModSettings : ModSettings
     {
@@ -40,8 +41,15 @@ namespace RimWorldMCP
         public TokenBudgetExceedAction TokenBudgetExceedAction = TokenBudgetExceedAction.Block;
         public string TokenBudgetWebhookUrl = "";
 
+        // 思考模式
+        public ThinkingMode CCBThinkingMode = ThinkingMode.Default;
+        public string CCBThinkingEffort = "medium";
+        public int CCBMaxThinkingTokens = 0;
+
         public static readonly string[] LogLevelLabels = { "Debug", "Info", "Warn", "Error" };
         public static readonly string[] BudgetActionLabels = { "暂停游戏并阻止", "仅警告通知" };
+        public static readonly string[] ThinkingModeLabels = { "跟随默认", "禁用思考", "自适应", "固定Token" };
+        public static readonly string[] ThinkingEffortLabels = { "low", "medium", "high", "xhigh", "max" };
 
         public override void ExposeData()
         {
@@ -71,6 +79,11 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref budgetAction, "tokenBudgetAction", (int)TokenBudgetExceedAction.Block);
             TokenBudgetExceedAction = (TokenBudgetExceedAction)budgetAction;
             Scribe_Values.Look(ref TokenBudgetWebhookUrl, "tokenBudgetWebhookUrl", "");
+            var thinkingMode = (int)CCBThinkingMode;
+            Scribe_Values.Look(ref thinkingMode, "ccbThinkingMode", (int)ThinkingMode.Default);
+            CCBThinkingMode = (ThinkingMode)thinkingMode;
+            Scribe_Values.Look(ref CCBThinkingEffort, "ccbThinkingEffort", "medium");
+            Scribe_Values.Look(ref CCBMaxThinkingTokens, "ccbMaxThinkingTokens", 0);
         }
     }
 }

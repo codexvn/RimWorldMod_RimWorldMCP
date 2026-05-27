@@ -6,6 +6,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { buildSystemPrompt } from '../rimworld/context.js';
 import type { CompanionConfig } from '../companion/config.js';
+import { CONFIG, RuntimeState } from '../companion/config.js';
 import {Options, SYSTEM_PROMPT_DYNAMIC_BOUNDARY} from "@anthropic-ai/claude-agent-sdk";
 
 // ========== AsyncStream ==========
@@ -59,7 +60,8 @@ export function createSession(sdk: any, config: CompanionConfig, abortController
     abortController,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
-    disallowedTools: ['Bash', 'FileWrite', 'FileEdit', 'Write', 'Read', 'Glob', 'Grep', 'NotebookEdit', 'WebFetch', 'EnterWorktree', 'ExitWorktree', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup', 'AskUserQuestion'],
+    disallowedTools: ['Bash', 'FileWrite', 'FileEdit', 'Write', 'Edit', 'Read', 'Glob', 'Grep', 'NotebookEdit', 'WebFetch', 'EnterWorktree', 'ExitWorktree', 'CronCreate', 'CronDelete', 'CronList', 'ScheduleWakeup', 'AskUserQuestion'],
+    autoCompactEnabled: true,
     includePartialMessages: true,
     settingSources: config.settingSources,
     systemPrompt: [buildSystemPrompt(), SYSTEM_PROMPT_DYNAMIC_BOUNDARY],
@@ -69,8 +71,21 @@ export function createSession(sdk: any, config: CompanionConfig, abortController
     },
   } as Options;
 
+  // 思考模式（从 RuntimeState 读取，Web 端可动态切换）
+  const tm = RuntimeState.thinkingMode;
+  if (tm === 'disabled') {
+    (options as any).thinking = { type: 'disabled' };
+  } else if (tm === 'adaptive') {
+    (options as any).thinking = { type: 'enabled', budgetTokens: 10000 };
+    (options as any).effort = RuntimeState.thinkingEffort || 'medium';
+  } else if (tm === 'fixed') {
+    (options as any).thinking = { type: 'enabled', budgetTokens: RuntimeState.maxThinkingTokens || 8000 };
+    if (RuntimeState.thinkingEffort) (options as any).effort = RuntimeState.thinkingEffort;
+  }
+
   console.log(`[cc-companion] 项目目录: ${config.projectPath}`);
   console.log(`[cc-companion] 会话将存储在: ${join(homedir(), '.claude', 'projects')}`);
+  console.log(`[cc-companion] 思考模式: ${tm}${tm === 'adaptive' ? ' (effort=' + RuntimeState.thinkingEffort + ')' : ''}${tm === 'fixed' ? ' (' + RuntimeState.maxThinkingTokens + ' tokens)' : ''}`);
 
   const queryIterator = sdk.query({ prompt: inputStream, options });
   console.log('[cc-companion] SDK 会话已创建');
@@ -96,7 +111,7 @@ export function createResponseProcessor(
   let currentModel = '';
 
   async function process(): Promise<void> {
-    if (processing) { console.log('[cc-companion] processResponses 已在运行中，跳过'); return; }
+    if (processing) return; // SDK AsyncIterator 持续消费 inputStream，不需二次启动
     console.log('[cc-companion] processResponses 开始');
     processing = true;
     try {
@@ -104,6 +119,9 @@ export function createResponseProcessor(
         const msgType: string = message?.type || 'unknown';
 
         if (msgType === 'system') {
+          if (message.subtype === 'compact_boundary') {
+            console.log('[cc-companion] 会话压缩完成');
+          }
           if (message.subtype === 'init') {
             initData = message;
             // 记录当前模型名
@@ -116,6 +134,7 @@ export function createResponseProcessor(
             console.log(`[cc-companion] 会话 ID: ${sessionId}`);
             const sessionFile = join(homedir(), '.claude', 'projects',
               sanitizePath(cwd), `${sessionId}.jsonl`);
+            RuntimeState.sessionFilePath = sessionFile;
             console.log(`[cc-companion] 会话文件: ${sessionFile}`);
           }
         }
@@ -123,14 +142,18 @@ export function createResponseProcessor(
         if (msgType === 'assistant' || msgType === 'user' || msgType === 'stream_event') {
           onMessage?.(message);
           const content = message.message?.content;
+          const parentId = (message as any).parent_tool_use_id;
+          const agentTag = parentId
+            ? ` [${(message as any).agent_type || 'sub'}:${parentId.slice(0, 8)}]` : '';
+          const prefix = msgType === 'user' ? 'user' : 'assistant';
           if (Array.isArray(content)) {
             for (const block of content) {
               if (block.type === 'text') {
                 const text = block.text?.substring(0, 200) || '';
-                console.log(`[assistant] ${text}${block.text?.length > 200 ? '...' : ''}`);
+                console.log(`[${prefix}${agentTag}] ${text}${block.text?.length > 200 ? '...' : ''}`);
               } else if (block.type === 'tool_use') {
                 const inputSummary = block.input ? JSON.stringify(block.input).substring(0, 300) : '(无参数)';
-                console.log(`[tool_use] ${block.name} | ${inputSummary}`);
+                console.log(`[tool_use${agentTag}] ${block.name} | ${inputSummary}`);
               }
             }
           }

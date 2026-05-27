@@ -5,7 +5,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import type { IncomingMessage } from 'http';
-import { CONFIG } from '../companion/config.js';
+import { CONFIG, RuntimeState } from '../companion/config.js';
 
 export interface WsMessage {
   type: string;
@@ -26,6 +26,7 @@ export interface StatusChange {
 type EventCallback = (msg: WsMessage) => void;
 type StatusCallback = (status: StatusChange) => void;
 type AbortCallback = () => void;
+type SetThinkingCallback = (mode: string, effort?: string, tokens?: number) => void;
 
 export function createWSServer(
   port: number,
@@ -34,6 +35,7 @@ export function createWSServer(
   onEvent: EventCallback,
   onStatusChange: StatusCallback,
   onAbort?: AbortCallback,
+  onSetThinking?: SetThinkingCallback,
 ) {
   const httpServer = createServer();
   httpServer.on('error', (err: Error) => {
@@ -100,20 +102,32 @@ export function createWSServer(
           authenticated = true;
           // 解析 Token 预算
           if (msg.budget) {
-            CONFIG.tokenBudgetLimit = msg.budget.limit || 0;
-            CONFIG.tokenBudgetUsed = msg.budget.used || 0;
-            CONFIG.tokenBudgetAction = msg.budget.action || 'Block';
-            console.log(`[cc-companion] Token 预算: ${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit} (${CONFIG.tokenBudgetAction})`);
+            RuntimeState.tokenBudgetLimit = msg.budget.limit || 0;
+            RuntimeState.tokenBudgetUsed = msg.budget.used || 0;
+            RuntimeState.tokenBudgetAction = msg.budget.action || 'Block';
+            console.log(`[cc-companion] Token 预算: ${RuntimeState.tokenBudgetUsed}/${RuntimeState.tokenBudgetLimit} (${RuntimeState.tokenBudgetAction})`);
+          }
+          // 解析思考模式（来自 Mod 设置，通过 hello 传递）
+          const thinking = (msg as any).thinking;
+          if (thinking?.mode && thinking.mode !== 'Default') {
+            RuntimeState.thinkingMode = thinking.mode.toLowerCase();
+            if (thinking.effort) RuntimeState.thinkingEffort = thinking.effort;
+            if (thinking.tokens) RuntimeState.maxThinkingTokens = thinking.tokens;
+            console.log(`[cc-companion] 思考模式(Mod): ${RuntimeState.thinkingMode}${thinking.effort ? ' effort=' + thinking.effort : ''}${thinking.tokens ? ' tokens=' + thinking.tokens : ''}`);
           }
           console.log(`[cc-companion] 握手完成: ${msg.client?.name || 'unknown'} v${msg.client?.version || '?'}`);
           sendJson(ws, { type: 'hello-ok' });
           // 广播 Token 预算状态给聊天页面
           broadcast(JSON.stringify({
             type: 'budget-status',
-            limit: CONFIG.tokenBudgetLimit,
-            used: CONFIG.tokenBudgetUsed,
-            action: CONFIG.tokenBudgetAction,
+            limit: RuntimeState.tokenBudgetLimit,
+            used: RuntimeState.tokenBudgetUsed,
+            action: RuntimeState.tokenBudgetAction,
           }));
+          // 推送缓存的 SDK init 数据给新客户端（Web 页面）
+          if (RuntimeState.lastInitData) {
+            sendJson(ws, RuntimeState.lastInitData);
+          }
           onStatusChange?.({ status: 'connected', client: msg.client });
           break;
 
@@ -137,6 +151,17 @@ export function createWSServer(
           console.log('[cc-companion] 收到中断请求');
           onAbort?.();
           sendJson(ws, { type: 'aborted' });
+          break;
+
+        case 'set-thinking':
+          if (!authenticated) { sendJson(ws, { type: 'error', error: 'not authenticated' }); return; }
+          {
+            const mode = (msg as any).mode || 'default';
+            const effort = (msg as any).effort;
+            const tokens = (msg as any).tokens;
+            console.log(`[cc-companion] 思考模式切换: ${mode}${effort ? ' effort=' + effort : ''}${tokens ? ' tokens=' + tokens : ''}`);
+            onSetThinking?.(mode, effort, tokens);
+          }
           break;
 
         default:

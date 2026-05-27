@@ -179,6 +179,12 @@ namespace RimWorldMCP
                     limit = settings.TokenBudgetLimit,
                     used = TokenUsageTracker.TotalAllTokens,
                     action = settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Block ? "Block" : "Warn"
+                },
+                thinking = new
+                {
+                    mode = settings.CCBThinkingMode.ToString(),
+                    effort = settings.CCBThinkingEffort,
+                    tokens = settings.CCBMaxThinkingTokens
                 }
             });
         }

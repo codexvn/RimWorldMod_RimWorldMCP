@@ -62,7 +62,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
   #app {
     display: grid;
-    grid-template-columns: 90px 1fr minmax(420px, 720px) 1fr 200px;
+    grid-template-columns: 90px 1fr minmax(400px, 700px) 1fr 220px;
     height: 100vh; width: 100%;
   }
   #sidebar { grid-column: 1; }
@@ -172,6 +172,45 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
   .hdr-budget .budget-bar.warning { background: var(--amber); }
   .hdr-budget .budget-bar.danger { background: var(--red); }
+  .think-dd {
+    position: relative; margin-left: auto; font-size: 11px;
+  }
+  .think-dd .dd-btn {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 8px; border-radius: 4px;
+    background: var(--surface); color: var(--text);
+    cursor: pointer; white-space: nowrap;
+  }
+  .think-dd .dd-btn:hover { background: var(--hover); }
+  .think-dd .dd-menu {
+    display: none; position: absolute; right: 0; top: 100%; z-index: 50;
+    margin-top: 2px; background: var(--card);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    padding: 4px 0; min-width: 130px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .think-dd.open .dd-menu { display: block; }
+  .think-dd .dd-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; cursor: pointer; color: var(--text);
+    white-space: nowrap;
+  }
+  .think-dd .dd-item:hover { background: var(--surface); }
+  .think-dd .dd-item .dd-check { width: 14px; color: var(--green); font-weight: 700; visibility: hidden; }
+  .think-dd .dd-item.on .dd-check { visibility: visible; }
+  .think-dd .dd-sub {
+    display: none; padding: 2px 0 2px 20px; font-size: 10px;
+  }
+  .think-dd .dd-item.selected + .dd-sub { display: block; }
+  .think-dd .dd-sub span {
+    display: inline-block; padding: 2px 6px; margin: 1px 2px; border-radius: 3px;
+    cursor: pointer; color: var(--muted);
+  }
+  .think-dd .dd-sub span:hover { color: var(--text); background: var(--hover); }
+  .think-dd .dd-sub span.on { color: var(--blue); font-weight: 500; }
+  .think-dd .dd-sub input {
+    width: 60px; padding: 2px 4px; border: 1px solid var(--border-strong);
+    border-radius: 3px; font-family: var(--mono); font-size: 10px;
+  }
 
   /* ===== TODO Panel (rightbar) ===== */
   #todo-panel-header {
@@ -195,9 +234,37 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   .todo-item .todo-prio.p-high { color: var(--red); }
   .todo-item .todo-prio.p-mid { color: var(--amber); }
   .todo-item .todo-prio.p-low { color: var(--muted); }
-  .todo-item .todo-desc { flex: 1; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .todo-item .todo-desc { flex: 1; color: var(--text); word-break: break-all; overflow-wrap: break-word; }
   .todo-item.done .todo-desc { color: var(--muted); text-decoration: line-through; }
   .todo-item .todo-id { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
+  /* SDKTasks */
+  #sdk-tasks-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px; font-weight: 600;
+    position: sticky; top: 0; z-index: 1;
+  }
+  #sdk-tasks-header .task-count { color: var(--blue); }
+  #sdk-task-list { padding: 4px 0; }
+  .sdk-task-item {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 10px; font-size: 11px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sdk-task-item:last-child { border-bottom: none; }
+  .sdk-task-item .task-status {
+    flex-shrink: 0; font-size: 10px; font-weight: 500; width: 28px; text-align: center;
+  }
+  .sdk-task-item .task-status.pending { color: var(--muted); }
+  .sdk-task-item .task-status.in_progress { color: var(--amber); }
+  .sdk-task-item .task-status.completed { color: var(--green); }
+  .sdk-task-item .task-subject { flex: 1; color: var(--text); word-break: break-all; overflow-wrap: break-word; }
+  .sdk-task-item.completed .task-subject { color: var(--muted); text-decoration: line-through; }
 
   /* ===== Info Overlay ===== */
   #info-overlay {
@@ -283,6 +350,36 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     color: var(--text);
   }
 
+  /* --- SUB-AGENT --- */
+  .msg-agent.sub-agent { margin-left: 12px; }
+  .msg-agent.sub-agent .msg-label { color: #8b5cf0; }
+  .msg-agent.sub-agent .msg-body {
+    border-left-color: rgba(139,92,240,0.22);
+  }
+
+  /* --- SUB-AGENT GROUP --- */
+  .sa-group {
+    align-self: stretch; margin: 4px 0 4px 8px;
+    border: 1px solid rgba(139,92,240,0.15);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .sa-group-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    background: rgba(139,92,240,0.04);
+    cursor: pointer; user-select: none;
+    font-size: 11px; color: #8b5cf0; font-weight: 500;
+  }
+  .sa-group-header:hover { background: rgba(139,92,240,0.07); }
+  .sa-group-header .tgl-arrow { width: 10px; text-align: center; }
+  .sa-group-header .sa-count { font-size: 10px; color: var(--muted); margin-left: auto; }
+  .sa-group-body {
+    padding: 6px 6px 4px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .sa-group.collapsed .sa-group-body { display: none; }
+
   /* --- THINKING --- */
   .msg-thinking {
     align-self: stretch; margin: 2px 0;
@@ -352,6 +449,20 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     white-space: nowrap;
   }
   .msg-tool .msg-header .tool-timing.error { color: var(--red); }
+  .msg-tool .msg-header .tool-status {
+    font-size: 10px; font-weight: 500;
+    margin-left: 6px; white-space: nowrap;
+  }
+  .msg-tool .msg-header .tool-status.running { color: var(--amber); }
+  .msg-tool .msg-header .tool-status.done { color: var(--green); }
+  .msg-tool .msg-header .tool-status.error { color: var(--red); }
+  .tool-result-text {
+    font-family: var(--mono); font-size: 12px; line-height: 1.5;
+    padding: 6px 0; color: var(--text);
+    white-space: pre-wrap; word-break: break-all;
+    border-top: 1px solid var(--border);
+  }
+  .tool-result-text.truncated { max-height: 180px; overflow: hidden; }
   .msg-tool .msg-body {
     background: var(--card);
     border: 1px solid var(--border-strong);
@@ -369,7 +480,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     max-height: 120px; overflow: hidden; position: relative;
     transition: max-height 0.25s ease;
   }
-  .tool-output-wrap.expanded { max-height: none; }
+  .tool-output-wrap.expanded { max-height: 360px; overflow-y: auto; }
   .tool-output-wrap.truncated::after {
     content: ""; position: absolute; bottom: 0; left: 0; right: 0;
     height: 32px;
@@ -463,6 +574,16 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     background: var(--blue); border-color: var(--blue); color: #fff;
   }
   #send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  #abort-btn {
+    background: none; border: 1px solid rgba(217,61,61,0.3);
+    border-radius: 8px; color: var(--red); cursor: pointer;
+    padding: 7px 12px; font-size: 12px; font-weight: 500;
+    transition: all 0.15s; flex-shrink: 0;
+    opacity: 0.3;
+  }
+  #abort-btn.enabled { opacity: 1; }
+  #abort-btn.enabled:hover { background: var(--red); border-color: var(--red); color: #fff; }
+  #abort-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -488,6 +609,21 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     <div class="header-meta" id="header-meta">
       <span class="hdr-budget" id="hdr-budget">Token --</span>
       <span class="meta-item">Tools <span class="meta-val" id="meta-tools">0</span></span>
+      <div class="think-dd" id="think-dd">
+        <span class="dd-btn" id="think-label">💭 默认 ▾</span>
+        <div class="dd-menu" id="think-menu">
+          <div class="dd-item" data-m="default">默认<span class="dd-check">✓</span></div>
+          <div class="dd-item" data-m="disabled">禁用思考<span class="dd-check">✓</span></div>
+          <div class="dd-item" data-m="adaptive">引导深度<span class="dd-check">✓</span></div>
+          <div class="dd-sub" id="effort-sub">
+            <span data-e="medium">中</span><span data-e="high">高</span><span data-e="xhigh">极高</span><span data-e="max">最大</span>
+          </div>
+          <div class="dd-item" data-m="fixed">固定 Token<span class="dd-check">✓</span></div>
+          <div class="dd-sub" id="token-sub">
+            <input id="token-input" type="number" min="1000" max="32000" step="1000" value="8000" placeholder="Token数">
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -518,6 +654,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     <span class="prompt">&gt;</span>
     <textarea id="chat-input" placeholder="输入消息..." rows="1"></textarea>
     <button id="send-btn" disabled>Send</button>
+    <button id="abort-btn" title="中断当前 AI 回复">中断</button>
   </div>
   </div><!-- /#main -->
 
@@ -528,6 +665,11 @@ export function getChatPageHtml(config: ChatPageConfig): string {
       <span class="todo-count" id="todo-count">0</span>
     </div>
     <div id="todo-list"></div>
+    <div id="sdk-tasks-header">
+      <span>&#9776; AI 计划</span>
+      <span class="task-count" id="task-count">0</span>
+    </div>
+    <div id="sdk-task-list"></div>
   </div>
 
 </div>
@@ -540,6 +682,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   const messagesEl = document.getElementById('messages');
   const inputEl = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
+  const abortBtn = document.getElementById('abort-btn');
   const statusDot = document.getElementById('status-dot');
   const colonyNameEl = document.getElementById('colony-name');
   const newMsgPill = document.getElementById('new-msg-pill');
@@ -550,9 +693,99 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   // Header meta
   const hdrBudget = document.getElementById('hdr-budget');
   const metaTools = document.getElementById('meta-tools');
+  const thinkDd = document.getElementById('think-dd');
+  const thinkLabel = document.getElementById('think-label');
+  const thinkMenu = document.getElementById('think-menu');
+  const effortSub = document.getElementById('effort-sub');
+  const tokenSub = document.getElementById('token-sub');
+  const tokenInput = document.getElementById('token-input');
+  var currentMode = 'default';
+  var currentEffort = 'medium';
+  var currentTokens = 8000;
   var toolCount = 0;
 
+  // 按钮：开关菜单
+  thinkLabel.addEventListener('click', function(e) { e.stopPropagation(); thinkDd.classList.toggle('open'); });
+  document.addEventListener('click', function() { thinkDd.classList.remove('open'); });
+
+  // 下拉项点击
+  thinkMenu.addEventListener('click', function(e) {
+    var item = e.target.closest('.dd-item');
+    if (!item) return;
+    e.stopPropagation();
+    var m = item.dataset.m;
+    currentMode = m;
+    // 更新勾选
+    var items = thinkMenu.querySelectorAll('.dd-item');
+    for (var j = 0; j < items.length; j++) { items[j].classList.remove('on', 'selected'); }
+    item.classList.add('on', 'selected');
+    // 子面板
+    effortSub.style.display = m === 'adaptive' ? 'block' : 'none';
+    tokenSub.style.display = m === 'fixed' ? 'block' : 'none';
+    // 标签
+    var labels = { default: '默认', disabled: '禁用', adaptive: '引导:' + currentEffort, fixed: '固定' + (currentTokens/1000) + 'K' };
+    thinkLabel.innerHTML = '💭 ' + (labels[m] || m) + ' ▾';
+    // 发送
+  });
+
+  // effort 子选项
+  effortSub.addEventListener('click', function(e) {
+    var t = e.target;
+    if (!t.dataset.e) return;
+    var all = effortSub.querySelectorAll('span');
+    for (var j = 0; j < all.length; j++) all[j].classList.remove('on');
+    t.classList.add('on');
+    currentEffort = t.dataset.e;
+    thinkLabel.innerHTML = '💭 引导:' + currentEffort + ' ▾';
+  });
+  effortSub.querySelector('span[data-e="medium"]').classList.add('on');
+
+  // token 输入
+  tokenInput.addEventListener('change', function() {
+    currentTokens = parseInt(tokenInput.value) || 8000;
+    thinkLabel.innerHTML = '💭 固定' + (currentTokens/1000) + 'K ▾';
+  });
+
   function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // SDKTasks
+  var sdkTasks = [];
+  var taskCountEl = document.getElementById('task-count');
+  var sdkTaskListEl = document.getElementById('sdk-task-list');
+
+  function trackSdkTask(name, input) {
+    if (!input) return;
+    if (name === 'TaskCreate') {
+      var subj = input.subject || input.activeForm || '?';
+      sdkTasks.push({ id: sdkTasks.length + 1, subject: subj, status: 'pending' });
+    } else if (name === 'TaskUpdate') {
+      var tid = input.taskId;
+      var st = input.status;
+      for (var i = 0; i < sdkTasks.length; i++) {
+        if (String(sdkTasks[i].id) === String(tid)) { sdkTasks[i].status = st; break; }
+      }
+    }
+    renderSdkTasks();
+  }
+
+  function renderSdkTasks() {
+    var pending = 0;
+    for (var i = 0; i < sdkTasks.length; i++) {
+      if (sdkTasks[i].status !== 'completed') pending++;
+    }
+    taskCountEl.textContent = pending;
+    sdkTaskListEl.innerHTML = '';
+    for (var i = 0; i < sdkTasks.length; i++) {
+      var t = sdkTasks[i];
+      var div = document.createElement('div');
+      div.className = 'sdk-task-item' + (t.status === 'completed' ? ' completed' : '');
+      var icon = t.status === 'in_progress' ? '进行' : t.status === 'completed' ? '完成' : '待办';
+      var cls = 'task-status ' + (t.status === 'in_progress' ? 'in_progress' : t.status === 'completed' ? 'completed' : 'pending');
+      div.innerHTML = '<span class="' + cls + '">' + icon + '</span>'
+        + '<span class="task-subject" title="' + esc(t.subject) + '">' + esc(t.subject) + '</span>';
+      sdkTaskListEl.appendChild(div);
+    }
+  }
 
   const todoListEl = document.getElementById('todo-list');
   const todoCountEl = document.getElementById('todo-count');
@@ -572,9 +805,56 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   let reconnectDelay = RECONNECT_BASE;
   let connected = false;
   var toolStartTimes = {};
+  var toolPanels = {};    // tool_use_id → panel DOM
   var readingEl = null;
   var thinkingPanels = {};     // msgIndex -> panel element (streaming)
-  var currentThinkingIdx = -1; // index of the currently streaming thinking panel
+  var currentThinkingIdx = -1;
+  var currentStreamAgent = '';
+  var hasStreamedText = false;
+  var streamedIndices = {};  // stream_event 已渲染的 index → true，assistant 中跳过
+  var discarding = false;   // 中断后丢弃中间消息
+  var subAgentGroups = {};   // agentType -> { panel, body, count }
+
+  // ===== Sub-agent group =====
+  function getSubAgentGroup(agentType) {
+    var key = agentType.toLowerCase();
+    if (subAgentGroups[key]) {
+      subAgentGroups[key].count++;
+      var hdr = subAgentGroups[key].panel.querySelector('.sa-count');
+      if (hdr) hdr.textContent = subAgentGroups[key].count + ' 条';
+      return subAgentGroups[key];
+    }
+    var panel = document.createElement('div');
+    panel.className = 'sa-group';
+    var header = document.createElement('div');
+    header.className = 'sa-group-header';
+    var arrow = document.createElement('span');
+    arrow.className = 'tgl-arrow';
+    arrow.textContent = '▾';
+    header.appendChild(arrow);
+    var label = document.createElement('span');
+    label.textContent = '子代理 · ' + (agentType || 'sub');
+    header.appendChild(label);
+    var count = document.createElement('span');
+    count.className = 'sa-count';
+    count.textContent = '1 条';
+    header.appendChild(count);
+    header.addEventListener('click', function() {
+      var collapsed = panel.classList.toggle('collapsed');
+      arrow.textContent = collapsed ? '▸' : '▾';
+      checkScroll();
+    });
+    panel.appendChild(header);
+    var body = document.createElement('div');
+    body.className = 'sa-group-body';
+    panel.appendChild(body);
+    // 将匹配的 Agent tool_use 面板移入分组顶部
+    var tp = toolPanels[agentType];
+    if (tp) { tp.remove(); body.appendChild(tp); }
+    messagesEl.appendChild(panel);
+    subAgentGroups[key] = { panel: panel, body: body, count: 1, lastBody: null };
+    return subAgentGroups[key];
+  }
 
   // ===== Thinking panel helpers =====
   function createThinkingPanel(text, idx) {
@@ -609,6 +889,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     if (label) label.textContent = '思考过程';
     var cursor = panel.querySelector('.th-cursor');
     if (cursor) cursor.style.display = 'none';
+    panel.classList.add('collapsed');
   }
 
   function appendThinkingDelta(panel, delta) {
@@ -739,12 +1020,22 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 
   // ===== Message handling =====
   function handleMessage(msg) {
+    // 历史加载期间缓冲 WS 消息，防止乱序
+    if (loadingHistory) { pendingWs.push(msg); return; }
+    // 中断后丢弃中间消息直到 result
+    if (discarding && msg.type !== 'result') return;
+    // assistant 消息按 uuid 去重
+    if (msg.type === 'assistant' && msg.uuid) {
+      if (seenUuids[msg.uuid]) return;
+      seenUuids[msg.uuid] = true;
+    }
     switch (msg.type) {
       case 'hello-ok':
         connected = true;
         setStatus('connected');
         sendBtn.disabled = false;
         hideReading();
+        loadHistory();
         break;
 
       case 'colony-stats':
@@ -764,8 +1055,9 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         const isAssistant = msg.type === 'assistant';
         const content = msg.message?.content;
         if (!content) return;
-        if (isAssistant) hideReading();
-        addMessage(isAssistant, content, msg.agent_type);
+        if (isAssistant) { hideReading(); setAbort(true); }
+        var saType = msg.agent_type || (msg.parent_tool_use_id ? 'sub:' + msg.parent_tool_use_id.slice(0, 8) : '');
+        addMessage(isAssistant, content, saType);
         break;
       }
 
@@ -781,6 +1073,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
       }
 
       case 'stream_event': {
+        setAbort(true);
         var evt = msg.event || {};
         var evtType = evt.type;
         // content_block_start
@@ -788,10 +1081,16 @@ export function getChatPageHtml(config: ChatPageConfig): string {
           var block = evt.content_block || {};
           var idx = evt.index;
           if (block.type === 'thinking') {
+            streamedIndices[idx] = true;
             var panel = createThinkingPanel('', idx);
+            if (currentStreamAgent) {
+              panel.remove();
+              getSubAgentGroup(currentStreamAgent).body.appendChild(panel);
+            }
             thinkingPanels[idx] = panel;
             currentThinkingIdx = idx;
           } else if (block.type === 'text') {
+            hasStreamedText = true;
             // thinking done, finalize previous thinking panel
             if (currentThinkingIdx >= 0) {
               finalizeThinkingPanel(thinkingPanels[currentThinkingIdx]);
@@ -805,8 +1104,13 @@ export function getChatPageHtml(config: ChatPageConfig): string {
             }
             toolCount++;
             updateToolCount();
+            trackSdkTask(block.name, block.input);
             toolStartTimes[block.id] = Date.now();
-            makeToolUsePanel(block.name, block.input);
+            var tup3 = makeToolUsePanel(block.name, block.input, block.id);
+            if (currentStreamAgent) {
+              var sg = getSubAgentGroup(currentStreamAgent);
+              tup3.remove(); sg.body.appendChild(tup3);
+            }
             lastAgentBody = null;
           }
         }
@@ -823,25 +1127,38 @@ export function getChatPageHtml(config: ChatPageConfig): string {
               currentThinkingIdx = -1;
             }
             hideReading();
+            hasStreamedText = true;
             var textContent = delta.text || '';
-            if (lastAgentBody) {
-              lastAgentBody.textContent += textContent;
+            var sg2 = currentStreamAgent ? subAgentGroups[currentStreamAgent.toLowerCase()] : null;
+            var activeBody = sg2 ? sg2.lastBody : lastAgentBody;
+            if (activeBody) {
+              activeBody.textContent += textContent;
               checkScroll();
             } else {
-              var p = makeAgentPanel(textContent, null);
-              lastAgentBody = p.querySelector('.msg-body');
+              var subLabel = currentStreamAgent || null;
+              var p = makeAgentPanel(textContent, subLabel);
+              if (sg2) { p.remove(); sg2.body.appendChild(p); }
+              var newBody = p.querySelector('.msg-body');
+              if (sg2) sg2.lastBody = newBody; else lastAgentBody = newBody;
             }
           }
         }
         // message_start
         else if (evtType === 'message_start') {
           lastAgentBody = null;
+          hasStreamedText = false;
+          streamedIndices = {};
+          currentStreamAgent = (msg.parent_tool_use_id || msg.agent_type || evt.message?.agent_type || '');
         }
         // message_delta — usage info only, ignore
         break;
       }
 
       case 'result': {
+        discarding = false;
+        abortBtn.disabled = false;
+        abortBtn.textContent = '中断';
+        setAbort(false);
         const sub = msg.subtype || 'unknown';
         const label = sub === 'success' ? '✓ Done'
                      : sub === 'aborted' ? '⏹ Aborted'
@@ -907,7 +1224,26 @@ export function getChatPageHtml(config: ChatPageConfig): string {
 
     var label = document.createElement('div');
     label.className = 'msg-label';
-    label.textContent = agentType ? agentType.toUpperCase() : 'AGENT';
+    if (agentType) {
+      label.style.cursor = 'pointer';
+      var arrow = document.createElement('span');
+      arrow.className = 'tgl-arrow';
+      arrow.textContent = '▾';
+      label.appendChild(arrow);
+      var lt = document.createElement('span');
+      lt.textContent = agentType.toUpperCase();
+      label.appendChild(lt);
+      // header click toggles body
+      label.addEventListener('click', function() {
+        var b = panel.querySelector('.msg-body');
+        var hidden = b.style.display === 'none';
+        b.style.display = hidden ? '' : 'none';
+        arrow.textContent = hidden ? '▾' : '▸';
+        checkScroll();
+      });
+    } else {
+      label.textContent = 'AGENT';
+    }
     panel.appendChild(label);
 
     var body = document.createElement('div');
@@ -915,14 +1251,33 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     body.textContent = text;
     panel.appendChild(body);
 
-    messagesEl.appendChild(panel);
+    if (agentType) {
+      var group = getSubAgentGroup(agentType);
+      group.body.appendChild(panel);
+    } else {
+      messagesEl.appendChild(panel);
+    }
     checkScroll();
     return panel;
   }
 
-  function makeToolUsePanel(name, input) {
+  function makeToolUsePanel(name, input, toolId) {
+    var argsStr = '';
+    try { argsStr = JSON.stringify(input, null, 2); } catch(e) { argsStr = String(input || ''); }
+    // 已有同 toolId 的面板 → 更新 input 内容
+    if (toolId && toolPanels[toolId]) {
+      var existing = toolPanels[toolId];
+      var eb = existing.querySelector('.msg-body');
+      if (eb && argsStr) {
+        var ew = eb.querySelector('.tool-output-wrap') || eb;
+        if (argsStr.length > 120) ew.classList.add('truncated');
+        ew.textContent = argsStr;
+      }
+      return existing;
+    }
     var panel = document.createElement('div');
     panel.className = 'msg msg-tool';
+    if (toolId) { panel.dataset.toolId = toolId; toolPanels[toolId] = panel; }
 
     var header = document.createElement('div');
     header.className = 'msg-header';
@@ -943,22 +1298,26 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     hname.textContent = name || '?';
     header.appendChild(hname);
 
+    var statusEl = document.createElement('span');
+    statusEl.className = 'tool-status running';
+    statusEl.textContent = '执行中...';
+    header.appendChild(statusEl);
+
     panel.appendChild(header);
 
-    if (input) {
-      var body = document.createElement('div');
-      body.className = 'msg-body';
-      body.style.display = 'none';
-      var argsStr = '';
-      try { argsStr = JSON.stringify(input, null, 2); } catch(e) { argsStr = String(input || ''); }
-
+    // 始终创建 body（input 为空时占位，等后续 assistant 消息更新）
+    var body = document.createElement('div');
+    body.className = 'msg-body';
+    body.style.display = 'none';
+    panel.appendChild(body);
+    var hasContent = argsStr && argsStr !== '{}';
+    if (hasContent) {
       var wrap = document.createElement('div');
       wrap.className = 'tool-output-wrap';
       if (argsStr.length > 120) wrap.classList.add('truncated');
       wrap.textContent = argsStr || '(no args)';
 
       body.appendChild(wrap);
-      panel.appendChild(body);
 
       // Expand button for long content
       var expandBtn = null;
@@ -980,19 +1339,64 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         panel.appendChild(expandBtn);
       }
 
-      // Header click toggles body + arrow
-      header.addEventListener('click', function() {
-        var hidden = body.style.display === 'none';
-        body.style.display = hidden ? '' : 'none';
-        if (expandBtn) expandBtn.style.display = hidden ? '' : 'none';
-        arrow.textContent = hidden ? '▾' : '▸';
-        checkScroll();
-      });
-    }
+    } // if (hasContent)
+
+    // 始终加 click handler（body 永存，后续可能更新内容）
+    header.addEventListener('click', function() {
+      var bd = panel.querySelector('.msg-body');
+      if (!bd) return;
+      var hidden = bd.style.display === 'none';
+      bd.style.display = hidden ? '' : 'none';
+      var a = panel.querySelector('.tgl-arrow');
+      if (a) a.textContent = hidden ? '▾' : '▸';
+      var eb2 = panel.querySelector('.tool-expand-btn');
+      if (eb2) eb2.style.display = hidden ? '' : 'none';
+      checkScroll();
+    });
 
     messagesEl.appendChild(panel);
     checkScroll();
     return panel;
+  }
+
+  function applyToolResult(block, timing) {
+    var toolId = block.tool_use_id || block.id;
+    var panel = toolPanels[toolId];
+    if (panel) {
+      // 更新状态
+      var statusEl = panel.querySelector('.tool-status');
+      if (statusEl) {
+        statusEl.className = 'tool-status ' + (block.is_error ? 'error' : 'done');
+        statusEl.textContent = block.is_error ? '✗ 失败' : '✓ ' + (timing ? timing + 'ms' : '完成');
+      }
+      // 追加结果到 body
+      var resultText = '';
+      if (typeof block.content === 'string') resultText = block.content;
+      else if (Array.isArray(block.content)) resultText = block.content.map(function(c) { return c.text || ''; }).join('\\\\n');
+      if (resultText) {
+        var body = panel.querySelector('.msg-body');
+        if (!body) {
+          body = document.createElement('div');
+          body.className = 'msg-body';
+          body.style.display = 'none';
+          panel.appendChild(body);
+        }
+        var wrap = document.createElement('div');
+        wrap.className = 'tool-result-text';
+        if (resultText.length > 120) wrap.classList.add('truncated');
+        if (block.is_error) wrap.style.color = 'var(--red)';
+        wrap.textContent = resultText;
+        body.appendChild(wrap);
+      }
+      // 展开面板
+      var arrow = panel.querySelector('.tgl-arrow');
+      if (arrow) arrow.textContent = '▾';
+      var bd = panel.querySelector('.msg-body');
+      if (bd) bd.style.display = '';
+    } else {
+      // 没有匹配的工具面板 → 独立渲染（历史回放场景）
+      makeToolResultPanel(block, timing);
+    }
   }
 
   function makeToolResultPanel(block, timing) {
@@ -1030,7 +1434,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     // Extract content
     var content = '';
     if (typeof block.content === 'string') content = block.content;
-    else if (Array.isArray(block.content)) content = block.content.map(function(c) { return c.text || ''; }).join('\\n');
+    else if (Array.isArray(block.content)) content = block.content.map(function(c) { return c.text || ''; }).join(String.fromCharCode(10));
     else if (block.content) { try { content = JSON.stringify(block.content, null, 2); } catch(e) { content = String(block.content); } }
 
     if (content) {
@@ -1098,27 +1502,32 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         lastAgentBody = null;
       }
     } else if (Array.isArray(content)) {
+      var saTarget = agentType ? getSubAgentGroup(agentType).body : null;
       for (var i = 0; i < content.length; i++) {
         var block = content[i];
         if (block.type === 'text') {
-          // Consecutive text blocks merge into the same agent panel
+          if (hasStreamedText) continue;
           var lastMsg = messagesEl.lastElementChild;
           if (lastMsg && lastMsg.classList.contains('msg-agent') && !lastMsg.classList.contains('sub-agent') && lastAgentBody) {
             lastAgentBody.textContent += '\\n' + (block.text || '');
           } else {
-            var p = makeAgentPanel(block.text || '', null);
-            lastAgentBody = p.querySelector('.msg-body');
+            var tp = makeAgentPanel(block.text || '', agentType || null);
+            lastAgentBody = tp.querySelector('.msg-body');
           }
         } else if (block.type === 'thinking') {
+          if (streamedIndices[i]) continue;
           var thText = block.thinking || '';
           if (thText) {
             var thPanel = createThinkingPanel(thText, i);
+            if (saTarget) { thPanel.remove(); saTarget.appendChild(thPanel); }
             finalizeThinkingPanel(thPanel);
             lastAgentBody = null;
           }
         } else if (block.type === 'tool_use') {
+          trackSdkTask(block.name, block.input);
           toolStartTimes[block.id] = Date.now();
-          makeToolUsePanel(block.name, block.input);
+          var tup2 = makeToolUsePanel(block.name, block.input, block.id);
+          if (saTarget) { tup2.remove(); saTarget.appendChild(tup2); }
           lastAgentBody = null;
         } else if (block.type === 'tool_result') {
           var elapsed = null;
@@ -1126,7 +1535,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
             elapsed = Date.now() - toolStartTimes[block.id];
             delete toolStartTimes[block.id];
           }
-          makeToolResultPanel(block, elapsed);
+          applyToolResult(block, elapsed);
           lastAgentBody = null;
         }
       }
@@ -1163,11 +1572,23 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   var userScrolledUp = false;
 
   function checkScroll() {
-    const threshold = 80;
-    const diff = messagesEl.scrollHeight - messagesEl.clientHeight - messagesEl.scrollTop;
-    userScrolledUp = diff > threshold;
-    newMsgPill.style.display = userScrolledUp ? 'block' : 'none';
-    if (!userScrolledUp) messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (userScrolledUp) {
+      // 已脱离磁吸：只在用户手动滚到底时重新吸附（距底部 < 4px）
+      var diff2 = messagesEl.scrollHeight - messagesEl.clientHeight - messagesEl.scrollTop;
+      if (diff2 < 4) {
+        userScrolledUp = false;
+        newMsgPill.style.display = 'none';
+      }
+      return;
+    }
+    // 磁吸模式：检测用户是否手动滚离底部
+    var diff = messagesEl.scrollHeight - messagesEl.clientHeight - messagesEl.scrollTop;
+    if (diff > 40) {
+      userScrolledUp = true;
+      newMsgPill.style.display = 'block';
+    } else {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
   }
 
   function scrollToBottom() {
@@ -1178,13 +1599,73 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   window.scrollToBottom = scrollToBottom;
   messagesEl.addEventListener('scroll', checkScroll);
 
+  // ===== History =====
+  var loadingHistory = false;
+  var pendingWs = [];
+  var seenUuids = {};
+
+  function loadHistory() {
+    if (loadingHistory) return;
+    loadingHistory = true;
+    fetch('/history?n=30').then(function(r) { return r.json(); }).then(function(msgs) {
+      messagesEl.innerHTML = '';
+      toolCount = 0; sdkTasks = []; updateToolCount(); renderSdkTasks();
+      if (!msgs || !msgs.length) return;
+      for (var i = 0; i < msgs.length; i++) {
+        var msg = msgs[i];
+        if (msg.type === 'assistant' || msg.type === 'user') {
+          if (msg.uuid) seenUuids[msg.uuid] = true;
+          addMsgSimple(msg);
+        } else if (msg.type === 'result') {
+          var cls = msg.subtype === 'success' ? 'ok' : msg.subtype === 'aborted' ? 'warn' : 'error';
+          var label = msg.subtype === 'success' ? '✓ Done' : msg.subtype === 'aborted' ? '⏹ Aborted' : '✗ Failed';
+          addResult(cls, label);
+        }
+      }
+      checkScroll();
+    }).catch(function(e) { console.error('[history] fetch 失败', e); }).then(function() {
+      loadingHistory = false;
+      if (pendingWs.length) {
+        var queued = pendingWs.splice(0);
+        for (var k = 0; k < queued.length; k++) handleMessage(queued[k]);
+      }
+    });
+  }
+
+  function addMsgSimple(msg) {
+    var isAssistant = msg.type === 'assistant';
+    var content = msg.message?.content;
+    if (!content) return;
+    if (typeof content === 'string') {
+      if (isAssistant) makeAgentPanel(content, msg.agent_type);
+      else makeUserPanel(content);
+    } else if (Array.isArray(content)) {
+      for (var j = 0; j < content.length; j++) {
+        var block = content[j];
+        if (block.type === 'text') {
+          if (isAssistant) makeAgentPanel(block.text || '', null);
+          else makeUserPanel(block.text || '');
+        } else if (block.type === 'thinking') {
+          var thPanel = createThinkingPanel(block.thinking || '', j);
+          finalizeThinkingPanel(thPanel);
+        } else if (block.type === 'tool_use') {
+          makeToolUsePanel(block.name, block.input, block.id);
+        } else if (block.type === 'tool_result') {
+          applyToolResult(block, null);
+        }
+      }
+    }
+    checkScroll();
+  }
+
   // ===== Send =====
   function sendMessage() {
     const text = inputEl.value.trim();
     if (!text || !connected) return;
     ws.send(JSON.stringify({
       type: 'event', event: 'chat',
-      payload: { text: text }
+      payload: { text: text },
+      thinking: { mode: currentMode, effort: currentEffort, tokens: currentTokens },
     }));
     inputEl.value = '';
     adjustHeight();
@@ -1198,6 +1679,25 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
 
   sendBtn.addEventListener('click', sendMessage);
+  abortBtn.addEventListener('click', function() {
+    if (!ws || !connected || discarding) return;
+    ws.send(JSON.stringify({ type: 'abort' }));
+    discarding = true;
+    abortBtn.disabled = true;
+    abortBtn.textContent = '中断中...';
+  });
+
+  function setAbort(enabled) {
+    if (discarding) return; // 中断进行中不改变状态
+    if (enabled) {
+      abortBtn.classList.add('enabled');
+      abortBtn.disabled = false;
+      abortBtn.textContent = '中断';
+    } else {
+      abortBtn.classList.remove('enabled');
+    }
+  }
+
   inputEl.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

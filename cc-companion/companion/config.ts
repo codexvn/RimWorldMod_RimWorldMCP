@@ -13,13 +13,20 @@ export interface CompanionConfig {
   projectSettingSources: string;
   localSettingSources: string;
   chatPageEnabled: boolean;
-  // Token 预算（由 C# hello 消息动态更新）
-  tokenBudgetLimit: number;
-  tokenBudgetUsed: number;
-  tokenBudgetAction: string;
-  // SDK 解析后的实际模型名（由 resolveSettings 写入）
-  resolvedModel: string;
 }
+
+/** 运行时状态 — 由各模块写入，非启动配置 */
+export const RuntimeState = {
+  tokenBudgetLimit: 0,
+  tokenBudgetUsed: 0,
+  tokenBudgetAction: 'Block' as string,
+  resolvedModel: '' as string,
+  sessionFilePath: '' as string,
+  lastInitData: null as any,
+  thinkingMode: 'default' as string,
+  thinkingEffort: 'medium' as string,
+  maxThinkingTokens: 0 as number,
+};
 
 export const CONFIG: CompanionConfig = {
   host: process.env.CCB_HOST || '127.0.0.1',
@@ -35,10 +42,6 @@ export const CONFIG: CompanionConfig = {
   projectSettingSources: '',
   localSettingSources: '',
   chatPageEnabled: process.env.CCB_NO_CHAT_PAGE ? false : true,
-  tokenBudgetLimit: 0,
-  tokenBudgetUsed: 0,
-  tokenBudgetAction: 'Block',
-  resolvedModel: '',
 };
 
 export function parseArgs(argv: string[]): void {

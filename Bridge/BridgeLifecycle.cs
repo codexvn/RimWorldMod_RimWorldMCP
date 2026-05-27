@@ -1138,16 +1138,18 @@ namespace RimWorldMCP
             // C# 写出 .claude/settings.json（project 层）
             var settingsDir = Path.Combine(baseSessionsDir, ".claude");
             Directory.CreateDirectory(settingsDir);
-            File.WriteAllText(Path.Combine(settingsDir, "settings.json"), template, Encoding.UTF8);
+            File.WriteAllText(Path.Combine(settingsDir, "settings.local.json"), template, Encoding.UTF8);
 
             var args = $"--import tsx/esm companion/companion.ts"
-                + $" --idle-timeout 30000";
+                + $" --idle-timeout 30000"
+                + $" --project-path \"{EscapeJsonForArg(baseSessionsDir)}\"";
             if (!string.IsNullOrEmpty(settings?.CCBModelName))
                 args += $" --model-name \"{EscapeJsonForArg(settings.CCBModelName)}\"";
 
             try
             {
-                McpLog.Info($"[cc] 启动 Companion: {nodeExe} {args}");
+                McpLog.Info($"[cc] pwd: {companionDir}");
+                McpLog.Info($"[cc] 启动命令: {nodeExe} {args}");
                 var psi = new ProcessStartInfo
                 {
                     FileName = nodeExe, Arguments = args, WorkingDirectory = companionDir,
@@ -1159,6 +1161,9 @@ namespace RimWorldMCP
                 psi.Environment["CCB_HOST"] = host;
                 psi.Environment["CCB_PORT"] = port.ToString();
                 if (!string.IsNullOrEmpty(token)) psi.Environment["CCB_AUTH_TOKEN"] = token;
+
+                McpLog.Info($"[cc] 会话目录: {baseSessionsDir}");
+                McpLog.Info($"[cc] 环境: HOST={host} PORT={port} TOKEN={(string.IsNullOrEmpty(token) ? "(无)" : "***")}");
 
                 _companionReady = false;
                 _companionProcess = Process.Start(psi);
@@ -1213,7 +1218,6 @@ namespace RimWorldMCP
             return JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true });
         }
 
-        /// <summary>JSON 字符串转义，使其可安全用于 CLI 双引号参数</summary>
         private static string EscapeJsonForArg(string json)
         {
             return json.Replace("\\", "\\\\").Replace("\"", "\\\"");

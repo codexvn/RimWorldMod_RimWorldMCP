@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using UnityEngine;
 using Verse;
@@ -11,6 +12,14 @@ namespace RimWorldMCP
         public McpModSettings Settings { get; private set; }
         private Vector2 _scrollPos;
         private Vector2 _jsonScrollPos;
+        private bool _showSecrets;
+
+        private static string MaskSecret(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "(空)";
+            if (s.Length <= 4) return "****";
+            return s.Substring(0, 4) + "****" + s.Substring(s.Length - 4);
+        }
 
         public RimWorldMCPMod(ModContentPack content) : base(content)
         {
@@ -25,25 +34,65 @@ namespace RimWorldMCP
             return "RimWorld MCP";
         }
 
-        public override void DoSettingsWindowContents(Rect inRect)
+        // ===== 辅助：绘制分级标题 =====
+        private static void DrawSectionHeader(Listing_Standard listing, string title)
         {
-            float h = 830f;
-            h += Settings.CCBAutoStart ? 70f : 170f;
-            // Token 预算段
-            h += 120f;
-            if (Settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Warn) h += 70f;
-            // 全局用量汇总表
+            listing.Gap(4f);
+            var rect = listing.GetRect(22f);
+            Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 10f, rect.width, 1f),
+                new Color(0.25f, 0.25f, 0.3f, 0.6f));
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.45f, 0.5f, 0.6f, 1f);
+            Widgets.Label(new Rect(rect.x, rect.y + 2f, rect.width, 18f), title);
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+            listing.Gap(2f);
+        }
+
+        // ===== 高度估算 =====
+        private float CalcContentHeight()
+        {
+            float h = 0f;
+
+            // 调试
+            h += 60f;
+            // 工具行为
+            h += 60f;
+            // MCP 服务器
+            h += 100f;
+            // CC 桥接
+            h += 200f;
+            if (Settings.CCBAutoStart) h += 130f;
+            if (Settings.CCBThinkingMode == ThinkingMode.Adaptive) h += 30f;
+            if (Settings.CCBThinkingMode == ThinkingMode.Fixed) h += 40f;
+            h += 180f + 80f; // JSON + 安装按钮
+            // Token 预算
+            h += 140f;
+            if (Settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Warn) h += 50f;
+            // 全局用量
             var globalModels = GlobalModelUsageStore.AllModels;
             h += 60f + globalModels.Count * 22f;
-            if (Settings.OssEnabled) h += 220f;
-            if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
+            // OSS
+            if (Settings.OssEnabled)
+            {
+                h += 260f;
+                if (_showSecrets) h += 80f;
+                if (Settings.OssUseSignedUrl) h += 50f;
+            }
 
+            return h;
+        }
+
+        public override void DoSettingsWindowContents(Rect inRect)
+        {
+            var h = CalcContentHeight();
             Rect viewRect = new Rect(0f, 0f, inRect.width - 16f, h);
             Widgets.BeginScrollView(inRect, ref _scrollPos, viewRect);
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            // ====== 日志级别 ======
+            // ==================== 调试 ====================
+            DrawSectionHeader(listing, "调试");
             listing.Label($"日志级别: {McpModSettings.LogLevelLabels[(int)Settings.LogLevel]}");
             if (listing.ButtonText("切换"))
             {
@@ -52,39 +101,28 @@ namespace RimWorldMCP
                 Settings.LogLevel = (LogLevel)next;
                 McpLog.MinLogLevel = Settings.LogLevel;
             }
-            listing.Gap(24f);
 
-            // ====== 工具行为 ======
-            listing.Label("工具行为");
-            listing.Gap(2f);
+            // ==================== 工具行为 ====================
+            DrawSectionHeader(listing, "工具行为");
             var cameraTools = ToolRegistry.CameraToolNames;
             var tooltip = "AI 调用带坐标参数的工具时，自动将游戏视角平滑移动到目标位置。"
                 + (cameraTools.Count > 0
                     ? $"\n\n支持自动移动的工具（{cameraTools.Count} 个）：\n" + string.Join(", ", cameraTools)
                     : "");
             listing.CheckboxLabeled("调用工具时自动移动视角", ref Settings.AutoMoveCamera, tooltip);
-            listing.Gap(24f);
 
-            // ====== MCP 服务器 ======
-            listing.Label("MCP 服务器");
-            listing.Gap(2f);
-
+            // ==================== MCP 服务器 ====================
+            DrawSectionHeader(listing, "MCP 服务器");
             listing.Label("监听地址 (localhost / 0.0.0.0 / 内网 IP)");
             Settings.McpHost = listing.TextEntry(Settings.McpHost);
-
             listing.Label("端口");
             var portStr = listing.TextEntry(Settings.McpPort.ToString());
             if (int.TryParse(portStr, out int port) && port > 0 && port <= 65535)
                 Settings.McpPort = port;
 
-            listing.Gap(24f);
-
-            // ====== CC 桥接 ======
-            listing.Label("CC 桥接");
-            listing.Gap(2f);
-
+            // ==================== CC 桥接 ====================
+            DrawSectionHeader(listing, "CC 桥接");
             listing.Label("连接地址 (WebSocket)");
-            listing.Label("ws://{host}:{port}，默认连本地 Companion");
             Settings.CCBHost = listing.TextEntry(Settings.CCBHost);
             var ccPortStr = listing.TextEntry(Settings.CCBPort.ToString());
             if (int.TryParse(ccPortStr, out int ccPort) && ccPort > 0 && ccPort <= 65535)
@@ -96,78 +134,112 @@ namespace RimWorldMCP
 
             if (Settings.CCBAutoStart)
             {
-                listing.Label("Token (可选)");
+                listing.Gap(4f);
+                Text.Font = GameFont.Tiny;
+                GUI.color = new Color(0.5f, 0.5f, 0.55f, 1f);
+                listing.Label("  连接认证");
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
                 Settings.CCBAuthToken = listing.TextEntry(Settings.CCBAuthToken);
-                listing.Label("模型 (留空用 settings.json)");
+
+                Text.Font = GameFont.Tiny;
+                GUI.color = new Color(0.5f, 0.5f, 0.55f, 1f);
+                listing.Label("  模型名称");
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
                 Settings.CCBModelName = listing.TextEntry(Settings.CCBModelName);
+
+                listing.Gap(4f);
+                Text.Font = GameFont.Tiny;
+                GUI.color = new Color(0.5f, 0.5f, 0.55f, 1f);
+                listing.Label("  思考模式");
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
+                listing.Label($"    {McpModSettings.ThinkingModeLabels[(int)Settings.CCBThinkingMode]}");
+                if (listing.ButtonText("    切换"))
+                {
+                    var next = (int)Settings.CCBThinkingMode + 1;
+                    if (next >= McpModSettings.ThinkingModeLabels.Length) next = 0;
+                    Settings.CCBThinkingMode = (ThinkingMode)next;
+                }
+                if (Settings.CCBThinkingMode == ThinkingMode.Adaptive)
+                {
+                    var curEffort = Array.IndexOf(McpModSettings.ThinkingEffortLabels, Settings.CCBThinkingEffort);
+                    if (curEffort < 0) curEffort = 1;
+                    listing.Label($"    Effort: {Settings.CCBThinkingEffort}");
+                    if (listing.ButtonText("    切换 Effort"))
+                    {
+                        curEffort = (curEffort + 1) % McpModSettings.ThinkingEffortLabels.Length;
+                        Settings.CCBThinkingEffort = McpModSettings.ThinkingEffortLabels[curEffort];
+                    }
+                }
+                else if (Settings.CCBThinkingMode == ThinkingMode.Fixed)
+                {
+                    listing.Label("    Max Thinking Tokens");
+                    var tokenStr = listing.TextEntry(Settings.CCBMaxThinkingTokens > 0
+                        ? Settings.CCBMaxThinkingTokens.ToString() : "10000");
+                    if (int.TryParse(tokenStr, out var parsedTokens) && parsedTokens > 0)
+                        Settings.CCBMaxThinkingTokens = parsedTokens;
+                }
             }
 
+            // --- 项目设置 JSON ---
             listing.Gap(12f);
-            listing.Label("项目设置 JSON 模板（写出为 .claude/settings.json）");
-            listing.Gap(2f);
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.5f, 0.5f, 0.55f, 1f);
+            listing.Label("  项目设置 JSON 模板 (.claude/settings.local.json)");
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
             var textAreaRect = listing.GetRect(180f);
-            var textContent = new GUIContent(Settings.CCBProjectSettingsJson);
-            var textHeight = GUI.skin.textArea.CalcHeight(textContent, textAreaRect.width);
-            var jsonViewRect = new Rect(0f, 0f, textAreaRect.width - 16f, Mathf.Max(textHeight, 180f));
+            var jsonViewRect = new Rect(0f, 0f, textAreaRect.width - 16f, Mathf.Max(
+                GUI.skin.textArea.CalcHeight(new GUIContent(Settings.CCBProjectSettingsJson), textAreaRect.width), 180f));
             Widgets.BeginScrollView(textAreaRect, ref _jsonScrollPos, jsonViewRect);
             Settings.CCBProjectSettingsJson = GUI.TextArea(jsonViewRect, Settings.CCBProjectSettingsJson);
             Widgets.EndScrollView();
-            listing.Gap(6f);
-            if (listing.ButtonText("复位为默认值"))
-            {
+            if (listing.ButtonText("  复位为默认值"))
                 Settings.CCBProjectSettingsJson = BridgeLifecycle.BuildProjectSettingsJson(Settings.McpPort);
-            }
+
+            // --- 安装状态 ---
             var installed = BridgeLifecycle.IsCompanionInstalled();
             var installing = BridgeLifecycle.IsInstalling;
             var status = BridgeLifecycle.InstallStatus;
-
             if (installing)
             {
-                listing.Label("安装中...");
-                if (!string.IsNullOrEmpty(status))
-                    listing.Label($"  {status}");
+                listing.Label("  安装中...");
+                if (!string.IsNullOrEmpty(status)) listing.Label($"    {status}");
             }
             else if (installed)
             {
-                listing.Label("Claude Code 状态: 已安装");
-                if (listing.ButtonText("重新安装"))
+                listing.Label("  状态: 已安装");
+                if (listing.ButtonText("  重新安装"))
                     BridgeLifecycle.InstallCompanion();
-                if (listing.ButtonText("卸载 Claude Code 依赖"))
+                if (listing.ButtonText("  卸载"))
                     BridgeLifecycle.UninstallCompanion();
             }
             else
             {
-                listing.Label($"Companion 状态: 未安装{(string.IsNullOrEmpty(status) ? "" : $" ({status})")}");
-                if (!installing && listing.ButtonText("安装 Claude Code 依赖"))
+                listing.Label($"  状态: 未安装{(string.IsNullOrEmpty(status) ? "" : $" ({status})")}");
+                if (!installing && listing.ButtonText("  安装"))
                     BridgeLifecycle.InstallCompanion();
             }
 
-            listing.Gap(24f);
-
-            // ====== Token 预算 ======
-            listing.Label("Token 预算");
-            listing.Gap(2f);
-
+            // ==================== Token 预算 ====================
+            DrawSectionHeader(listing, "Token 预算");
             listing.Label("预算上限 (0=无限制)");
             var limitStr = listing.TextEntry(Settings.TokenBudgetLimit > 0
                 ? (Settings.TokenBudgetLimit / 1_000_000f).ToString("F1") + "M"
                 : "0");
             if (limitStr == "0" || limitStr == "0M")
-            {
                 Settings.TokenBudgetLimit = 0;
-            }
             else if (limitStr.EndsWith("M") || limitStr.EndsWith("m"))
             {
                 if (float.TryParse(limitStr.TrimEnd('M', 'm'), out float mVal) && mVal > 0)
                     Settings.TokenBudgetLimit = (long)(mVal * 1_000_000);
             }
             else if (long.TryParse(limitStr, out long rawVal))
-            {
                 Settings.TokenBudgetLimit = rawVal;
-            }
             listing.Gap(4f);
 
-            // 超出行为
             var actionLabels = McpModSettings.BudgetActionLabels;
             int actionIdx = (int)Settings.TokenBudgetExceedAction;
             listing.Label($"超出行为: {actionLabels[actionIdx]}");
@@ -179,26 +251,21 @@ namespace RimWorldMCP
             }
             listing.Gap(4f);
 
-            // Webhook URL (Warn 模式)
             if (Settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Warn)
             {
                 listing.Label("Webhook URL (超出时 POST 通知)");
                 Settings.TokenBudgetWebhookUrl = listing.TextEntry(Settings.TokenBudgetWebhookUrl);
             }
 
-            listing.Gap(24f);
-
-            // ====== 全局用量汇总 ======
-            listing.Label("全局用量汇总（所有存档）");
-            listing.Gap(2f);
-
+            // ==================== 全局用量 ====================
+            DrawSectionHeader(listing, "全局用量汇总（所有存档）");
+            var globalModels = GlobalModelUsageStore.AllModels;
             if (globalModels.Count == 0)
             {
                 listing.Label("  暂无记录");
             }
             else
             {
-                // 表头
                 var headerRect = listing.GetRect(20f);
                 Text.Font = GameFont.Tiny;
                 float[] colX = { headerRect.x, headerRect.x + 140f, headerRect.x + 210f, headerRect.x + 280f,
@@ -208,79 +275,68 @@ namespace RimWorldMCP
                 Widgets.Label(new Rect(colX[1], headerRect.y, 65f, 20f), "输入");
                 Widgets.Label(new Rect(colX[2], headerRect.y, 65f, 20f), "输出");
                 Widgets.Label(new Rect(colX[3], headerRect.y, 65f, 20f), "缓存命中");
-                Widgets.Label(new Rect(colX[4], headerRect.y, 45f, 20f), "请求");
-                Widgets.Label(new Rect(colX[5], headerRect.y, 55f, 20f), "合计");
-                Widgets.Label(new Rect(colX[6], headerRect.y, 50f, 20f), "占比");
+                Widgets.Label(new Rect(colX[4], headerRect.y, 65f, 20f), "缓存创建");
+                Widgets.Label(new Rect(colX[5], headerRect.y, 65f, 20f), "对话数");
+                Widgets.Label(new Rect(colX[6], headerRect.y, 65f, 20f), "总 Token");
                 GUI.color = Color.white;
                 Text.Font = GameFont.Small;
-                listing.Gap(4f);
 
-                long grandTotal = 0;
-                foreach (var kv in globalModels) grandTotal += kv.Value.TotalTokens;
-
-                string fmt(long v) => v >= 1_000_000 ? $"{v / 1_000_000f:F1}M" :
-                                      v >= 1_000 ? $"{v / 1_000f:F0}K" : v.ToString();
-
-                foreach (var kv in globalModels.OrderByDescending(kv => kv.Value.TotalTokens))
+                foreach (var m in globalModels)
                 {
-                    var d = kv.Value;
-                    double pct = grandTotal > 0 ? (double)d.TotalTokens / grandTotal * 100.0 : 0;
                     var rowRect = listing.GetRect(20f);
                     Text.Font = GameFont.Tiny;
-                    Widgets.Label(new Rect(colX[0], rowRect.y, 130f, 20f), kv.Key);
-                    Widgets.Label(new Rect(colX[1], rowRect.y, 65f, 20f), fmt(d.InputTokens));
-                    Widgets.Label(new Rect(colX[2], rowRect.y, 65f, 20f), fmt(d.OutputTokens));
-                    Widgets.Label(new Rect(colX[3], rowRect.y, 65f, 20f), fmt(d.CacheReadTokens));
-                    Widgets.Label(new Rect(colX[4], rowRect.y, 45f, 20f), d.RequestCount.ToString());
-                    Widgets.Label(new Rect(colX[5], rowRect.y, 55f, 20f), fmt(d.TotalTokens));
-                    Widgets.Label(new Rect(colX[6], rowRect.y, 50f, 20f), $"{pct:F0}%");
+                    GUI.color = new Color(0.7f, 0.7f, 0.7f, 1f);
+                    Widgets.Label(new Rect(colX[0], rowRect.y, 130f, 20f), m.Key);
+                    Widgets.Label(new Rect(colX[1], rowRect.y, 65f, 20f), FormatK(m.Value.InputTokens));
+                    Widgets.Label(new Rect(colX[2], rowRect.y, 65f, 20f), FormatK(m.Value.OutputTokens));
+                    Widgets.Label(new Rect(colX[3], rowRect.y, 65f, 20f), FormatK(m.Value.CacheReadTokens));
+                    Widgets.Label(new Rect(colX[4], rowRect.y, 65f, 20f), FormatK(m.Value.CacheCreateTokens));
+                    Widgets.Label(new Rect(colX[5], rowRect.y, 65f, 20f), m.Value.RequestCount.ToString());
+                    Widgets.Label(new Rect(colX[6], rowRect.y, 65f, 20f),
+                        FormatK(m.Value.InputTokens + m.Value.OutputTokens + m.Value.CacheCreateTokens));
+                    GUI.color = Color.white;
                     Text.Font = GameFont.Small;
                 }
-
-                // 合计行
-                listing.Gap(2f);
-                var totalRect = listing.GetRect(20f);
-                Text.Font = GameFont.Tiny;
-                GUI.color = new Color(0.7f, 0.7f, 0.7f, 1f);
-                Widgets.Label(new Rect(colX[0], totalRect.y, 130f, 20f), "合计");
-                Widgets.Label(new Rect(colX[5], totalRect.y, 55f, 20f), fmt(grandTotal));
-                GUI.color = Color.white;
-                Text.Font = GameFont.Small;
             }
 
-            listing.Gap(12f);
+            // 清空按钮
             if (globalModels.Count > 0)
             {
-                if (listing.ButtonText("清空全部统计"))
+                if (listing.ButtonText("清空全局用量"))
                 {
-                    Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                        "确认清空全部 Token 统计？此操作不可撤销。",
-                        GlobalModelUsageStore.Clear, true));
+                    Find.WindowStack.Add(new Dialog_Confirm("确认清空所有存档的全局用量记录？此操作不可撤销。",
+                        () => GlobalModelUsageStore.Clear()));
                 }
             }
 
-            listing.Gap(24f);
-
-            // ====== OSS ======
-            listing.CheckboxLabeled("启用 OSS 上传", ref Settings.OssEnabled,
-                "开启后，截图将自动上传到阿里云 OSS");
+            // ==================== OSS 截图上传 ====================
+            DrawSectionHeader(listing, "OSS 截图上传");
+            listing.CheckboxLabeled("启用 OSS 自动上传", ref Settings.OssEnabled,
+                "截图后自动上传到阿里云 OSS 并返回公网 URL。");
 
             if (Settings.OssEnabled)
             {
-                listing.Gap(12f);
-
-                listing.Label("Endpoint");
-                listing.Label("示例: https://oss-cn-beijing.aliyuncs.com");
+                listing.Label("Endpoint (ServiceUrl)");
+                listing.Label("  示例: https://oss-cn-beijing.aliyuncs.com");
                 Settings.OssServiceUrl = listing.TextEntry(Settings.OssServiceUrl);
 
                 listing.Label("Bucket 名称");
                 Settings.OssBucketName = listing.TextEntry(Settings.OssBucketName);
 
-                listing.Label("AccessKey ID");
-                Settings.OssAccessKey = listing.TextEntry(Settings.OssAccessKey);
-
-                listing.Label("AccessKey Secret");
-                Settings.OssSecretKey = listing.TextEntry(Settings.OssSecretKey);
+                var showKeys = listing.ButtonText(_showSecrets ? "隐藏密钥" : "显示密钥");
+                if (showKeys) _showSecrets = !_showSecrets;
+                if (_showSecrets)
+                {
+                    listing.Label("AccessKey ID");
+                    Settings.OssAccessKey = listing.TextEntry(Settings.OssAccessKey);
+                    listing.Label("AccessKey Secret");
+                    Settings.OssSecretKey = listing.TextEntry(Settings.OssSecretKey);
+                }
+                else
+                {
+                    listing.Label($"AccessKey ID: {MaskSecret(Settings.OssAccessKey)}");
+                    listing.Label($"AccessKey Secret: {MaskSecret(Settings.OssSecretKey)}");
+                }
 
                 listing.Gap(12f);
                 listing.CheckboxLabeled("使用签名 URL", ref Settings.OssUseSignedUrl,
@@ -288,15 +344,22 @@ namespace RimWorldMCP
 
                 if (Settings.OssUseSignedUrl)
                 {
-                    listing.Label("签名有效期（小时）");
+                    listing.Label("签名有效期（小时，默认 24）");
                     var expiryStr = listing.TextEntry(Settings.OssSignedUrlExpiryHours.ToString());
-                    if (int.TryParse(expiryStr, out int expiryHours) && expiryHours > 0)
-                        Settings.OssSignedUrlExpiryHours = expiryHours;
+                    if (int.TryParse(expiryStr, out int expiry) && expiry > 0 && expiry <= 168)
+                        Settings.OssSignedUrlExpiryHours = expiry;
                 }
             }
 
             listing.End();
             Widgets.EndScrollView();
+        }
+
+        private static string FormatK(long v)
+        {
+            if (v >= 1_000_000) return (v / 1_000_000f).ToString("F1") + "M";
+            if (v >= 1_000) return (v / 1000f).ToString("F0") + "K";
+            return v.ToString();
         }
     }
 }

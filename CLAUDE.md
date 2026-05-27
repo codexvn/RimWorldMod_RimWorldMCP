@@ -139,6 +139,47 @@ RimWorld (C#)                  CC Companion (Node.js)       Claude API
     │  MCP Server :9877 ◀────────────│──── tools/call ─────────│
 ```
 
+### MessageBus 双总线机制
+
+Companion 通过 `cc-companion/bridge/message-bus.ts` 集中管理所有 WebSocket 广播消息，分为两条独立总线：
+
+```
+                    Companion
+                    ┌──────────────────────────────────────┐
+                    │                                      │
+  C# (RimWorld) ──→│  onEvent  ──→ Game Bus ──→ Web 页面   │
+                    │    │           colony-stats          │
+                    │    │           todo-state            │
+                    │    │           budget-status         │
+                    │    │           user (回显)            │
+                    │    │           error                 │
+                    │    │                                 │
+                    │    └──→ inputStream.enqueue()        │
+                    │              │                       │
+                    │              ▼                       │
+                    │         SDK query()                  │
+                    │              │                       │
+                    │              ▼                       │
+                    │  processResponses ──→ Agent Bus ──→  │
+                    │    assistant, stream_event,         │
+                    │    result, system/init                │
+                    │                                      │
+                    └──────────────────────────────────────┘
+                              ↓
+                     Web 页面 + C# 客户端
+```
+
+| Bus | 数据来源 | 消息类型 | 消费者 |
+|-----|---------|---------|--------|
+| **Game Bus** | C# 游戏事件 → Companion onEvent | `colony-stats`, `todo-state`, `budget-status`, `user`(回显), `error`, `model-info` | Web 页面, 游戏内 UI |
+| **Agent Bus** | SDK query() → processResponses | `assistant`, `user`, `stream_event`, `result`, `system/init`, `aborted` | Web 页面, C# CCClient |
+
+**关键设计**：
+- 两个 Bus 走同一条 WebSocket 连接，通过 `MessageBus` 类型约束保证消息格式一致
+- Game Bus 消息不经 SDK（零延迟、不消耗 Token），直接在 Companion 侧广播
+- Agent Bus 消息由 `createResponseProcessor` 遍历 SDK AsyncIterator，逐条经 `publishSdkMessage()` 广播
+- Companion 是两股流的**多路复用器**——接收端鉴别 `msg.type` 路由到对应处理器
+
 ### 连接流程
 
 `BridgeLifecycle.StartAsync(sessionId)` 在加载存档时执行：

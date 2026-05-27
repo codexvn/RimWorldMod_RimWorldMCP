@@ -59,7 +59,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="cc-companion\.claude\settings.json" />
+    <Content Include="cc-companion\.claude\settings.local.json" />
   </ItemGroup>
 
   <!-- 构建后删掉 pdb -->

@@ -8,7 +8,7 @@
 
 import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
-import { CONFIG, parseArgs } from './config.js';
+import { CONFIG, RuntimeState, parseArgs } from './config.js';
 import { loadClaudeSdk } from './sdk-loader.js';
 import { createWSServer } from '../bridge/ws-server.js';
 import { createSession, createResponseProcessor } from '../bridge/session.js';
@@ -67,18 +67,36 @@ async function main(): Promise<void> {
     parts.push('权限=' + (msg.permissionMode || '?'));
     parts.push('会话=' + (msg.session_id || '?'));
     if (msg.tools?.length) parts.push('工具=' + msg.tools.length);
-    if (msg.mcp_servers?.length) parts.push('MCP=' + msg.mcp_servers.map((s: any) => s.name).join(','));
+    if (msg.mcp_servers?.length) {
+      var mcpParts = msg.mcp_servers.map(function(s: any) { return s.name + '(' + s.status + ')'; });
+      parts.push('MCP=[' + mcpParts.join(',') + ']');
+    } else {
+      parts.push('MCP=(无)');
+    }
     const snapshot = parts.join(' | ');
 
-    // 首次或变更时才输出日志 + 推送 bus
-    if (!lastInitSnapshot || snapshot !== lastInitSnapshot) {
+    if (!lastInitSnapshot) {
       lastInitSnapshot = snapshot;
-      console.log('[cc-companion] SDK 初始化完成 | ' + snapshot);
-      if (msg.model) {
-        CONFIG.resolvedModel = msg.model;
-        bus?.publishModelInfo(msg.model);
+      console.log('[cc-companion] === SDK Init (首次) ===');
+      console.log('[cc-companion] ' + snapshot);
+      if (msg.mcp_servers) {
+        for (var mi = 0; mi < msg.mcp_servers.length; mi++) {
+          var s = msg.mcp_servers[mi];
+          console.log('[cc-companion]   MCP[' + s.name + ']: ' + s.status + (s.status !== 'connected' ? ' ⚠' : ''));
+        }
       }
+    } else if (snapshot !== lastInitSnapshot) {
+      console.log('[cc-companion] === SDK Init (变更) ===');
+      console.log('[cc-companion] 旧: ' + lastInitSnapshot);
+      console.log('[cc-companion] 新: ' + snapshot);
+      lastInitSnapshot = snapshot;
     }
+
+    if (msg.model) {
+      RuntimeState.resolvedModel = msg.model;
+      bus?.publishModelInfo(msg.model);
+    }
+    RuntimeState.lastInitData = msg;
   };
 
   let abortController = new AbortController();
@@ -95,30 +113,18 @@ async function main(): Promise<void> {
       const effective = resolved.effective || {};
       resolvedModel = effective.model || resolvedModel || '';
 
-      // 提取配置来源文件，按优先级排列
-      const provenance: Record<string, { source?: string; path?: string }> = resolved.provenance || {};
-      const fileKeys = new Map<string, { count: number; source: string }>();
-      for (const key of Object.keys(provenance)) {
-        const p = provenance[key];
-        const fp = p?.path;
-        if (fp) {
-          const entry = fileKeys.get(fp);
-          if (entry) { entry.count++; }
-          else { fileKeys.set(fp, { count: 1, source: p.source || 'unknown' }); }
-        }
-      }
-      if (fileKeys.size > 0) {
-        const priority: Record<string, number> = { user: 0, project: 1, local: 2 };
-        const sorted = Array.from(fileKeys.entries()).sort((a, b) => {
-          return (priority[a[1].source] || 0) - (priority[b[1].source] || 0);
+      // 打印各配置层的完整内容
+      const sources = (resolved as any).sources || [];
+      if (sources.length > 0) {
+        console.log('[cc-companion] === 逐层配置 (优先级 低→高) ===');
+        sources.forEach((src: any, i: number) => {
+          console.log(`[cc-companion] --- [${src.source}] ${src.path || '(无路径)'} ---`);
+          console.log(JSON.stringify(src.settings, null, 2));
         });
-        console.log('[cc-companion] 配置来源文件 (优先级 低→高):');
-        sorted.forEach(([fp, info], i) => {
-          console.log('  ' + (i + 1) + '. [' + info.source + '] ' + fp + ' (' + info.count + ' 项)');
-        });
-      } else {
-        console.log('[cc-companion] 配置来源文件: (无)');
       }
+
+      console.log('[cc-companion] === 合并后配置 (effective) ===');
+      console.log(JSON.stringify(effective, null, 2));
     }
   } catch (err: any) {
     console.log(`[cc-companion] 解析合并配置失败 (非致命): ${err.message}`);
@@ -129,10 +135,25 @@ async function main(): Promise<void> {
   let currentProc = createResponseProcessor(
     queryIterator,
     CONFIG.projectPath,
+    // Agent Bus：SDK 所有消息 → Web + C# 客户端
     (msg) => bus.publishSdkMessage(msg as Record<string, unknown>),
     onInit,
   );
   let processResponses = currentProc.process;
+
+  function applyThinking(mode: string, effort?: string, tokens?: number) {
+    RuntimeState.thinkingMode = mode;
+    if (effort) RuntimeState.thinkingEffort = effort;
+    if (tokens) RuntimeState.maxThinkingTokens = tokens;
+
+    if (mode === 'disabled') {
+      queryIterator.setMaxThinkingTokens?.(0);
+    } else if (mode === 'fixed') {
+      queryIterator.setMaxThinkingTokens?.(tokens || 8000);
+    } else {
+      startNewSession();
+    }
+  }
 
   function startNewSession() {
     abortController = new AbortController();
@@ -142,6 +163,7 @@ async function main(): Promise<void> {
     currentProc = createResponseProcessor(
       queryIterator,
       CONFIG.projectPath,
+      // Agent Bus：SDK 所有消息 → Web + C# 客户端
       (msg) => bus.publishSdkMessage(msg as Record<string, unknown>),
       onInit,
     );
@@ -158,18 +180,19 @@ async function main(): Promise<void> {
       const payload = (wsMessage.payload || {}) as Record<string, unknown>;
       const text: string = (payload.text as string) || '';
 
-      // 直接广播用户消息给聊天页面（不经 SDK 转发）
+      // Game Bus：回显用户发言到所有 UI 客户端（不经 SDK，零延迟）
       if (text) {
+        console.log(`[user] ${text}`);
         bus.publishUserMessage(text);
       }
 
-      // 提取结构化殖民地统计并直接广播给聊天页（不经 SDK 转发）
+      // Game Bus：殖民地统计 → Web 左侧 Pawns/Mood/Food 卡片
       const colonyStats = payload.colonyStats as Record<string, unknown> | undefined;
       if (colonyStats && (colonyStats.colonistCount !== undefined || colonyStats.avgMood !== undefined)) {
         bus.publishColonyStats(colonyStats as any);
       }
 
-      // 提取 TODO 状态并直接广播给聊天页（纯 UI 消息，不经 SDK）
+      // Game Bus：玩家 TODO → Web 右侧 TODO 面板
       const todoItems = payload.todoItems as Array<Record<string, unknown>> | undefined;
       if (todoItems) {
         bus.publishTodoState(todoItems);
@@ -179,13 +202,19 @@ async function main(): Promise<void> {
       console.log(`[event] ${wsMessage.event || 'unknown'}: ${text.substring(0, 100)}`);
 
       // Token 预算检查（Companion 侧辅助 enforcement）
-      if (CONFIG.tokenBudgetLimit > 0 && CONFIG.tokenBudgetUsed >= CONFIG.tokenBudgetLimit) {
-        if (CONFIG.tokenBudgetAction === 'Block') {
-          console.log(`[cc-companion] Token 预算已用尽(${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit})，阻止消息`);
-          bus.publishError(`Token 预算已用尽 (${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit})`);
+      if (RuntimeState.tokenBudgetLimit > 0 && RuntimeState.tokenBudgetUsed >= RuntimeState.tokenBudgetLimit) {
+        if (RuntimeState.tokenBudgetAction === 'Block') {
+          console.log(`[cc-companion] Token 预算已用尽(${RuntimeState.tokenBudgetUsed}/${RuntimeState.tokenBudgetLimit})，阻止消息`);
+          bus.publishError(`Token 预算已用尽 (${RuntimeState.tokenBudgetUsed}/${RuntimeState.tokenBudgetLimit})`);
           return;
         }
         console.log(`[cc-companion] Token 预算已用尽，但为 Warn 模式，继续发送`);
+      }
+
+      // 随用户消息附带 thinking 模式切换
+      const thinkingReq = (wsMessage as any).thinking;
+      if (thinkingReq?.mode) {
+        applyThinking(thinkingReq.mode, thinkingReq.effort, thinkingReq.tokens);
       }
 
       inputStream.enqueue({
@@ -209,11 +238,16 @@ async function main(): Promise<void> {
         }
       }
     },
-    // onAbort
+    // onAbort → 销毁当前 Runtime（抄 cc-gui：done() + return()）
     () => {
-      abortController.abort();
+      inputStream.done();
+      queryIterator.return?.();
       bus.publishAborted();
       startNewSession();
+    },
+    // onSetThinking → 动态切换（抄 cc-gui：setMaxThinkingTokens 无需中断）
+    (mode: string, effort?: string, tokens?: number) => {
+      applyThinking(mode, effort, tokens);
     },
   );
 
@@ -221,11 +255,11 @@ async function main(): Promise<void> {
   bus = new MessageBus((data) => server.broadcast(data));
 
   // 将解析后的模型名存入 CONFIG，供 ws-server 握手时推送
-  CONFIG.resolvedModel = resolvedModel;
+  RuntimeState.resolvedModel = resolvedModel;
 
   // HTTP 路由 — 聊天页面
   if (CONFIG.chatPageEnabled && chatPageHtml) {
-    setupChatHttp(server.httpServer, chatPageHtml);
+    setupChatHttp(server.httpServer, chatPageHtml, CONFIG.projectPath);
   }
 
   // 启动首次处理
