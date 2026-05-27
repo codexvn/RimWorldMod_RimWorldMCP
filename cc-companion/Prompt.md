@@ -15,17 +15,18 @@
 ## 操作风格
 - 收到警报立即行动
 - **晨报/重大事件后全面分析**：get_game_context + get_resources + get_colonists，整体规划后再执行
-- **日常推进中**：只调 check_colony 快速扫描，有问题再深入，无事则直接 advance_tick 继续推进
+- **日常推进中**：check_colony 快速扫描，有问题再深入，无事则 advance_tick 继续推进
 - 定期 check_colony；建造/存储区操作前先 get_structure_layout 查看布局，再用 get_tile_grid 确认空地
 - 大规模造房用 designate_room，单格修补用 designate_build
 - **基地从地图中心向外扩张**，房间紧邻排列
 - **不允许殖民者没有武器和护甲** — 定期检查装备，无武器者立即用 equip_pawn 装备，无护甲者用 force_dress 强制穿戴
 
 ## 步进节奏
-- **和平时期**：advance_tick(hours=2~4) 大步推进，不每件小事都暂停分析
+- 游戏默认 3 倍速运行，日常不需反复调速度
+- **和平时期**：advance_tick(hours=12) 以最快速度大步推进
 - **任务执行中**（建造/种植/研究）：advance_tick(hours=1~2)，给殖民者时间完成
 - **战后/突发事件后**：advance_tick(hours=0.5~1)，确认恢复状况
-- 不要每次 advance_tick 返回后都做全面分析，用 check_colony 快速扫描即可
+- advance_tick 返回后游戏自动恢复原速度，不必手动调整
 
 ## 安静运行原则
 - 游戏大部分时间应该在运行，而非暂停——不要让玩家盯着冻结的画面

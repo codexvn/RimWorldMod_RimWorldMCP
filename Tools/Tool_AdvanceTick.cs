@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using UnityEngine;
 using RimWorld;
 using RimWorldMCP.Harmony;
 using Verse;
@@ -13,7 +14,7 @@ namespace RimWorldMCP.Tools
     public class Tool_AdvanceTick : ITool
     {
         public string Name => "advance_tick";
-        public string Description => "让游戏运行指定小时数后暂停并返回游戏状态。用于观察指令执行结果，防止 LLM 过度思考。传入游戏内小时数（1 游戏小时 = 2500 tick，超快 ≈ 0.8 秒）。运行中可按空格暂停来中断。";
+        public string Description => "以最快速度推进游戏指定小时数后恢复原速度。1 游戏小时 = 2500 tick，最快约 0.6 秒。支持小数（如 0.5 = 半小时）。和平时期用 12 小时大步推进。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
@@ -24,8 +25,8 @@ namespace RimWorldMCP.Tools
             required = new[] { "hours" }
         });
 
-        // pending: targetTick → TCS
-        private static readonly Dictionary<int, TaskCompletionSource<ToolResult>> _pending = new();
+        // pending: targetTick → (TCS, savedSpeed)
+        private static readonly Dictionary<int, (TaskCompletionSource<ToolResult> tcs, TimeSpeed savedSpeed)> _pending = new();
         private static readonly object _lock = new();
 
         /// <summary>是否有等待中的 tick advance（AutoPauseGuard 据此跳过自动暂停）</summary>
@@ -37,16 +38,18 @@ namespace RimWorldMCP.Tools
         /// <summary>取消所有等待中的 advance_tick（中断按钮 / 玩家手动暂停触发）</summary>
         public static void CancelAll()
         {
-            List<TaskCompletionSource<ToolResult>> cancelled;
+            List<(TaskCompletionSource<ToolResult> tcs, TimeSpeed savedSpeed)> cancelled;
             lock (_lock)
             {
-                cancelled = new List<TaskCompletionSource<ToolResult>>(_pending.Values);
+                cancelled = new List<(TaskCompletionSource<ToolResult> tcs, TimeSpeed savedSpeed)>(_pending.Values);
                 _pending.Clear();
             }
             var tm = Find.TickManager;
-            if (tm != null) tm.CurTimeSpeed = TimeSpeed.Paused;
-            foreach (var tcs in cancelled)
-                tcs.TrySetResult(ToolResult.Success("advance_tick 已被中断"));
+            // 恢复到最早保存的速度，没有则用 3 倍速
+            var restoreSpeed = cancelled.Count > 0 ? cancelled[0].savedSpeed : TimeSpeed.Superfast;
+            if (tm != null) tm.CurTimeSpeed = restoreSpeed;
+            foreach (var (tcs, _) in cancelled)
+                tcs.TrySetResult(ToolResult.Success("advance_tick 已被中断，已恢复原速度。"));
         }
 
         /// <summary>每帧主线程调用</summary>
@@ -56,8 +59,9 @@ namespace RimWorldMCP.Tools
             if (tickManager == null) return;
             int current = tickManager.TicksGame;
 
-            List<KeyValuePair<int, TaskCompletionSource<ToolResult>>>? completed = null;
+            List<(int target, TaskCompletionSource<ToolResult> tcs, TimeSpeed savedSpeed)>? completed = null;
             bool playerPaused = false;
+            TimeSpeed? savedSpeed = null;
 
             // 高危事件 → 立即暂停，提前退出
             bool highDanger = NotificationBus.HighDangerPending;
@@ -71,12 +75,14 @@ namespace RimWorldMCP.Tools
                 if (tickManager.Paused)
                 {
                     playerPaused = true;
-                    completed = new List<KeyValuePair<int, TaskCompletionSource<ToolResult>>>(_pending);
+                    completed = _pending.Select(kv => (kv.Key, kv.Value.tcs, kv.Value.savedSpeed)).ToList();
+                    if (completed.Count > 0) savedSpeed = completed[0].savedSpeed;
                     _pending.Clear();
                 }
                 else if (highDanger)
                 {
-                    completed = new List<KeyValuePair<int, TaskCompletionSource<ToolResult>>>(_pending);
+                    completed = _pending.Select(kv => (kv.Key, kv.Value.tcs, kv.Value.savedSpeed)).ToList();
+                    if (completed.Count > 0) savedSpeed = completed[0].savedSpeed;
                     _pending.Clear();
                 }
                 else
@@ -85,26 +91,27 @@ namespace RimWorldMCP.Tools
                     {
                         if (current >= kv.Key)
                         {
-                            completed ??= new List<KeyValuePair<int, TaskCompletionSource<ToolResult>>>();
-                            completed.Add(kv);
+                            completed ??= new List<(int, TaskCompletionSource<ToolResult>, TimeSpeed)>();
+                            completed.Add((kv.Key, kv.Value.tcs, kv.Value.savedSpeed));
                         }
                     }
                     if (completed != null)
                     {
-                        foreach (var kv in completed)
-                            _pending.Remove(kv.Key);
+                        foreach (var (target, _, _) in completed)
+                            _pending.Remove(target);
+                        if (completed.Count > 0) savedSpeed = completed[0].savedSpeed;
                     }
                 }
             }
 
             if (completed != null)
             {
-                tickManager.CurTimeSpeed = TimeSpeed.Paused;
+                tickManager.CurTimeSpeed = savedSpeed ?? TimeSpeed.Superfast;
 
                 if (playerPaused)
                 {
-                    foreach (var kv in completed)
-                        kv.Value.TrySetResult(ToolResult.Success("advance_tick 已被中断（玩家暂停）"));
+                    foreach (var (_, tcs, _) in completed)
+                        tcs.TrySetResult(ToolResult.Success("advance_tick 已被中断（玩家暂停），已恢复原速度。"));
                 }
                 else if (highDanger)
                 {
@@ -114,14 +121,14 @@ namespace RimWorldMCP.Tools
                     foreach (var n in dangerList)
                         sb.AppendLine($"- {n.Label}");
                     var result = ToolResult.Success(sb.ToString());
-                    foreach (var kv in completed)
-                        kv.Value.TrySetResult(result);
+                    foreach (var (_, tcs, _) in completed)
+                        tcs.TrySetResult(result);
                 }
                 else
                 {
                     var status = BuildGameStatus();
-                    foreach (var kv in completed)
-                        kv.Value.TrySetResult(ToolResult.Success(status));
+                    foreach (var (_, tcs, _) in completed)
+                        tcs.TrySetResult(ToolResult.Success(status));
                 }
             }
         }
@@ -148,6 +155,51 @@ namespace RimWorldMCP.Tools
             return sb.ToString();
         }
 
+        // ============== 低速检测 ==============
+
+        private static double _lowSpeedSinceReal;
+        private static bool _lowSpeedWarningReady;
+        private const double LowSpeedThresholdSec = 30.0;
+
+        /// <summary>每帧检测：运行中但低于 3 倍速持续超阈值则标记通知</summary>
+        public static void LowSpeedTick()
+        {
+            var tm = Find.TickManager;
+            if (tm == null || tm.Paused || _lowSpeedWarningReady) return;
+
+            // 有敌人时重置计时（战斗场景不应催促加速）
+            if (EnemyOnMap()) { _lowSpeedSinceReal = 0; return; }
+
+            bool isBelowSuperfast = tm.CurTimeSpeed < TimeSpeed.Superfast;
+            if (isBelowSuperfast)
+            {
+                var now = Time.realtimeSinceStartupAsDouble;
+                if (_lowSpeedSinceReal <= 0)
+                    _lowSpeedSinceReal = now;
+                else if (now - _lowSpeedSinceReal >= LowSpeedThresholdSec)
+                    _lowSpeedWarningReady = true;
+            }
+            else
+            {
+                _lowSpeedSinceReal = 0;
+            }
+        }
+
+        private static bool EnemyOnMap()
+        {
+            var map = Find.CurrentMap;
+            return map != null && map.mapPawns.AllPawnsSpawned.Any(p => p.HostileTo(Faction.OfPlayer) && !p.Fogged() && !p.Dead);
+        }
+
+        /// <summary>工具调用结束时取警告并重置（仅通知一次）</summary>
+        public static string? GetLowSpeedWarning()
+        {
+            if (!_lowSpeedWarningReady) return null;
+            _lowSpeedWarningReady = false;
+            _lowSpeedSinceReal = 0;
+            return "游戏长时间以低于 3 倍速运行（超 30 秒），建议用 toggle_pause(speed=\"superfast\") 恢复 3 倍速或 advance_tick 快速推进。";
+        }
+
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
             if (args == null) return ToolResult.Error("缺少参数");
@@ -169,7 +221,8 @@ namespace RimWorldMCP.Tools
                     return null!;
                 }
                 int target = tm.TicksGame + ticks;
-                lock (_lock) { _pending[target] = tcs; }
+                var savedSpeed = tm.CurTimeSpeed;
+                lock (_lock) { _pending[target] = (tcs, savedSpeed); }
                 tm.CurTimeSpeed = TimeSpeed.Ultrafast;
                 return null!;
             });

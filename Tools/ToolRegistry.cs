@@ -127,6 +127,11 @@ namespace RimWorldMCP.Tools
                         BridgeLifecycle.ResetPendingLevel12Count();
                     }
 
+                    // 低速警告 → 注入一次
+                    var slowWarn = Tool_AdvanceTick.GetLowSpeedWarning();
+                    if (slowWarn != null)
+                        result = ToolResult.Success((result.Text ?? "") + $"\n\n⏱ {slowWarn}");
+
                     // 工具结束时补推剩余通知
                     try
                     {

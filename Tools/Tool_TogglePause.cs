@@ -9,14 +9,29 @@ namespace RimWorldMCP.Tools
     public class Tool_TogglePause : ITool
     {
         public string Name => "toggle_pause";
-        public string Description => "切换游戏暂停状态。如果已暂停则恢复并设为极速，如果运行中则暂停。Toggle pause. Resume at ultrafast speed or pause.";
+        public string Description => "切换暂停或设置游戏速度。传 speed 参数直接设速度，不传则切换暂停（恢复时默认 3 倍速）。";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",
-            properties = new object(),
-            required = new string[] { }
+            properties = new
+            {
+                speed = new
+                {
+                    type = "string",
+                    description = "可选。目标速度: paused(暂停), normal(1x), fast(2x), superfast(3x), ultrafast(最快)"
+                }
+            }
         });
+
+        private static readonly Dictionary<string, (TimeSpeed speed, string label)> _speedMap = new()
+        {
+            { "paused",    (TimeSpeed.Paused,    "已暂停") },
+            { "normal",    (TimeSpeed.Normal,    "1 倍速") },
+            { "fast",      (TimeSpeed.Fast,      "2 倍速") },
+            { "superfast", (TimeSpeed.Superfast, "3 倍速") },
+            { "ultrafast", (TimeSpeed.Ultrafast, "最快") },
+        };
 
         public async Task<ToolResult> ExecuteAsync(JsonElement? args)
         {
@@ -29,18 +44,31 @@ namespace RimWorldMCP.Tools
 
                     var wasPaused = tm.Paused;
 
-                    if (wasPaused)
+                    if (args != null && args.Value.TryGetProperty("speed", out var jSpeed) && jSpeed.ValueKind == JsonValueKind.String)
                     {
-                        // 恢复时设置最大速度
-                        tm.CurTimeSpeed = TimeSpeed.Ultrafast;
-                    }
-                    else
-                    {
-                        tm.TogglePaused();
+                        var key = jSpeed.GetString()?.ToLowerInvariant() ?? "";
+                        if (!_speedMap.TryGetValue(key, out var entry))
+                            return ToolResult.Error($"无效速度值 '{key}'。可选: paused, normal, fast, superfast, ultrafast");
+
+                        if (entry.speed == TimeSpeed.Paused)
+                            tm.CurTimeSpeed = TimeSpeed.Paused; // TogglePaused 会暂停
+                        else
+                        {
+                            tm.CurTimeSpeed = entry.speed;
+                            if (tm.Paused) tm.TogglePaused(); // 确保非暂停
+                        }
+
+                        return ToolResult.Success($"游戏速度已设为 {entry.label}。");
                     }
 
+                    // 无参数：切换暂停（原有行为）
+                    if (wasPaused)
+                        tm.CurTimeSpeed = TimeSpeed.Superfast;
+                    else
+                        tm.TogglePaused();
+
                     var nowPaused = tm.Paused;
-                    string state = nowPaused ? "已暂停" : (wasPaused ? "运行中（急速）" : "运行中");
+                    string state = nowPaused ? "已暂停" : (wasPaused ? "运行中（3 倍速）" : "运行中");
 
                     // 收集无法切换的原因
                     var reasons = new List<string>();
