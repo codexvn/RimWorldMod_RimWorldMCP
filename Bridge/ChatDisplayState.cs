@@ -189,6 +189,7 @@ namespace RimWorldMCP
                     _streamingEntry.CachedHeight = 0f;
                     _streamingEntry = null;
                 }
+                _toolCalls.Clear(); // 清理残留工具调用，允许 IsBusy 恢复为 false
             }
             _deltaAccum = "";
             OnChanged?.Invoke();

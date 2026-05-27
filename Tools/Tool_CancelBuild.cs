@@ -16,7 +16,7 @@ namespace RimWorldMCP.Tools
     public class Tool_CancelBuild : ITool
     {
         public string Name => "cancel_build";
-        public string Description => "取消指定区域的建造蓝图、框架和各种标记（采矿/砍伐/收割/拆除等）。对应游戏内的\"取消\"工具。不提供范围则取消单格。";
+        public string Description => "取消指定区域的建造蓝图、框架和各种标记（采矿/砍伐/收割/拆除等）。对应游戏内的\"取消\"工具。不提供范围则取消单格。坐标范围为闭区间（两端坐标均包含）。";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {

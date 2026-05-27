@@ -9,7 +9,7 @@ namespace RimWorldMCP.Tools
     public class Tool_FertilityGrid : ITool
     {
         public string Name => "fertility_grid";
-        public string Description => "获取指定范围的土壤肥沃度文本网格图。用于评估种植区选址。";
+        public string Description => "获取指定范围的土壤肥沃度文本网格图。用于评估种植区选址。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

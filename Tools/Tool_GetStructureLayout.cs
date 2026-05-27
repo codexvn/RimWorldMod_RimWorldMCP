@@ -12,7 +12,7 @@ namespace RimWorldMCP.Tools
     public class Tool_GetStructureLayout : ITool
     {
         public string Name => "get_structure_layout";
-        public string Description => "获取地图建筑结构布局。无参数时输出全图。包含: 空间网格(墙/门/建筑), 房间列表(类型/面积/评分), 门列表, 墙段RLE。用于基地规划与建筑分析。";
+        public string Description => "获取地图建筑结构布局。无参数时输出全图。包含: 空间网格(墙/门/建筑), 房间列表(类型/面积/评分), 门列表, 墙段RLE。用于基地规划与建筑分析。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

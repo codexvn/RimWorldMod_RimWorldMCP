@@ -9,7 +9,7 @@ namespace RimWorldMCP.Tools
     public class Tool_TerrainGrid : ITool
     {
         public string Name => "terrain_grid";
-        public string Description => "获取指定范围的地形类型文本网格图。用于了解地表类型分布。";
+        public string Description => "获取指定范围的地形类型文本网格图。用于了解地表类型分布。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

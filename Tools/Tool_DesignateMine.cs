@@ -11,7 +11,7 @@ namespace RimWorldMCP.Tools
     public class Tool_DesignateMine : ITool
     {
         public string Name => "designate_mine";
-        public string Description => "标记指定区域的岩石/矿物以供开采。提供 end_x/end_y 可划定矩形范围，不提供则仅标记单格。";
+        public string Description => "标记指定区域的岩石/矿物以供开采。提供 end_x/end_y 可划定矩形范围，不提供则仅标记单格。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

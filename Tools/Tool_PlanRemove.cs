@@ -12,7 +12,7 @@ namespace RimWorldMCP.Tools
     public class Tool_PlanRemove : ITool
     {
         public string Name => "plan_remove";
-        public string Description => "删除地图上的规划标记。支持矩形范围删除（给 end_x/end_y）和单格删除。可按标签和颜色过滤只删除特定规划。";
+        public string Description => "删除地图上的规划标记。支持矩形范围删除（给 end_x/end_y）和单格删除。可按标签和颜色过滤只删除特定规划。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

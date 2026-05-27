@@ -15,7 +15,7 @@ namespace RimWorldMCP.Tools
     public class Tool_GetTileDetail : ITool
     {
         public string Name => "get_tile_detail";
-        public string Description => "获取指定坐标范围内所有物品、建筑、植物的详细列表，含精确坐标。用于 LLM 精确了解某区域有什么。";
+        public string Description => "获取指定坐标范围内所有物品、建筑、植物的详细列表，含精确坐标。用于 LLM 精确了解某区域有什么。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

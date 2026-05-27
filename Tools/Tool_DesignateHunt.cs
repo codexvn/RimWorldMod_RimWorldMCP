@@ -12,7 +12,7 @@ namespace RimWorldMCP.Tools
     public class Tool_DesignateHunt : ITool
     {
         public string Name => "designate_hunt";
-        public string Description => "标记指定区域的野生动物进行狩猎。殖民者会用远程武器自动猎杀。";
+        public string Description => "标记指定区域的野生动物进行狩猎。殖民者会用远程武器自动猎杀。坐标范围为闭区间（两端坐标均包含）。";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {

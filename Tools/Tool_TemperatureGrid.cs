@@ -10,7 +10,7 @@ namespace RimWorldMCP.Tools
     public class Tool_TemperatureGrid : ITool
     {
         public string Name => "temperature_grid";
-        public string Description => "获取指定范围的温度文本网格图。用于评估居住/种植适宜温度。";
+        public string Description => "获取指定范围的温度文本网格图。用于评估居住/种植适宜温度。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

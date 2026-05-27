@@ -67,6 +67,23 @@ namespace RimWorldMCP.Tools
             return removed;
         }
 
+        public static bool UpdateStatus(string id, string newStatus)
+        {
+            bool found;
+            lock (_lock)
+            {
+                var item = _items.Find(i => i.Id == id);
+                if (item == null) found = false;
+                else { item.Status = newStatus; found = true; }
+            }
+            if (found)
+            {
+                OnChanged?.Invoke();
+                PushToCompanion();
+            }
+            return found;
+        }
+
         public static List<TodoItem> Query(string? filter)
         {
             lock (_lock)
@@ -76,6 +93,8 @@ namespace RimWorldMCP.Tools
                     list.RemoveAll(i => i.Status != "pending");
                 else if (filter == "done")
                     list.RemoveAll(i => i.Status != "done");
+                else if (filter == "cancelled")
+                    list.RemoveAll(i => i.Status != "cancelled");
 
                 list.Sort((a, b) =>
                 {

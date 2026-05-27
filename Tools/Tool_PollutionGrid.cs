@@ -10,7 +10,7 @@ namespace RimWorldMCP.Tools
     public class Tool_PollutionGrid : ITool
     {
         public string Name => "pollution_grid";
-        public string Description => "获取指定范围的污染文本网格图。用于评估污染扩散和清理需求。";
+        public string Description => "获取指定范围的污染文本网格图。用于评估污染扩散和清理需求。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

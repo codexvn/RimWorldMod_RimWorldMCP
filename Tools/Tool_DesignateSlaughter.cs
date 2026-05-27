@@ -12,7 +12,7 @@ namespace RimWorldMCP.Tools
     public class Tool_DesignateSlaughter : ITool
     {
         public string Name => "designate_slaughter";
-        public string Description => "标记指定区域的已驯服动物进行宰杀。殖民者会自动执行宰杀。";
+        public string Description => "标记指定区域的已驯服动物进行宰杀。殖民者会自动执行宰杀。坐标范围为闭区间（两端坐标均包含）。";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {

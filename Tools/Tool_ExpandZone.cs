@@ -12,7 +12,7 @@ namespace RimWorldMCP.Tools
     public class Tool_ExpandZone : ITool
     {
         public string Name => "expand_zone";
-        public string Description => "扩展现有区域（储存区/种植区）。在 zone_pos 处定位区域，将矩形范围 (pos_x,pos_y)→(end_x,end_y) 内有效格子加入。";
+        public string Description => "扩展现有区域（储存区/种植区）。在 zone_pos 处定位区域，将矩形范围 (pos_x,pos_y)→(end_x,end_y) 内有效格子加入。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

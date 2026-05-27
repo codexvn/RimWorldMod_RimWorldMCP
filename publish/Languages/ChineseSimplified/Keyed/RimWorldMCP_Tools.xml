@@ -139,6 +139,7 @@
   <RimWorldMCP_Tool_todo_add>添加任务</RimWorldMCP_Tool_todo_add>
   <RimWorldMCP_Tool_todo_delete>删除任务</RimWorldMCP_Tool_todo_delete>
   <RimWorldMCP_Tool_todo_query>查询任务</RimWorldMCP_Tool_todo_query>
+  <RimWorldMCP_Tool_todo_set_status>设置任务状态</RimWorldMCP_Tool_todo_set_status>
 
   <!-- 右键菜单 -->
   <RimWorldMCP_Tool_get_right_click_menu>右键菜单</RimWorldMCP_Tool_get_right_click_menu>

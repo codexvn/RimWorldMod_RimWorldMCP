@@ -13,7 +13,7 @@ namespace RimWorldMCP.Tools
     public class Tool_GetTileGrid : ITool
     {
         public string Name => "get_tile_grid";
-        public string Description => "获取指定范围的文本化网格地图。返回字符网格，用不同符号标注地形、建筑、物品。用于 LLM 理解地图空间布局。";
+        public string Description => "获取指定范围的文本化网格地图。返回字符网格，用不同符号标注地形、建筑、物品。用于 LLM 理解地图空间布局。坐标范围为闭区间（两端坐标均包含）。";
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
             type = "object",

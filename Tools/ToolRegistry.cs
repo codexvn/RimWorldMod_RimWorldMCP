@@ -115,22 +115,31 @@ namespace RimWorldMCP.Tools
 
                     var result = await tool.ExecuteAsync(args);
 
+                    // 收集前置通知消息（显示在工具结果之前）
+                    var prefixes = new List<string>();
+
                     // L3 事件暂停中 → 注入摘要催促 AI 先学技能再收尾
                     if (BridgeLifecycle.DangerPaused)
-                        result = ToolResult.Success((result.Text ?? "") + $"\n\n⚠ {BridgeLifecycle.DangerSummary} | 已暂停。建议先用 get_skills 查看可用领域技能，用 active_skill 获取知识后再处理。");
+                        prefixes.Add($"⚠ {BridgeLifecycle.DangerSummary} | 已暂停。建议先用 get_skills 查看可用领域技能，用 active_skill 获取知识后再处理。");
 
                     // L1+L2 非高危通知 → 注入计数，AI 自行决定是否暂停
                     int pendingCount = BridgeLifecycle.PendingLevel12Count;
                     if (pendingCount > 0 && !BridgeLifecycle.DangerPaused)
                     {
-                        result = ToolResult.Success((result.Text ?? "") + $"\n\n📋 新事件: {pendingCount}件 | 暂停后用 get_skills 查看可用技能，active_skill 获取知识后处理。");
+                        prefixes.Add($"📋 新事件: {pendingCount}件 | 暂停后用 get_skills 查看可用技能，active_skill 获取知识后处理。");
                         BridgeLifecycle.ResetPendingLevel12Count();
                     }
 
                     // 低速警告 → 注入一次
                     var slowWarn = Tool_AdvanceTick.GetLowSpeedWarning();
                     if (slowWarn != null)
-                        result = ToolResult.Success((result.Text ?? "") + $"\n\n⏱ {slowWarn}");
+                        prefixes.Add($"⏱ {slowWarn}");
+
+                    if (prefixes.Count > 0)
+                    {
+                        var prefixText = string.Join("\n\n", prefixes) + "\n\n---\n\n";
+                        result = ToolResult.Success(prefixText + (result.Text ?? ""));
+                    }
 
                     // 工具结束时补推剩余通知
                     try

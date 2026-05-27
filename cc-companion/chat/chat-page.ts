@@ -462,7 +462,6 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     white-space: pre-wrap; word-break: break-all;
     border-top: 1px solid var(--border);
   }
-  .tool-result-text.truncated { max-height: 180px; overflow: hidden; }
   .msg-tool .msg-body {
     background: var(--card);
     border: 1px solid var(--border-strong);
@@ -476,17 +475,6 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   }
 
   /* Tool expand/collapse */
-  .tool-output-wrap {
-    max-height: 120px; overflow: hidden; position: relative;
-    transition: max-height 0.25s ease;
-  }
-  .tool-output-wrap.expanded { max-height: 360px; overflow-y: auto; }
-  .tool-output-wrap.truncated::after {
-    content: ""; position: absolute; bottom: 0; left: 0; right: 0;
-    height: 32px;
-    background: linear-gradient(to bottom, transparent, var(--card));
-    pointer-events: none;
-  }
   .tool-expand-btn {
     display: block; width: 100%; padding: 4px;
     background: var(--surface); border: none; border-top: 1px solid var(--border-strong);
@@ -584,6 +572,73 @@ export function getChatPageHtml(config: ChatPageConfig): string {
   #abort-btn.enabled { opacity: 1; }
   #abort-btn.enabled:hover { background: var(--red); border-color: var(--red); color: #fff; }
   #abort-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ===== Mobile ===== */
+  @media (max-width: 768px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    #sidebar {
+      grid-column: 1; grid-row: 1;
+      flex-direction: row; gap: 6px;
+      padding: 6px 8px; overflow-x: auto;
+      border-right: none; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sb-stat {
+      flex: 0 0 auto; min-width: 52px;
+      padding: 4px 8px; text-align: center;
+    }
+    .sb-stat .sb-val { font-size: 13px; }
+    .sb-stat .sb-label { font-size: 9px; }
+    #main { grid-column: 1; grid-row: 2; }
+    #rightbar { display: none; }
+
+    /* Header */
+    #header { padding: 8px 10px 6px; }
+    .header-title { font-size: 13px; }
+    .header-colony { max-width: 100px; font-size: 11px; }
+    .header-meta { flex-wrap: wrap; gap: 4px; margin-top: 4px; font-size: 10px; }
+    .header-meta .meta-item { font-size: 10px; padding: 1px 6px; }
+    .hdr-budget { font-size: 10px; padding: 1px 6px; }
+    .think-dd { font-size: 10px; margin-left: 0; }
+
+    /* Messages */
+    #messages { padding: 8px 10px; gap: 6px; }
+    .msg-user { max-width: 92%; }
+    .msg-agent { max-width: 96%; }
+    .msg-user .msg-body,
+    .msg-agent .msg-body { font-size: 13px; padding: 8px 12px; line-height: 1.55; }
+    .msg-tool .msg-header { font-size: 11px; padding: 6px 8px; }
+    .msg-tool .msg-body { font-size: 11px; padding: 6px 8px; }
+    .msg-thinking .th-header { font-size: 10px; }
+    .msg-thinking .th-body { font-size: 11px; }
+
+    /* Compose */
+    .compose {
+      padding: 8px 10px; gap: 6px;
+      flex-wrap: wrap;
+    }
+    .compose .prompt { display: none; }
+    #chat-input {
+      flex: 1 1 100%; font-size: 16px;
+      padding: 8px 10px; min-height: 40px; max-height: 120px;
+    }
+    #send-btn {
+      flex: 1 1 auto; min-width: 44px; min-height: 44px;
+      padding: 10px 12px; font-size: 13px;
+    }
+    #abort-btn {
+      padding: 10px 12px; font-size: 12px;
+      min-height: 44px;
+    }
+
+    /* Overlays */
+    #info-panel { width: 94vw; max-width: none; padding: 12px 14px; }
+    .info-table th { width: 56px; font-size: 11px; }
+    .info-table td { font-size: 10px; }
+  }
 </style>
 </head>
 <body>
@@ -991,10 +1046,12 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var isDone = item.status === 'done';
-      if (!isDone) pendingCount++;
+      var isCancelled = item.status === 'cancelled';
+      if (!isDone && !isCancelled) pendingCount++;
 
       var div = document.createElement('div');
-      div.className = 'todo-item' + (isDone ? ' done' : '');
+      var extraCls = isDone ? ' done' : isCancelled ? ' cancelled' : '';
+      div.className = 'todo-item' + extraCls;
 
       var prio = document.createElement('span');
       var pLevel = item.priority >= 4 ? 'p-high' : item.priority >= 2 ? 'p-mid' : 'p-low';
@@ -1274,11 +1331,31 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     // 已有同 toolId 的面板 → 更新 input 内容
     if (toolId && toolPanels[toolId]) {
       var existing = toolPanels[toolId];
-      var eb = existing.querySelector('.msg-body');
-      if (eb && argsStr) {
-        var ew = eb.querySelector('.tool-output-wrap') || eb;
+      var eb2 = existing.querySelector('.msg-body');
+      if (eb2 && argsStr) {
+        var ew = eb2.querySelector('.tool-output-wrap') || eb2;
         if (argsStr.length > 120) ew.classList.add('truncated');
         ew.textContent = argsStr;
+        // 重建展开按钮
+        var oldBtn = existing.querySelector('.tool-expand-btn');
+        if (oldBtn) oldBtn.remove();
+        if (argsStr.length > 120) {
+          var newBtn = document.createElement('button');
+          newBtn.className = 'tool-expand-btn';
+          newBtn.textContent = '展开';
+          newBtn.style.display = eb2.style.display === 'none' ? 'none' : '';
+          (function(w, fullText, btn) {
+            btn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              var isExp = w.classList.toggle('expanded');
+              w.classList.toggle('truncated', !isExp);
+              btn.textContent = isExp ? '收起' : '展开';
+              if (isExp) w.textContent = fullText;
+              checkScroll();
+            });
+          })(ew, argsStr, newBtn);
+          existing.appendChild(newBtn);
+        }
       }
       return existing;
     }
@@ -1356,8 +1433,9 @@ export function getChatPageHtml(config: ChatPageConfig): string {
       bd.style.display = hidden ? '' : 'none';
       var a = panel.querySelector('.tgl-arrow');
       if (a) a.textContent = hidden ? '▾' : '▸';
-      var eb2 = panel.querySelector('.tool-expand-btn');
-      if (eb2) eb2.style.display = hidden ? '' : 'none';
+      var allBtns = panel.querySelectorAll('.tool-expand-btn');
+      for (var bi = 0; bi < allBtns.length; bi++)
+        allBtns[bi].style.display = hidden ? '' : 'none';
       checkScroll();
     });
 
@@ -1394,6 +1472,24 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         if (block.is_error) wrap.style.color = 'var(--red)';
         wrap.textContent = resultText;
         body.appendChild(wrap);
+
+        // 长结果加展开按钮
+        if (resultText.length > 120) {
+          var expandBtn = document.createElement('button');
+          expandBtn.className = 'tool-expand-btn';
+          expandBtn.textContent = '展开';
+          (function(w, fullText, btn) {
+            btn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              var isExp = w.classList.toggle('expanded');
+              w.classList.toggle('truncated', !isExp);
+              btn.textContent = isExp ? '收起' : '展开';
+              if (isExp) w.textContent = fullText;
+              checkScroll();
+            });
+          })(wrap, resultText, expandBtn);
+          panel.appendChild(expandBtn);
+        }
       }
       // 展开面板
       var arrow = panel.querySelector('.tgl-arrow');
