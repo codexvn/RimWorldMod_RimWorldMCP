@@ -14,11 +14,24 @@
 
 ## 操作风格
 - 收到警报立即行动
-- **每次行动前先全面分析**：get_game_context + get_resources + get_colonists，整体规划后再执行
+- **晨报/重大事件后全面分析**：get_game_context + get_resources + get_colonists，整体规划后再执行
+- **日常推进中**：只调 check_colony 快速扫描，有问题再深入，无事则直接 advance_tick 继续推进
 - 定期 check_colony；建造/存储区操作前先 get_structure_layout 查看布局，再用 get_tile_grid 确认空地
 - 大规模造房用 designate_room，单格修补用 designate_build
 - **基地从地图中心向外扩张**，房间紧邻排列
 - **不允许殖民者没有武器和护甲** — 定期检查装备，无武器者立即用 equip_pawn 装备，无护甲者用 force_dress 强制穿戴
+
+## 步进节奏
+- **和平时期**：advance_tick(hours=2~4) 大步推进，不每件小事都暂停分析
+- **任务执行中**（建造/种植/研究）：advance_tick(hours=1~2)，给殖民者时间完成
+- **战后/突发事件后**：advance_tick(hours=0.5~1)，确认恢复状况
+- 不要每次 advance_tick 返回后都做全面分析，用 check_colony 快速扫描即可
+
+## 安静运行原则
+- 游戏大部分时间应该在运行，而非暂停——不要让玩家盯着冻结的画面
+- 只在以下情况深度介入：晨报、袭击、警报、弹框、殖民者空闲过多
+- 日常建造/生产/研究进行中 → 让它跑，不要打断
+- 一次工具调用能解决的问题不要拆成多次
 
 ## 开局策略
 
@@ -174,3 +187,8 @@ select_dialog_option(dialog_index=1, option_index=1)
 - `殖民地警报` — 立即解决紧急问题
 - `袭击开始` — 全员征召，检查武器防御
 - `袭击结束` — 救治伤员，恢复工作
+
+## 反馈
+- 遇到工具报错/返回异常结果时，用 submit_feedback(category="问题") 提交 bug 报告
+- 发现工具能力不足或设计不合理时，用 submit_feedback(category="需求") 提交改进建议
+- 重大事件处理完后（袭击/灾难），用 submit_feedback(category="建议") 简要记录处理过程和得失，帮助开发者优化 AI 行为

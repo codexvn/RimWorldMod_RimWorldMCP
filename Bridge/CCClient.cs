@@ -254,6 +254,7 @@ namespace RimWorldMCP
 
                             case "stream_event":
                                 ChatDisplayState.OnStreamEvent(root);
+                                ExtractUsageFromStreamEvent(root);
                                 break;
 
                             case "result":

@@ -1050,6 +1050,13 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         updateTodoPanel(msg.todoItems || []);
         break;
 
+      case 'sdk-tasks':
+        if (msg.tasks && msg.tasks.length) {
+          sdkTasks = msg.tasks;
+          renderSdkTasks();
+        }
+        break;
+
       case 'assistant':
       case 'user': {
         const isAssistant = msg.type === 'assistant';

@@ -63,6 +63,23 @@ namespace RimWorldMCP
 
             // 同步写入全局汇总
             GlobalModelUsageStore.Contribute(key, inputTokens, outputTokens, cacheRead, cacheCreate);
+
+            // 实时刷新 UI 预算状态（不等游戏事件推送）
+            RefreshBudgetDisplay();
+        }
+
+        /// <summary>Record() 后立即刷新 ChatDisplayState 预算字段</summary>
+        private static void RefreshBudgetDisplay()
+        {
+            var settings = RimWorldMCPMod.Instance?.Settings;
+            if (settings == null) return;
+            var limit = settings.TokenBudgetLimit;
+            ChatDisplayState.CurrentBudgetStatus = CheckBudget(limit);
+            ChatDisplayState.CurrentBudgetPercent = GetBudgetUsagePercent(limit);
+            ChatDisplayState.CurrentBudgetText = GetCompactDisplay(limit);
+
+            // 推送 budget 更新给 companion（web 页面实时刷新）
+            _ = CCClient.SendEvent("budget-update", new { used = TotalAllTokens });
         }
 
         /// <summary>兼容旧的无模型名调用</summary>

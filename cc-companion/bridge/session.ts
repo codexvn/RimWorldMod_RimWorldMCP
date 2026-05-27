@@ -99,6 +99,21 @@ function sanitizePath(p: string): string {
   return p.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-');
 }
 
+function trackSdkTask(name: string, input: any): void {
+  if (!input) return;
+  if (name === 'TaskCreate') {
+    const subject = input.subject || input.activeForm || '?';
+    const id = String(RuntimeState.sdkTasks.length + 1);
+    RuntimeState.sdkTasks.push({ id, subject, status: 'pending' });
+  } else if (name === 'TaskUpdate') {
+    const tid = String(input.taskId || '');
+    const st = input.status || '';
+    for (const t of RuntimeState.sdkTasks) {
+      if (String(t.id) === tid) { t.status = st; break; }
+    }
+  }
+}
+
 export function createResponseProcessor(
   queryIterator: AsyncIterable<any>,
   cwd: string,
@@ -154,6 +169,8 @@ export function createResponseProcessor(
               } else if (block.type === 'tool_use') {
                 const inputSummary = block.input ? JSON.stringify(block.input).substring(0, 300) : '(无参数)';
                 console.log(`[tool_use${agentTag}] ${block.name} | ${inputSummary}`);
+                // 追踪 SDK 任务：TaskCreate / TaskUpdate → RuntimeState.sdkTasks
+                trackSdkTask(block.name, block.input);
               }
             }
           }

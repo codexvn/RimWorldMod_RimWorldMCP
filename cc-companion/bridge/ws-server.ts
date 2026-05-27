@@ -128,6 +128,16 @@ export function createWSServer(
           if (RuntimeState.lastInitData) {
             sendJson(ws, RuntimeState.lastInitData);
           }
+          // 推送缓存的游戏状态（新客户端立即显示）
+          if (RuntimeState.lastColonyStats) {
+            sendJson(ws, { type: 'colony-stats', ...RuntimeState.lastColonyStats });
+          }
+          if (RuntimeState.lastTodoItems) {
+            sendJson(ws, { type: 'todo-state', todoItems: RuntimeState.lastTodoItems });
+          }
+          if (RuntimeState.sdkTasks.length > 0) {
+            sendJson(ws, { type: 'sdk-tasks', tasks: RuntimeState.sdkTasks });
+          }
           onStatusChange?.({ status: 'connected', client: msg.client });
           break;
 

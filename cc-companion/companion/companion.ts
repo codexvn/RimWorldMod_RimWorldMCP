@@ -162,14 +162,27 @@ async function main(): Promise<void> {
       const colonyStats = payload.colonyStats as Record<string, unknown> | undefined;
       if (colonyStats && (colonyStats.colonistCount !== undefined || colonyStats.avgMood !== undefined)) {
         bus.publishColonyStats(colonyStats as any);
+        RuntimeState.lastColonyStats = colonyStats;
       }
 
       // Game Bus：玩家 TODO → Web 右侧 TODO 面板
       const todoItems = payload.todoItems as Array<Record<string, unknown>> | undefined;
       if (todoItems) {
         bus.publishTodoState(todoItems);
+        RuntimeState.lastTodoItems = todoItems;
       }
       if (wsMessage.event === 'todo-state') return;
+
+      // C# Token 预算更新 → 刷新 companion 侧缓存并广播
+      if (wsMessage.event === 'budget-update') {
+        RuntimeState.tokenBudgetUsed = (payload.used as number) || 0;
+        bus.publishBudgetStatus({
+          limit: RuntimeState.tokenBudgetLimit,
+          used: RuntimeState.tokenBudgetUsed,
+          action: RuntimeState.tokenBudgetAction,
+        });
+        return;
+      }
 
       console.log(`[event] ${wsMessage.event || 'unknown'}: ${text.substring(0, 100)}`);
 
