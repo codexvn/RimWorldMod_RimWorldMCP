@@ -28,6 +28,7 @@ namespace RimWorldMCP
 
         // 工具行为
         public bool AutoMoveCamera = true;
+        public bool AutoTrackColonists = true;
 
         // OSS
         public bool OssEnabled = false;
@@ -71,6 +72,7 @@ namespace RimWorldMCP
             var defaultProjectSettingsJson = BridgeLifecycle.BuildMcpJson(9877);
             Scribe_Values.Look(ref CCBProjectSettingsJson, "ccbProjectSettingsJson", defaultProjectSettingsJson);
             Scribe_Values.Look(ref AutoMoveCamera, "autoMoveCamera", true);
+            Scribe_Values.Look(ref AutoTrackColonists, "autoTrackColonists", true);
             Scribe_Values.Look(ref OssEnabled, "ossEnabled", false);
             Scribe_Values.Look(ref OssServiceUrl, "ossServiceUrl", "");
             Scribe_Values.Look(ref OssBucketName, "ossBucketName", "");

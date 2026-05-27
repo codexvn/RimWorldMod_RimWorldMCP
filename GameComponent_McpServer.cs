@@ -82,6 +82,9 @@ namespace RimWorldMCP
             BridgeLifecycle.Tick();
             McpOssUploader.ProcessPendingUploads();
             McpCommandQueue.ProcessDeferredCleanup();
+
+            // 自动追踪殖民者（帧末，不影响其他处理）
+            CameraHelper.AutoTrackColonistsTick();
         }
 
         public override void FinalizeInit()

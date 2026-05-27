@@ -33,6 +33,8 @@ namespace RimWorldMCP
         private const int IdleOverviewIntervalMs = 120000;
         private static int _dailyReportDay = -1;
         private static int _lastColonistCount = -1;
+        private static int _lastNoColonistsSendMs;
+        private const int NoColonistsResendMs = 60000;
         private static int _lastDialogCount;
         private static string _lastDialogKey = "";
 
@@ -306,6 +308,24 @@ namespace RimWorldMCP
                 }
                 _lastColonistCount = colonistCount;
 
+                // 殖民者全灭检测 — 通知 AI 重开游戏
+                if (colonistCount == 0 && _lastColonistCount >= 0)
+                {
+                    bool firstTime = _lastNoColonistsSendMs == 0;
+                    bool cooldownElapsed = unchecked((uint)(nowMs - _lastNoColonistsSendMs) >= NoColonistsResendMs);
+                    if (firstTime || cooldownElapsed)
+                    {
+                        _lastNoColonistsSendMs = nowMs;
+                        SendCCMessage("NoColonists",
+                            "所有殖民者已死亡，殖民地覆灭。\n"
+                            + "请调用 `regenerate_map` 工具重开游戏（需传 `i_know_danger=true`）。");
+                    }
+                }
+                else if (colonistCount > 0)
+                {
+                    _lastNoColonistsSendMs = 0;
+                }
+
                 if (lines.Count > 0)
                 {
                     foreach (var line in lines) AddDailyEvent(line);
@@ -577,12 +597,27 @@ namespace RimWorldMCP
         }
 
         /// <summary>弹框检测 — FloatMenu/Dialog 出现时提示 AI</summary>
+        /// <summary>弹框是否阻塞 UI（需要玩家操作才能继续）</summary>
+        private static bool IsBlockingDialog(Window w)
+        {
+            // FloatMenu 和标准交互弹框需要 AI 选择
+            if (w is FloatMenu) return true;
+            if (w is Dialog_MessageBox) return true;
+            if (w is Dialog_NodeTree) return true;
+            if (w is Dialog_GiveName) return true;
+            if (w is Dialog_Confirm) return true;
+            if (w is Dialog_Slider) return true;
+            // ImmediateWindow 是信息浮层，不阻塞操作 → 不推送
+            return false;
+        }
+
         private static void CheckDialogs(int nowMs, Map map, List<Pawn> colonists, int colonistCount)
         {
             var dialogs = DialogHelper.GetInteractableDialogs();
-            int dialogCount = dialogs.Count;
+            var blocking = dialogs.Where(IsBlockingDialog).ToList();
+            int dialogCount = blocking.Count;
             string dialogKey = "";
-            foreach (var w in dialogs)
+            foreach (var w in blocking)
             {
                 if (w is FloatMenu)
                 {
@@ -704,17 +739,19 @@ namespace RimWorldMCP
                 "DailyMorning" => "🌅",
                 "IdleDetected" => "⏳",
                 "DeteriorationWarning" => "⚠️",
+                "NoColonists" => "💀 [殖民地覆灭]",
                 _ => "📢"
             };
             var instruction = category switch
             {
-                "RaidStart" => "\n请立即评估威胁并指挥防御。",
-                "PawnDeath" => "\n请检查殖民地状态并评估影响。",
+                "RaidStart" => "\n请先用 get_skills 查看可用技能，用 active_skill 获取相关领域知识后，评估威胁并指挥防御。",
+                "PawnDeath" => "\n请先用 get_skills 查看可用技能，用 active_skill 获取相关领域知识后，评估影响。",
                 "DailyMorning" => "\n游戏已自动暂停。请按简报中的步骤执行：全面检查 → 总结经验 → 评估现状 → 制定计划 → 恢复游戏。",
-                "NegativeEvent" => "\n请评估严重程度并给出应对建议。",
-                "AlertStart" => "\n请检查并处理此警报。",
-                "IdleDetected" => "\n请检查是否有待分配的工作。",
-                "DeteriorationWarning" => "\n请检查问题物品并及时处理。",
+                "NegativeEvent" => "\n请先用 get_skills 查看可用技能，获取相关领域知识后给出应对建议。",
+                "AlertStart" => "\n请先用 get_skills 查看可用技能，获取相关领域知识后处理此警报。",
+                "IdleDetected" => "\n请先用 get_skills 查看可用技能，获取相关领域知识后分配工作。",
+                "DeteriorationWarning" => "\n请先用 get_skills 查看可用技能，获取相关领域知识后处理。",
+                "NoColonists" => "\n所有殖民者已死亡，请调用 regenerate_map 工具重开游戏（i_know_danger=true）。",
                 _ => ""
             };
             return $"{icon} {rawText}{instruction}";

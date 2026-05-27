@@ -12,7 +12,7 @@ namespace RimWorldMCP.Tools
     public class Tool_SetBedOwnerType : ITool
     {
         public string Name => "set_bed_owner_type";
-        public string Description => "设置床的归属类型（殖民者/俘虏）。切换为俘虏床时会检查是否导致殖民者无床可用，传 force=true 可跳过安全校验。";
+        public string Description => "设置床的归属类型（殖民者/俘虏/奴隶）。切换为俘虏时会触发同房间级联转换。传 force=true 可跳过安全校验。";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
@@ -61,16 +61,11 @@ namespace RimWorldMCP.Tools
                     if (!bed.def.building.bed_humanlike)
                         return ToolResult.Error("该床不是人形床，无法设置归属类型。");
 
-                    // 解析目标 BedOwnerType
                     BedOwnerType targetType;
                     switch (ownerType)
                     {
-                        case "colonist":
-                            targetType = BedOwnerType.Colonist;
-                            break;
-                        case "prisoner":
-                            targetType = BedOwnerType.Prisoner;
-                            break;
+                        case "colonist": targetType = BedOwnerType.Colonist; break;
+                        case "prisoner": targetType = BedOwnerType.Prisoner; break;
                         case "slave":
                             if (!ModsConfig.IdeologyActive)
                                 return ToolResult.Error("Slave 类型需要 Ideology DLC。");
@@ -85,68 +80,208 @@ namespace RimWorldMCP.Tools
 
                     var oldType = bed.ForOwnerType;
 
-                    // 安全校验：Colonist → Prisoner/Slave 时，检查殖民者是否会无床
-                    if (!force && oldType == BedOwnerType.Colonist && targetType != BedOwnerType.Colonist)
+                    // ==================== 房间分析（变更前） ====================
+                    var room = bed.GetRoom(RegionType.Set_All);
+                    var district = bed.GetDistrict(RegionType.Set_Passable);
+                    string oldRoomRole = room?.Role?.label ?? "无";
+
+                    // 1. TouchesMapEdge 检测（切换为俘虏时 —— 硬约束）
+                    if (targetType == BedOwnerType.Prisoner && room != null && room.TouchesMapEdge)
+                        return ToolResult.Error("该房间接触地图边缘，无法设为俘虏床。请先用墙壁封闭地图边缘再试。");
+
+                    // 2. 非封闭/超大房间检测
+                    if (targetType == BedOwnerType.Prisoner && room != null && (!room.ProperRoom || room.IsHuge))
+                        return ToolResult.Error("该房间不是有效的封闭房间（露天或太大），无法设为俘虏床。");
+
+                    // 3. 收集同房所有床信息
+                    int otherBedsTotal = 0;
+                    int bedsToAutoConvert = 0;    // 会被自动转为俘虏的床数
+                    int otherBedsSameType = 0;     // 同房同类型的床数
+                    string otherBedsSummary = "";
+                    var allAffectedPawnNames = new List<string>(); // 变更前所有床位持有者
+
+                    if (room != null)
+                    {
+                        var allBeds = room.ContainedBeds?.ToList() ?? new List<Building_Bed>();
+                        otherBedsTotal = allBeds.Count(b => b != bed && b.def.building.bed_humanlike);
+                        otherBedsSameType = allBeds.Count(b => b != bed && b.ForOwnerType == targetType && b.def.building.bed_humanlike);
+
+                        // 切换为俘虏时：同房非俘虏床会被自动转换
+                        if (targetType == BedOwnerType.Prisoner)
+                            bedsToAutoConvert = allBeds.Count(b => b != bed && b.ForOwnerType != BedOwnerType.Prisoner && b.def.building.bed_humanlike);
+
+                        // 收集所有受影响角色
+                        foreach (var b in allBeds)
+                        {
+                            if (b.def.building.bed_humanlike)
+                                foreach (var owner in b.OwnersForReading ?? Enumerable.Empty<Pawn>())
+                                {
+                                    var name = owner.Name.ToStringShort;
+                                    if (!allAffectedPawnNames.Contains(name))
+                                        allAffectedPawnNames.Add(name);
+                                }
+                        }
+
+                        if (otherBedsTotal > 0)
+                        {
+                            var typeSummary = string.Join(", ", allBeds
+                                .Where(b => b != bed && b.def.building.bed_humanlike)
+                                .GroupBy(b => b.ForOwnerType)
+                                .Select(g => $"{OwnerTypeLabel(g.Key)}×{g.Count()}"));
+                            otherBedsSummary = $"同房还有 {otherBedsTotal} 张床: {typeSummary}。";
+                        }
+                    }
+                    else
+                    {
+                        // 无房间（室外）
+                        foreach (var owner in bed.OwnersForReading ?? Enumerable.Empty<Pawn>())
+                            allAffectedPawnNames.Add(owner.Name.ToStringShort);
+                    }
+
+                    // ==================== 安全校验 ====================
+                    bool hasBedWarning = false;
+                    var warningMessages = new List<string>();
+
+                    // 殖民者床保护（仅 Colonist → 非Colonist 时）
+                    if (oldType == BedOwnerType.Colonist && targetType != BedOwnerType.Colonist)
                     {
                         var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
                         if (colonists != null && colonists.Count > 0)
                         {
-                            // 统计地图上所有殖民者床
                             var allColonistBeds = map.listerBuildings.AllBuildingsColonistOfClass<Building_Bed>()
                                 .Where(b => b != bed && b.ForOwnerType == BedOwnerType.Colonist && b.def.building.bed_humanlike)
                                 .ToList();
-
                             int otherColonistBeds = allColonistBeds.Count;
 
-                            // 检查是否有殖民者被分配到此床
                             var owners = bed.OwnersForReading?.ToList() ?? new List<Pawn>();
                             var colonistOwners = owners.Where(o => o.IsColonist).ToList();
 
-                            if (otherColonistBeds == 0)
+                            // 硬错误：地图上唯一的殖民者床
+                            if (!force && otherColonistBeds == 0)
                             {
                                 if (colonistOwners.Count > 0)
-                                {
-                                    var names = string.Join(", ", colonistOwners.Select(o => o.Name.ToStringShort));
                                     return ToolResult.Error(
-                                        $"不允许切换：这是地图上唯一的殖民者床，以下殖民者会失去床位: {names}。请先建造新的殖民者床。");
-                                }
+                                        $"不允许切换：这是地图上唯一的殖民者床，以下殖民者会失去床位: {string.Join(", ", colonistOwners.Select(o => o.Name.ToStringShort))}。请先建造新的殖民者床。");
                                 if (colonists.Count > 0)
-                                {
                                     return ToolResult.Error(
                                         $"不允许切换：这是地图上唯一的殖民者床，{colonists.Count} 名殖民者将无床可用。请先建造新的殖民者床。");
-                                }
                             }
 
-                            // 对于每个被分配到此床的殖民者，确认有其他可用殖民者床
-                            foreach (var owner in colonistOwners)
+                            // 硬错误：分配到此床的殖民者无其他床
+                            if (!force)
                             {
-                                bool hasOtherBed = allColonistBeds.Any(b =>
-                                    b != bed && (b.OwnersForReading == null || b.OwnersForReading.Count() < b.SleepingSlotsCount ||
-                                                b.AnyUnownedSleepingSlot));
-                                if (!hasOtherBed && otherColonistBeds == 0)
+                                foreach (var owner in colonistOwners)
                                 {
-                                    return ToolResult.Error(
-                                        $"不允许切换：殖民者 {owner.Name.ToStringShort} 被分配到此床，且无其他可用殖民者床。");
+                                    bool hasOtherBed = allColonistBeds.Any(b =>
+                                        b != bed && (b.OwnersForReading == null || b.OwnersForReading.Count() < b.SleepingSlotsCount ||
+                                                    b.AnyUnownedSleepingSlot));
+                                    if (!hasOtherBed && otherColonistBeds == 0)
+                                        return ToolResult.Error(
+                                            $"不允许切换：殖民者 {owner.Name.ToStringShort} 无其他可用殖民者床。");
                                 }
                             }
 
-                            // 警告（允许但提醒）
+                            // 警告：殖民者失去床位
                             if (colonistOwners.Count > 0)
                             {
-                                var names = string.Join(", ", colonistOwners.Select(o => o.Name.ToStringShort));
-                                var sb = new StringBuilder();
-                                sb.AppendLine($"床已切换为 {OwnerTypeLabel(targetType)}。");
-                                sb.AppendLine($"注意：以下殖民者失去了床的分配: {names}");
-                                sb.AppendLine($"地图上仍有 {otherColonistBeds} 张殖民者床可用。");
-                                return ToolResult.Success(sb.ToString().TrimEnd());
+                                hasBedWarning = true;
+                                warningMessages.Add($"以下殖民者失去了床位分配: {string.Join(", ", colonistOwners.Select(o => o.Name.ToStringShort))}");
+                                if (otherColonistBeds > 0)
+                                    warningMessages.Add($"地图上仍有 {otherColonistBeds} 张殖民者床可用。");
                             }
                         }
                     }
 
-                    // 执行切换
+                    // ==================== 执行切换 ====================
                     bed.ForOwnerType = targetType;
 
-                    return ToolResult.Success($"床已切换为 {OwnerTypeLabel(targetType)}。");
+                    // ==================== 触发房间级联（关键修复） ====================
+                    if (district != null)
+                    {
+                        district.Notify_RoomShapeOrContainedBedsChanged();
+                        district.Room?.Notify_RoomShapeChanged();
+                    }
+
+                    // ==================== 构建返回消息 ====================
+                    var result = new StringBuilder();
+                    result.AppendLine($"床已切换为 {OwnerTypeLabel(targetType)}。");
+
+                    // 房间角色变化
+                    string newRoomRole = room?.Role?.label ?? "无";
+                    if (oldRoomRole != newRoomRole)
+                        result.AppendLine($"房间角色变更: {oldRoomRole} → {newRoomRole}");
+
+                    // 级联信息
+                    if (targetType == BedOwnerType.Prisoner)
+                    {
+                        // 重新统计变更后的同房床类型
+                        int prisonerBedsAfter = 0, colonistBedsAfter = 0;
+                        if (room != null)
+                        {
+                            foreach (var b in room.ContainedBeds ?? Enumerable.Empty<Building_Bed>())
+                            {
+                                if (b.def.building.bed_humanlike)
+                                {
+                                    if (b.ForPrisoners) prisonerBedsAfter++;
+                                    else colonistBedsAfter++;
+                                }
+                            }
+                        }
+                        if (prisonerBedsAfter > 1)
+                            result.AppendLine($"同房共 {prisonerBedsAfter} 张床已转为俘虏用床。");
+                        if (colonistBedsAfter > 0)
+                            result.AppendLine($"注意：同房仍有 {colonistBedsAfter} 张殖民者床，可能不符合囚室要求。");
+                    }
+                    else if (targetType == BedOwnerType.Colonist)
+                    {
+                        int prisonerBedsAfter = 0;
+                        if (room != null)
+                        {
+                            foreach (var b in room.ContainedBeds ?? Enumerable.Empty<Building_Bed>())
+                                if (b.def.building.bed_humanlike && b.ForPrisoners)
+                                    prisonerBedsAfter++;
+                        }
+                        if (prisonerBedsAfter > 0)
+                            result.AppendLine($"注意：同房仍有 {prisonerBedsAfter} 张俘虏床，房间仍为囚室。");
+                    }
+
+                    // 其他床概要
+                    if (!string.IsNullOrEmpty(otherBedsSummary))
+                        result.AppendLine(otherBedsSummary);
+
+                    // 安全警告
+                    if (hasBedWarning)
+                    {
+                        result.AppendLine();
+                        foreach (var w in warningMessages)
+                            result.AppendLine($"⚠ {w}");
+                    }
+
+                    // 受影响角色（重叠床位已移除）
+                    var stillOwnedIds = new HashSet<int>();
+                    if (room != null)
+                    {
+                        foreach (var b in room.ContainedBeds ?? Enumerable.Empty<Building_Bed>())
+                            foreach (var owner in b.OwnersForReading ?? Enumerable.Empty<Pawn>())
+                                stillOwnedIds.Add(owner.thingIDNumber);
+                    }
+                    else
+                    {
+                        foreach (var owner in bed.OwnersForReading ?? Enumerable.Empty<Pawn>())
+                            stillOwnedIds.Add(owner.thingIDNumber);
+                    }
+                    // 已失床的（变更前持有床、变更后不持有）
+                    var lostBedPawns = allAffectedPawnNames
+                        .Select(name => PawnsFinder.AllMaps_FreeColonistsSpawned
+                            .FirstOrDefault(p => p.Name.ToStringShort == name))
+                        .Where(p => p != null && !stillOwnedIds.Contains(p.thingIDNumber))
+                        .Select(p => p.Name.ToStringShort)
+                        .Distinct()
+                        .ToList();
+                    if (lostBedPawns.Count > 0)
+                        result.AppendLine($"已解除床位分配: {string.Join(", ", lostBedPawns)}");
+
+                    return ToolResult.Success(result.ToString().TrimEnd());
                 }
                 catch (Exception ex)
                 {

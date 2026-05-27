@@ -115,15 +115,15 @@ namespace RimWorldMCP.Tools
 
                     var result = await tool.ExecuteAsync(args);
 
-                    // L3 事件暂停中 → 注入摘要催促 AI 收尾
+                    // L3 事件暂停中 → 注入摘要催促 AI 先学技能再收尾
                     if (BridgeLifecycle.DangerPaused)
-                        result = ToolResult.Success((result.Text ?? "") + $"\n\n⚠ {BridgeLifecycle.DangerSummary} | 已暂停，请尽快完成");
+                        result = ToolResult.Success((result.Text ?? "") + $"\n\n⚠ {BridgeLifecycle.DangerSummary} | 已暂停。建议先用 get_skills 查看可用领域技能，用 active_skill 获取知识后再处理。");
 
                     // L1+L2 非高危通知 → 注入计数，AI 自行决定是否暂停
                     int pendingCount = BridgeLifecycle.PendingLevel12Count;
                     if (pendingCount > 0 && !BridgeLifecycle.DangerPaused)
                     {
-                        result = ToolResult.Success((result.Text ?? "") + $"\n\n📋 新事件: {pendingCount}件 | 如需处理请用 toggle_pause 暂停");
+                        result = ToolResult.Success((result.Text ?? "") + $"\n\n📋 新事件: {pendingCount}件 | 暂停后用 get_skills 查看可用技能，active_skill 获取知识后处理。");
                         BridgeLifecycle.ResetPendingLevel12Count();
                     }
 
