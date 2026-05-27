@@ -77,6 +77,7 @@ namespace RimWorldMCP.Tools
                     {
                         foreach (var t in map.listerThings.AllThings)
                         {
+                            if (t.Fogged()) continue;
                             if (category == "item" && t is Building) continue;
                             if (category == "building" && !(t is Building)) continue;
                             if (t is Blueprint || t is Frame) continue; // 过滤蓝图
@@ -105,6 +106,7 @@ namespace RimWorldMCP.Tools
                     {
                         foreach (var p in map.mapPawns.AllPawnsSpawned)
                         {
+                            if (p.Fogged()) continue;
                             if (!string.IsNullOrEmpty(defName) && p.def.defName != defName) continue;
 
                             if (!string.IsNullOrEmpty(keyword))

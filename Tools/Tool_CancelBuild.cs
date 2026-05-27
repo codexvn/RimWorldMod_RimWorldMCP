@@ -86,6 +86,7 @@ namespace RimWorldMCP.Tools
                         {
                             var cell = new IntVec3(x, 0, z);
                             if (!cell.InBounds(map)) continue;
+                            if (cell.Fogged(map)) continue;
 
                             // 收集这一格要取消的东西
                             var things = cell.GetThingList(map);

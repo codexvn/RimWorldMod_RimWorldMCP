@@ -29,7 +29,6 @@ namespace RimWorldMCP.Tools
                 door_positions = new { type = "string", description = "门的位置，多个用逗号分隔。可选: top, bottom, left, right, center_top, center_bottom, center_left, center_right" },
                 door_defName = new { type = "string", description = "门的 DefName，默认 Door", @default = "Door" },
                 floor_defName = new { type = "string", description = "地板 DefName，可选" },
-                force = new { type = "boolean", description = "跳过资源检查强制建造（默认 false）", @default = false },
                 ignore_unreachable = new { type = "boolean", description = "跳过可达性检测（默认 false）" },
                 ignore_overwrite = new { type = "boolean", description = "跳过内部人造墙体冲突检测（默认 false）。默认会检查房间内部是否有其他人造墙体（坐标交叉错误），检测到则拒绝建造。设为 true 可强制覆盖。天然岩壁始终忽略。" }
             },
@@ -61,9 +60,6 @@ namespace RimWorldMCP.Tools
             string floorDefName = "";
             if (args.Value.TryGetProperty("floor_defName", out var jFloor)) floorDefName = jFloor.GetString() ?? "";
 
-            bool force = false;
-            if (args.Value.TryGetProperty("force", out var jForce))
-                force = jForce.ValueKind == JsonValueKind.True;
             bool ignore_unreachable = false;
             if (args.Value.TryGetProperty("ignore_unreachable", out var jIgnore) && jIgnore.ValueKind == JsonValueKind.True)
                 ignore_unreachable = true;
@@ -231,8 +227,8 @@ namespace RimWorldMCP.Tools
                     var doorStuff = (doorDef?.MadeFromStuff == true) ? ThingDef.Named("Steel") : null;
                     var floorStuff = (floorDef?.MadeFromStuff == true) ? ThingDef.Named("Steel") : null;
 
-                    // 资源检查（聚合墙体 + 门 + 地板）
-                    if (!force)
+                    // 资源检查（聚合墙体 + 门 + 地板，仅警告不阻断）
+                    string? resourceWarning = null;
                     {
                         var aggregate = new Dictionary<ThingDef, int>();
                         void AddToAggregate(BuildableDef bdef, ThingDef? stuff, int multiplier)
@@ -256,7 +252,7 @@ namespace RimWorldMCP.Tools
                         {
                             var shortage = ResourceCheckHelper.CheckResources(map, aggregate);
                             if (shortage != null)
-                                return ToolResult.Error($"房间建造资源不足:\n{shortage}");
+                                resourceWarning = $"⚠ 资源不足警告（蓝图已放置，但建造需要以下资源）:\n{shortage}";
                         }
                     }
 
@@ -291,6 +287,7 @@ namespace RimWorldMCP.Tools
                     foreach (var (wx, wy) in wallPositions)
                     {
                         var ipos = new IntVec3(wx, 0, wy);
+                        if (ipos.Fogged(map)) { errors.Add($"雾({wx},{wy}): 迷雾中不可见"); continue; }
                         bool isDoorPos = doorPosSet.Contains((wx, wy)) && doorDes != null;
 
                         // 非门位置 + 已有墙体 → 共用墙，跳过
@@ -338,6 +335,7 @@ namespace RimWorldMCP.Tools
                         foreach (var (fx, fy) in floorPositions)
                         {
                             var fpos = new IntVec3(fx, 0, fy);
+                            if (fpos.Fogged(map)) { errors.Add($"雾({fx},{fy}): 迷雾中不可见"); continue; }
                             if (!floorDes.CanDesignateCell(fpos).Accepted)
                                 continue;
                             try
@@ -364,6 +362,8 @@ namespace RimWorldMCP.Tools
                     sb.AppendLine($"- 内部空间: {roomWidth - 2}x{roomHeight - 2} = {(roomWidth - 2) * (roomHeight - 2)} 格");
                     if (errors.Count > 0)
                         sb.AppendLine($"- 部分失败 ({errors.Count} 处): {string.Join("; ", errors)}");
+                    if (resourceWarning != null)
+                        sb.AppendLine($"\n{resourceWarning}");
 
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }

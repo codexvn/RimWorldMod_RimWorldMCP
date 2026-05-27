@@ -55,13 +55,15 @@ namespace RimWorldMCP.Tools
                     {
                         for (int x = minX; x <= maxX; x++)
                         {
-                            bool p = map.pollutionGrid.IsPolluted(new IntVec3(x, 0, z));
+                            var pos = new IntVec3(x, 0, z);
+                            if (pos.Fogged(map)) { sb.Append('?'); continue; }
+                            bool p = map.pollutionGrid.IsPolluted(pos);
                             if (p) polluted++;
                             sb.Append(p ? 'P' : '.');
                         }
                         sb.AppendLine();
                     }
-                    sb.AppendLine($"P污染  .干净  | 污染率: {polluted}/{w * h} ({100 * polluted / (w * h)}%)");
+                    sb.AppendLine($"P污染  .干净  ?迷雾  | 污染率: {polluted}/{w * h} ({100 * polluted / (w * h)}%)");
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }
                 catch (Exception ex) { return ToolResult.Error($"污染查询失败: {ex.Message}"); }

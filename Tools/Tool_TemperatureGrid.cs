@@ -63,12 +63,14 @@ namespace RimWorldMCP.Tools
                     {
                         for (int x = minX; x <= maxX; x++)
                         {
-                            float t = GenTemperature.GetTemperatureForCell(new IntVec3(x, 0, z), map);
+                            var pos = new IntVec3(x, 0, z);
+                            if (pos.Fogged(map)) { sb.Append('?'); continue; }
+                            float t = GenTemperature.GetTemperatureForCell(pos, map);
                             sb.Append(TempChar(t));
                         }
                         sb.AppendLine();
                     }
-                    sb.AppendLine("█<-20°C  ▓-20~0  ░0~10  .10~21  ○21~35  ◎35~60  ●>60");
+                    sb.AppendLine("█<-20°C  ▓-20~0  ░0~10  .10~21  ○21~35  ◎35~60  ●>60  ?迷雾");
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }
                 catch (Exception ex) { return ToolResult.Error($"温度查询失败: {ex.Message}"); }

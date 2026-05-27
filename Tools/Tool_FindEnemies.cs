@@ -35,7 +35,7 @@ namespace RimWorldMCP.Tools
                     if (playerFaction == null) return ToolResult.Error("无法获取玩家派系。");
 
                     var enemies = map.mapPawns.AllPawnsSpawned
-                        .Where(p => p.HostileTo(playerFaction) && !p.Dead && !p.Destroyed)
+                        .Where(p => p.HostileTo(playerFaction) && !p.Dead && !p.Destroyed && !p.Fogged())
                         .OrderBy(p => p.Position.x)
                         .ThenBy(p => p.Position.z)
                         .ThenBy(p => p.thingIDNumber)

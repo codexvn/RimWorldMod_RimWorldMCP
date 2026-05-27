@@ -72,12 +72,14 @@ namespace RimWorldMCP.Tools
                     {
                         for (int x = minX; x <= maxX; x++)
                         {
-                            var terrain = map.terrainGrid.TerrainAt(new IntVec3(x, 0, z));
+                            var pos = new IntVec3(x, 0, z);
+                            if (pos.Fogged(map)) { sb.Append('?'); continue; }
+                            var terrain = map.terrainGrid.TerrainAt(pos);
                             sb.Append(TerrainChar(terrain));
                         }
                         sb.AppendLine();
                     }
-                    sb.AppendLine(":沃土  .土壤  ,砾石  ·沙地  ≈浅水  〰深水/沼泽  █岩石  □混凝土  ▤木地板  ◇石砖  ▣地毯");
+                    sb.AppendLine(":沃土  .土壤  ,砾石  ·沙地  ≈浅水  〰深水/沼泽  █岩石  □混凝土  ▤木地板  ◇石砖  ▣地毯  ?迷雾");
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }
                 catch (Exception ex) { return ToolResult.Error($"地形查询失败: {ex.Message}"); }

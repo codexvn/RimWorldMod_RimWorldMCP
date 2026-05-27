@@ -60,6 +60,7 @@ namespace RimWorldMCP.Tools
 
                     foreach (IntVec3 cell in area)
                     {
+                        if (cell.Fogged(map)) { skipped++; continue; }
                         if (!designator.CanDesignateCell(cell).Accepted) { skipped++; continue; }
                         designator.DesignateSingleCell(cell);
                         designated++;

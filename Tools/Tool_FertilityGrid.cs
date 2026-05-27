@@ -59,13 +59,15 @@ namespace RimWorldMCP.Tools
                     {
                         for (int x = minX; x <= maxX; x++)
                         {
-                            var terrain = map.terrainGrid.TerrainAt(new IntVec3(x, 0, z));
+                            var pos = new IntVec3(x, 0, z);
+                            if (pos.Fogged(map)) { sb.Append('?'); continue; }
+                            var terrain = map.terrainGrid.TerrainAt(pos);
                             float f = terrain?.fertility ?? 0f;
                             sb.Append(FertilityChar(f));
                         }
                         sb.AppendLine();
                     }
-                    sb.AppendLine("▓≥140%  ▒≥100%  ░≥70%  ·<70%");
+                    sb.AppendLine("▓≥140%  ▒≥100%  ░≥70%  ·<70%  ?迷雾");
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }
                 catch (Exception ex) { return ToolResult.Error($"肥沃度查询失败: {ex.Message}"); }

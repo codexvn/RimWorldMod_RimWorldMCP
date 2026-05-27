@@ -71,6 +71,7 @@ namespace RimWorldMCP.Tools
             for (int i = 0; i < blueprints.Count; i++)
             {
                 var bp = blueprints[i];
+                if (bp.Fogged()) continue;
                 var entityDef = bp.def.entityDefToBuild;
                 string label = entityDef?.label ?? "未知";
                 string? stuff = bp.Stuff?.label;
@@ -120,6 +121,7 @@ namespace RimWorldMCP.Tools
             for (int i = 0; i < frames.Count; i++)
             {
                 var frame = frames[i];
+                if (frame.Fogged()) continue;
                 var entityDef = frame.def.entityDefToBuild;
                 string label = entityDef?.label ?? "未知";
                 string? stuff = frame.Stuff?.label;

@@ -19,7 +19,7 @@ namespace RimWorldMCP.Tools
             type = "object",
             properties = new
             {
-                hours = new { type = "number", description = "要运行的游戏内小时数。1 小时 = 2500 tick，超快模式下约 0.8 秒。支持小数，如 0.5 = 半小时。推荐 0.1~0.5 小时。" }
+                hours = new { type = "number", description = "要运行的游戏内小时数。1 小时 = 2500 tick，超快模式下约 0.8 秒。支持小数，如 0.5 = 半小时。推荐 0.5~4 小时，和平时期用 2~4 小时大步推进。" }
             },
             required = new[] { "hours" }
         });
@@ -137,7 +137,7 @@ namespace RimWorldMCP.Tools
             var colonists = PawnsFinder.AllMaps_FreeColonistsSpawned;
             sb.AppendLine($"- 殖民者: {colonists.Count} 人");
 
-            int enemies = map.mapPawns.AllPawnsSpawned.Count(p => p.HostileTo(Faction.OfPlayer));
+            int enemies = map.mapPawns.AllPawnsSpawned.Count(p => p.HostileTo(Faction.OfPlayer) && !p.Fogged());
             if (enemies > 0) sb.AppendLine($"- 敌人: {enemies}");
 
             int idle = 0;

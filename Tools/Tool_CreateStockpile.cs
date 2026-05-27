@@ -150,6 +150,7 @@ namespace RimWorldMCP.Tools
                     int added = 0, skipped = 0;
                     foreach (IntVec3 cell in area)
                     {
+                        if (cell.Fogged(map)) { skipped++; continue; }
                         if (zone.Cells.Contains(cell)) { skipped++; continue; }
                         if (map.zoneManager.ZoneAt(cell) != null) { skipped++; continue; }
                         var things = cell.GetThingList(map);

@@ -104,14 +104,15 @@ namespace RimWorldMCP.Tools
                             ?.SetValue(designator, rot);
                     }
 
-                    // 资源检查
+                    // 资源检查（仅警告不阻断）
+                    string? resourceWarning = null;
                     {
                         var needed = ResourceCheckHelper.CalculateCost(def, stuff);
                         if (needed.Count > 0)
                         {
                             var shortage = ResourceCheckHelper.CheckResources(Find.CurrentMap, needed);
                             if (shortage != null)
-                                return ToolResult.Error($"建造 {def.label} ({thingDefName}) 资源不足:\n{shortage}");
+                                resourceWarning = $"⚠ 资源不足警告（蓝图已放置，但建造需要以下资源）:\n{shortage}";
                         }
                     }
 
@@ -130,7 +131,10 @@ namespace RimWorldMCP.Tools
                     designator.DesignateSingleCell(pos);
 
                     string stuffInfo = stuff != null ? $"（材料: {stuff.label}）" : "";
-                    return ToolResult.Success($"已成功在坐标 ({posX}, {posY}) 放置 {def.label} ({thingDefName}){stuffInfo}，朝向: {rotationStr}。");
+                    string result = $"已成功在坐标 ({posX}, {posY}) 放置 {def.label} ({thingDefName}){stuffInfo}，朝向: {rotationStr}。";
+                    if (resourceWarning != null)
+                        result += $"\n\n{resourceWarning}";
+                    return ToolResult.Success(result);
                 }
                 catch (Exception ex)
                 {

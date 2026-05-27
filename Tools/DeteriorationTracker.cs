@@ -119,6 +119,7 @@ namespace RimWorldMCP.Tools
 
             foreach (var thing in map.listerThings.AllThings)
             {
+                if (thing.Fogged()) continue;
                 // === 腐烂检测 ===
                 var compRottable = thing.TryGetComp<CompRottable>();
                 if (compRottable != null && compRottable.Active && compRottable.Stage == RotStage.Fresh)

@@ -64,6 +64,8 @@ namespace RimWorldMCP.Tools
 
                     int buildingCount = 0, itemCount = 0, plantCount = 0, pawnCount = 0;
 
+                    int foggedCells = 0;
+
                     // 建筑
                     var buildings = new List<string>();
                     for (int y = minY; y <= maxY; y++)
@@ -71,6 +73,7 @@ namespace RimWorldMCP.Tools
                         for (int x = minX; x <= maxX; x++)
                         {
                             var pos = new IntVec3(x, 0, y);
+                            if (pos.Fogged(map)) { foggedCells++; continue; }
                             var b = pos.GetEdifice(map);
                             if (b != null)
                             {
@@ -94,6 +97,7 @@ namespace RimWorldMCP.Tools
                         for (int x = minX; x <= maxX; x++)
                         {
                             var pos = new IntVec3(x, 0, y);
+                            if (pos.Fogged(map)) continue;
                             foreach (var t in pos.GetThingList(map))
                             {
                                 if (t.def.category != ThingCategory.Item) continue;
@@ -122,6 +126,7 @@ namespace RimWorldMCP.Tools
                         for (int x = minX; x <= maxX; x++)
                         {
                             var pos = new IntVec3(x, 0, y);
+                            if (pos.Fogged(map)) continue;
                             var p = pos.GetPlant(map);
                             if (p != null)
                             {
@@ -145,6 +150,7 @@ namespace RimWorldMCP.Tools
                         var p = pawn.Position;
                         if (p.x >= minX && p.x <= maxX && p.z >= minY && p.z <= maxY)
                         {
+                            if (pawn.Fogged()) continue;
                             string statusTag = pawn.Downed ? " [倒地]"
                                 : IsFleeing(pawn) ? " [逃跑中]"
                                 : pawn.Drafted ? " [征召]"
@@ -162,6 +168,8 @@ namespace RimWorldMCP.Tools
 
                     if (buildingCount == 0 && itemCount == 0 && plantCount == 0 && pawnCount == 0)
                         sb.AppendLine("该区域为空。");
+                    if (foggedCells > 0)
+                        sb.AppendLine($"（{foggedCells} 格被迷雾覆盖，未显示内容）");
 
                     return ToolResult.Success(sb.ToString().TrimEnd());
                 }

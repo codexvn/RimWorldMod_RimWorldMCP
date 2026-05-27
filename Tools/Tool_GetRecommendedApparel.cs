@@ -94,6 +94,7 @@ namespace RimWorldMCP.Tools
 
                     foreach (var t in tmpList)
                     {
+                        if (t.Fogged()) continue;
                         if (t is not Apparel ap) continue;
                         if (ap.IsBurning()) continue;
 

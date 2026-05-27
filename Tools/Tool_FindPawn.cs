@@ -61,7 +61,7 @@ namespace RimWorldMCP.Tools
                     Map map = Find.CurrentMap;
                     if (map == null) return ToolResult.Error("没有当前地图。");
 
-                    var allPawns = map.mapPawns.AllPawnsSpawned;
+                    var allPawns = map.mapPawns.AllPawnsSpawned.Where(p => !p.Fogged()).ToList();
 
                     // 名称匹配
                     var matched = allPawns.Where(p =>

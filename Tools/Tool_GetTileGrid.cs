@@ -60,7 +60,8 @@ namespace RimWorldMCP.Tools
             ['.'] = "土地",
             [':'] = "沃土",
             [','] = "砾石",
-            ['?'] = "未知"
+            ['?'] = "未知",
+            ['█'] = "迷雾"
         };
 
         // 物品属性匹配规则（按优先级，首次命中即返回）
@@ -175,6 +176,9 @@ namespace RimWorldMCP.Tools
                             int row = gy - minY;
                             int col = gx - minX;
                             char ch;
+
+                            if (pos.Fogged(map))
+                            { ch = '█'; grid[row][col] = ch; usedSymbols.Add(ch); continue; }
 
                             var b = pos.GetEdifice(map);
                             if (b != null)

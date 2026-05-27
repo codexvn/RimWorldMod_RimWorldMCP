@@ -64,6 +64,7 @@ namespace RimWorldMCP.Tools
                     var candidates = new List<Thing>();
                     foreach (var t in map.listerThings.AllThings)
                     {
+                        if (t.Fogged()) continue;
                         if (t is Blueprint || t is Frame) continue;
                         if (t.IsBurning()) continue;
 
