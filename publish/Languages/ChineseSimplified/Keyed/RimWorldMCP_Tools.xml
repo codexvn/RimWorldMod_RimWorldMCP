@@ -130,6 +130,7 @@
 
   <!-- 地图 -->
   <RimWorldMCP_Tool_regenerate_map>重新生成地图</RimWorldMCP_Tool_regenerate_map>
+  <RimWorldMCP_Tool_restart_game>重新开始游戏</RimWorldMCP_Tool_restart_game>
 
   <!-- 腐坏追踪 -->
   <RimWorldMCP_Tool_get_deteriorating_items>腐坏物品清单</RimWorldMCP_Tool_get_deteriorating_items>
