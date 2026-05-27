@@ -24,10 +24,11 @@ namespace RimWorldMCP.Tools
 
             try
             {
+                // CCB --project-path 同目录（companionDir/../claude-sessions/）
                 var dir = BridgeLifecycle.FindCompanionDir();
                 if (!string.IsNullOrEmpty(dir))
                 {
-                    _filePath = Path.Combine(dir, "memory.json");
+                    _filePath = Path.GetFullPath(Path.Combine(dir, "..", "claude-sessions", "memory.json"));
                     return _filePath;
                 }
             }
