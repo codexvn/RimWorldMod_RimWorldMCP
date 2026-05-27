@@ -161,6 +161,7 @@ namespace RimWorldMCP
 
         private static async Task SendHello()
         {
+            var settings = RimWorldMCPMod.Instance.Settings;
             await SendJson(new
             {
                 type = "hello",
@@ -172,6 +173,12 @@ namespace RimWorldMCP
                 auth = new
                 {
                     token = _token
+                },
+                budget = new
+                {
+                    limit = settings.TokenBudgetLimit,
+                    used = TokenUsageTracker.TotalAllTokens,
+                    action = settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Block ? "Block" : "Warn"
                 }
             });
         }
@@ -223,12 +230,19 @@ namespace RimWorldMCP
                                 _helloOk?.TrySetResult(true);
                                 break;
 
+                            case "system":
+                                // 从 system.init 提取模型名
+                                if (root.TryGetProperty("subtype", out var sub) && sub.GetString() == "init"
+                                    && root.TryGetProperty("model", out var modelEl))
+                                {
+                                    TokenUsageTracker.CurrentModel = modelEl.GetString() ?? "";
+                                }
+                                break;
+
                             case "assistant":
                             case "user":
                                 ChatDisplayState.OnSdkMessage(root);
-                                // 统计工具调用成败
                                 CountToolResults(root);
-                                // 提取 Token 用量（usage 在 assistant 消息的 message.usage 中）
                                 ExtractUsageFromMessage(root);
                                 break;
 
@@ -288,11 +302,18 @@ namespace RimWorldMCP
             }
         }
 
-        /// <summary>从 assistant 消息中提取 Token 用量（message.usage）</summary>
+        /// <summary>从 assistant 消息中提取 Token 用量与模型名</summary>
         private static void ExtractUsageFromMessage(JsonElement root)
         {
-            // usage 在 message.usage 中（参照 Claude Agent SDK 消息格式）
             if (!root.TryGetProperty("message", out var msgEl)) return;
+
+            // 尝试从消息中提取模型名
+            if (msgEl.TryGetProperty("model", out var modelEl))
+            {
+                var m = modelEl.GetString();
+                if (!string.IsNullOrEmpty(m)) TokenUsageTracker.CurrentModel = m;
+            }
+
             if (!msgEl.TryGetProperty("usage", out var usageEl) || usageEl.ValueKind != JsonValueKind.Object) return;
 
             long inputTok = 0, outputTok = 0, cacheRead = 0, cacheCreate = 0;
@@ -304,7 +325,7 @@ namespace RimWorldMCP
             if (inputTok > 0 || outputTok > 0)
             {
                 McpLog.Info($"[cc] Token: in={inputTok} out={outputTok} cacheR={cacheRead} cacheW={cacheCreate}");
-                TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, 0);
+                TokenUsageTracker.Record(TokenUsageTracker.CurrentModel, inputTok, outputTok, cacheRead, cacheCreate, 0);
             }
         }
 
@@ -326,19 +347,18 @@ namespace RimWorldMCP
                     if (usageEl.TryGetProperty("cache_read_input_tokens", out var cr)) cacheRead = cr.GetInt64();
                     if (usageEl.TryGetProperty("cache_creation_input_tokens", out var cc)) cacheCreate = cc.GetInt64();
                     if (inputTok > 0 || outputTok > 0)
-                        TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, 0);
+                        TokenUsageTracker.Record(TokenUsageTracker.CurrentModel, inputTok, outputTok, cacheRead, cacheCreate, 0);
                 }
             }
             else if (eventType == "message_delta" && evt.TryGetProperty("usage", out var deltaUsage) && deltaUsage.ValueKind == JsonValueKind.Object)
             {
-                // message_delta: usage 直接在 event.usage 中（增量输出 token）
                 long inputTok = 0, outputTok = 0, cacheRead = 0, cacheCreate = 0;
                 if (deltaUsage.TryGetProperty("input_tokens", out var it)) inputTok = it.GetInt64();
                 if (deltaUsage.TryGetProperty("output_tokens", out var ot)) outputTok = ot.GetInt64();
                 if (deltaUsage.TryGetProperty("cache_read_input_tokens", out var cr)) cacheRead = cr.GetInt64();
                 if (deltaUsage.TryGetProperty("cache_creation_input_tokens", out var cc)) cacheCreate = cc.GetInt64();
                 if (outputTok > 0)
-                    TokenUsageTracker.Record(inputTok, outputTok, cacheRead, cacheCreate, 0);
+                    TokenUsageTracker.Record(TokenUsageTracker.CurrentModel, inputTok, outputTok, cacheRead, cacheCreate, 0);
             }
         }
 

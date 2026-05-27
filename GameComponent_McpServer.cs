@@ -18,6 +18,7 @@ namespace RimWorldMCP
         private static ITransport? s_activeTransport;
         internal static SkillRegistry? s_skillRegistry;
         private string _sessionId = "";
+        public static string CurrentSessionId { get; private set; } = "";
         private const int DefaultPort = 9877;
         private const string DefaultHost = "0.0.0.0";
 
@@ -29,6 +30,7 @@ namespace RimWorldMCP
         {
             base.StartedNewGame();
             _sessionId = GenerateSessionId();
+            CurrentSessionId = _sessionId;
             DeteriorationTracker.Reset();
             StartMcpService();
             AttachMapUI();
@@ -39,6 +41,7 @@ namespace RimWorldMCP
             base.LoadedGame();
             if (string.IsNullOrEmpty(_sessionId))
                 _sessionId = GenerateSessionId();
+            CurrentSessionId = _sessionId;
             DeteriorationTracker.Reset();
             StartMcpService();
             AttachMapUI();

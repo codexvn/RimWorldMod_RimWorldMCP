@@ -137,8 +137,13 @@ namespace RimWorldMCP
             // Header
             DrawHeader(new Rect(inRect.x, inRect.y, inRect.width, headerH));
 
+            // 预算横幅（Warning/Critical/Exceeded 时显示）
+            float bannerH = DrawBudgetBanner(new Rect(inRect.x, inRect.y + headerH + gap,
+                inRect.width, 22f));
+            float bannerOffset = bannerH > 0 ? bannerH + gap : 0;
+
             // Panels
-            float panelsY = inRect.y + headerH + gap;
+            float panelsY = inRect.y + headerH + gap + bannerOffset;
             float panelsH = inRect.height - headerH - inputH - footerH - gap * 3;
             float leftW = (inRect.width - panelGap) * leftRatio;
             float rightW = inRect.width - leftW - panelGap;
@@ -169,6 +174,50 @@ namespace RimWorldMCP
             // Footer
             float footerY = inputY + inputH + gap;
             DrawFooter(new Rect(inRect.x, footerY, inRect.width, footerH));
+        }
+
+        // ========== 预算横幅 ==========
+
+        /// <summary>绘制预算警告横幅，返回实际高度（0=不显示）</summary>
+        private static float DrawBudgetBanner(Rect rect)
+        {
+            var status = ChatDisplayState.CurrentBudgetStatus;
+            if (status == BudgetStatus.Ok) return 0;
+
+            string text;
+            Color bgColor;
+            switch (status)
+            {
+                case BudgetStatus.Warning:
+                    text = $"Token 预算已用 {ChatDisplayState.CurrentBudgetPercent:F0}%，请注意控制";
+                    bgColor = new Color(0.55f, 0.45f, 0.1f, _alpha);
+                    break;
+                case BudgetStatus.Critical:
+                    text = $"Token 预算即将用尽 {ChatDisplayState.CurrentBudgetPercent:F0}%";
+                    bgColor = new Color(0.55f, 0.25f, 0.1f, _alpha);
+                    break;
+                case BudgetStatus.Exceeded:
+                    var settings = RimWorldMCPMod.Instance.Settings;
+                    if (settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Block)
+                        text = "Token 预算已用尽，游戏已暂停。请提高预算或开始新游戏。";
+                    else
+                        text = "Token 预算已用尽（仅警告模式），已发送通知。";
+                    bgColor = new Color(0.55f, 0.15f, 0.15f, _alpha);
+                    break;
+                default:
+                    return 0;
+            }
+
+            Widgets.DrawBoxSolid(rect, bgColor);
+            Text.Font = GameFont.Tiny;
+            var oldAnchor = Text.Anchor;
+            Text.Anchor = TextAnchor.MiddleCenter;
+            GUI.color = Color.white;
+            Widgets.Label(rect, text);
+            GUI.color = Color.white;
+            Text.Anchor = oldAnchor;
+            Text.Font = GameFont.Small;
+            return rect.height;
         }
 
         // ========== 顶栏 ==========
@@ -213,7 +262,7 @@ namespace RimWorldMCP
             GUI.color = Color.white;
 
             // Token 消耗右对齐
-            string tokenText = TokenUsageTracker.GetCompactDisplay();
+            string tokenText = TokenUsageTracker.GetCompactDisplay(RimWorldMCPMod.Instance.Settings.TokenBudgetLimit);
             float tokenW = Text.CalcSize(tokenText).x;
             Text.Font = GameFont.Tiny;
             GUI.color = new Color(0.5f, 0.55f, 0.65f, _alpha);

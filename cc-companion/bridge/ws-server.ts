@@ -5,6 +5,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import type { IncomingMessage } from 'http';
+import { CONFIG } from '../companion/config.js';
 
 export interface WsMessage {
   type: string;
@@ -12,6 +13,7 @@ export interface WsMessage {
   payload?: Record<string, unknown>;
   auth?: { token?: string };
   client?: { name?: string; version?: string };
+  budget?: { limit: number; used: number; action: string };
 }
 
 export interface StatusChange {
@@ -89,6 +91,13 @@ export function createWSServer(
             return;
           }
           authenticated = true;
+          // 解析 Token 预算
+          if (msg.budget) {
+            CONFIG.tokenBudgetLimit = msg.budget.limit || 0;
+            CONFIG.tokenBudgetUsed = msg.budget.used || 0;
+            CONFIG.tokenBudgetAction = msg.budget.action || 'Block';
+            console.log(`[cc-companion] Token 预算: ${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit} (${CONFIG.tokenBudgetAction})`);
+          }
           console.log(`[cc-companion] 握手完成: ${msg.client?.name || 'unknown'} v${msg.client?.version || '?'}`);
           sendJson(ws, { type: 'hello-ok' });
           onStatusChange?.({ status: 'connected', client: msg.client });

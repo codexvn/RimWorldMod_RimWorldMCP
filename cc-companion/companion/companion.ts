@@ -125,6 +125,20 @@ async function main(): Promise<void> {
       if (wsMessage.event === 'todo-state') return;
 
       console.log(`[event] ${wsMessage.event || 'unknown'}: ${text.substring(0, 100)}`);
+
+      // Token 预算检查（Companion 侧辅助 enforcement）
+      if (CONFIG.tokenBudgetLimit > 0 && CONFIG.tokenBudgetUsed >= CONFIG.tokenBudgetLimit) {
+        if (CONFIG.tokenBudgetAction === 'Block') {
+          console.log(`[cc-companion] Token 预算已用尽(${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit})，阻止消息`);
+          server.broadcast(JSON.stringify({
+            type: 'error',
+            error: `Token 预算已用尽 (${CONFIG.tokenBudgetUsed}/${CONFIG.tokenBudgetLimit})`
+          }));
+          return;
+        }
+        console.log(`[cc-companion] Token 预算已用尽，但为 Warn 模式，继续发送`);
+      }
+
       inputStream.enqueue({
         type: 'user',
         message: { role: 'user', content: text },

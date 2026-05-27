@@ -13,6 +13,10 @@ export interface CompanionConfig {
   projectSettingSources: string;
   localSettingSources: string;
   chatPageEnabled: boolean;
+  // Token 预算（由 C# hello 消息动态更新）
+  tokenBudgetLimit: number;
+  tokenBudgetUsed: number;
+  tokenBudgetAction: string;
 }
 
 export const CONFIG: CompanionConfig = {
@@ -29,6 +33,9 @@ export const CONFIG: CompanionConfig = {
   projectSettingSources: '',
   localSettingSources: '',
   chatPageEnabled: process.env.CCB_NO_CHAT_PAGE ? false : true,
+  tokenBudgetLimit: 0,
+  tokenBudgetUsed: 0,
+  tokenBudgetAction: 'Block',
 };
 
 export function parseArgs(argv: string[]): void {

@@ -93,6 +93,7 @@ export function createResponseProcessor(
   let sessionId = 'pending';
   let processing = false;
   let initData: any = null;
+  let currentModel = '';
 
   async function process(): Promise<void> {
     if (processing) { console.log('[cc-companion] processResponses 已在运行中，跳过'); return; }
@@ -105,8 +106,9 @@ export function createResponseProcessor(
         if (msgType === 'system') {
           if (message.subtype === 'init') {
             initData = message;
+            // 记录当前模型名
+            if (message.model) currentModel = message.model;
             onInit?.(message);
-            // 广播给 WS 客户端，方便聊天页面展示
             onMessage?.(message);
           }
           if (message.session_id && sessionId !== message.session_id) {
@@ -134,6 +136,8 @@ export function createResponseProcessor(
         }
 
         if (msgType === 'result') {
+          // 附加当前模型名
+          if (currentModel) (message as any).model = currentModel;
           const usage = message.usage;
           const durationMs = message.duration_ms;
           if (usage) {

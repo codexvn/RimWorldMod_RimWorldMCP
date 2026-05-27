@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 using Verse;
 using RimWorldMCP.Tools;
@@ -16,6 +17,7 @@ namespace RimWorldMCP
             Instance = this;
             Settings = GetSettings<McpModSettings>();
             McpLog.MinLogLevel = Settings.LogLevel;
+            GlobalModelUsageStore.Load();
         }
 
         public override string SettingsCategory()
@@ -27,6 +29,12 @@ namespace RimWorldMCP
         {
             float h = 830f;
             h += Settings.CCBAutoStart ? 70f : 170f;
+            // Token 预算段
+            h += 120f;
+            if (Settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Warn) h += 70f;
+            // 全局用量汇总表
+            var globalModels = GlobalModelUsageStore.AllModels;
+            h += 60f + globalModels.Count * 22f;
             if (Settings.OssEnabled) h += 220f;
             if (Settings.OssEnabled && Settings.OssUseSignedUrl) h += 50f;
 
@@ -132,6 +140,123 @@ namespace RimWorldMCP
                 listing.Label($"Companion 状态: 未安装{(string.IsNullOrEmpty(status) ? "" : $" ({status})")}");
                 if (!installing && listing.ButtonText("安装 Claude Code 依赖"))
                     BridgeLifecycle.InstallCompanion();
+            }
+
+            listing.Gap(24f);
+
+            // ====== Token 预算 ======
+            listing.Label("Token 预算");
+            listing.Gap(2f);
+
+            listing.Label("预算上限 (0=无限制)");
+            var limitStr = listing.TextEntry(Settings.TokenBudgetLimit > 0
+                ? (Settings.TokenBudgetLimit / 1_000_000f).ToString("F1") + "M"
+                : "0");
+            if (limitStr == "0" || limitStr == "0M")
+            {
+                Settings.TokenBudgetLimit = 0;
+            }
+            else if (limitStr.EndsWith("M") || limitStr.EndsWith("m"))
+            {
+                if (float.TryParse(limitStr.TrimEnd('M', 'm'), out float mVal) && mVal > 0)
+                    Settings.TokenBudgetLimit = (long)(mVal * 1_000_000);
+            }
+            else if (long.TryParse(limitStr, out long rawVal))
+            {
+                Settings.TokenBudgetLimit = rawVal;
+            }
+            listing.Gap(4f);
+
+            // 超出行为
+            var actionLabels = McpModSettings.BudgetActionLabels;
+            int actionIdx = (int)Settings.TokenBudgetExceedAction;
+            listing.Label($"超出行为: {actionLabels[actionIdx]}");
+            if (listing.ButtonText("切换"))
+            {
+                Settings.TokenBudgetExceedAction = actionIdx == 0
+                    ? TokenBudgetExceedAction.Warn
+                    : TokenBudgetExceedAction.Block;
+            }
+            listing.Gap(4f);
+
+            // Webhook URL (Warn 模式)
+            if (Settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Warn)
+            {
+                listing.Label("Webhook URL (超出时 POST 通知)");
+                Settings.TokenBudgetWebhookUrl = listing.TextEntry(Settings.TokenBudgetWebhookUrl);
+            }
+
+            listing.Gap(24f);
+
+            // ====== 全局用量汇总 ======
+            listing.Label("全局用量汇总（所有存档）");
+            listing.Gap(2f);
+
+            if (globalModels.Count == 0)
+            {
+                listing.Label("  暂无记录");
+            }
+            else
+            {
+                // 表头
+                var headerRect = listing.GetRect(20f);
+                Text.Font = GameFont.Tiny;
+                float[] colX = { headerRect.x, headerRect.x + 140f, headerRect.x + 210f, headerRect.x + 280f,
+                    headerRect.x + 350f, headerRect.x + 400f, headerRect.x + 460f };
+                GUI.color = new Color(0.5f, 0.5f, 0.5f, 1f);
+                Widgets.Label(new Rect(colX[0], headerRect.y, 130f, 20f), "模型");
+                Widgets.Label(new Rect(colX[1], headerRect.y, 65f, 20f), "输入");
+                Widgets.Label(new Rect(colX[2], headerRect.y, 65f, 20f), "输出");
+                Widgets.Label(new Rect(colX[3], headerRect.y, 65f, 20f), "缓存命中");
+                Widgets.Label(new Rect(colX[4], headerRect.y, 45f, 20f), "请求");
+                Widgets.Label(new Rect(colX[5], headerRect.y, 55f, 20f), "合计");
+                Widgets.Label(new Rect(colX[6], headerRect.y, 50f, 20f), "占比");
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
+                listing.Gap(4f);
+
+                long grandTotal = 0;
+                foreach (var kv in globalModels) grandTotal += kv.Value.TotalTokens;
+
+                string fmt(long v) => v >= 1_000_000 ? $"{v / 1_000_000f:F1}M" :
+                                      v >= 1_000 ? $"{v / 1_000f:F0}K" : v.ToString();
+
+                foreach (var kv in globalModels.OrderByDescending(kv => kv.Value.TotalTokens))
+                {
+                    var d = kv.Value;
+                    double pct = grandTotal > 0 ? (double)d.TotalTokens / grandTotal * 100.0 : 0;
+                    var rowRect = listing.GetRect(20f);
+                    Text.Font = GameFont.Tiny;
+                    Widgets.Label(new Rect(colX[0], rowRect.y, 130f, 20f), kv.Key);
+                    Widgets.Label(new Rect(colX[1], rowRect.y, 65f, 20f), fmt(d.InputTokens));
+                    Widgets.Label(new Rect(colX[2], rowRect.y, 65f, 20f), fmt(d.OutputTokens));
+                    Widgets.Label(new Rect(colX[3], rowRect.y, 65f, 20f), fmt(d.CacheReadTokens));
+                    Widgets.Label(new Rect(colX[4], rowRect.y, 45f, 20f), d.RequestCount.ToString());
+                    Widgets.Label(new Rect(colX[5], rowRect.y, 55f, 20f), fmt(d.TotalTokens));
+                    Widgets.Label(new Rect(colX[6], rowRect.y, 50f, 20f), $"{pct:F0}%");
+                    Text.Font = GameFont.Small;
+                }
+
+                // 合计行
+                listing.Gap(2f);
+                var totalRect = listing.GetRect(20f);
+                Text.Font = GameFont.Tiny;
+                GUI.color = new Color(0.7f, 0.7f, 0.7f, 1f);
+                Widgets.Label(new Rect(colX[0], totalRect.y, 130f, 20f), "合计");
+                Widgets.Label(new Rect(colX[5], totalRect.y, 55f, 20f), fmt(grandTotal));
+                GUI.color = Color.white;
+                Text.Font = GameFont.Small;
+            }
+
+            listing.Gap(12f);
+            if (globalModels.Count > 0)
+            {
+                if (listing.ButtonText("清空全部统计"))
+                {
+                    Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                        "确认清空全部 Token 统计？此操作不可撤销。",
+                        GlobalModelUsageStore.Clear, true));
+                }
             }
 
             listing.Gap(24f);

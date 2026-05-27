@@ -2,6 +2,8 @@ using Verse;
 
 namespace RimWorldMCP
 {
+    public enum TokenBudgetExceedAction { Block, Warn }
+
     public class McpModSettings : ModSettings
     {
         // 调试
@@ -33,7 +35,13 @@ namespace RimWorldMCP
         public bool OssUseSignedUrl = true;
         public int OssSignedUrlExpiryHours = 24;
 
+        // Token 预算
+        public long TokenBudgetLimit = 0;
+        public TokenBudgetExceedAction TokenBudgetExceedAction = TokenBudgetExceedAction.Block;
+        public string TokenBudgetWebhookUrl = "";
+
         public static readonly string[] LogLevelLabels = { "Debug", "Info", "Warn", "Error" };
+        public static readonly string[] BudgetActionLabels = { "暂停游戏并阻止", "仅警告通知" };
 
         public override void ExposeData()
         {
@@ -58,6 +66,11 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref OssSecretKey, "ossSecretKey", "");
             Scribe_Values.Look(ref OssUseSignedUrl, "ossUseSignedUrl", true);
             Scribe_Values.Look(ref OssSignedUrlExpiryHours, "ossSignedUrlExpiryHours", 24);
+            var budgetAction = (int)TokenBudgetExceedAction;
+            Scribe_Values.Look(ref TokenBudgetLimit, "tokenBudgetLimit", 0L);
+            Scribe_Values.Look(ref budgetAction, "tokenBudgetAction", (int)TokenBudgetExceedAction.Block);
+            TokenBudgetExceedAction = (TokenBudgetExceedAction)budgetAction;
+            Scribe_Values.Look(ref TokenBudgetWebhookUrl, "tokenBudgetWebhookUrl", "");
         }
     }
 }

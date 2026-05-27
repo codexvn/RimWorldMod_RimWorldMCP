@@ -11,6 +11,7 @@ using Verse;
 using RimWorld;
 using RimWorldMCP.Harmony;
 using RimWorldMCP.Helpers;
+using System.Net;
 using RimWorldMCP.Tools;
 
 namespace RimWorldMCP
@@ -360,10 +361,64 @@ namespace RimWorldMCP
         /// <summary>统一发送入口 — 追踪最后发送时间，写入聊天窗并转发 AI</summary>
         private static void SendCCMessage(string category, string text, object? colonyStats = null)
         {
+            // ===== Token 预算检查 =====
+            var settings = RimWorldMCPMod.Instance.Settings;
+            var status = TokenUsageTracker.CheckBudget(settings.TokenBudgetLimit);
+
+            ChatDisplayState.CurrentBudgetStatus = status;
+            ChatDisplayState.CurrentBudgetPercent = TokenUsageTracker.GetBudgetUsagePercent(settings.TokenBudgetLimit);
+            ChatDisplayState.CurrentBudgetText = TokenUsageTracker.GetCompactDisplay(settings.TokenBudgetLimit);
+
+            if (status == BudgetStatus.Exceeded)
+            {
+                if (settings.TokenBudgetExceedAction == TokenBudgetExceedAction.Block)
+                {
+                    Find.TickManager?.Pause();
+                    return;
+                }
+                else
+                {
+                    SendBudgetWebhook(settings);
+                    // Warn 模式继续发送
+                }
+            }
+
             _lastSendRealMs = Environment.TickCount;
             var formatted = FormatGameEvent(category, text);
             ChatDisplayState.AddSystemMessage(formatted);
             _ = CCClient.SendEventText("rimworld.chat", category, formatted, colonyStats);
+        }
+
+        /// <summary>发送预算超限 Webhook 通知（fire-and-forget）</summary>
+        private static void SendBudgetWebhook(McpModSettings settings)
+        {
+            var url = settings.TokenBudgetWebhookUrl;
+            if (string.IsNullOrEmpty(url)) return;
+
+            try
+            {
+                var payload = new
+                {
+                    @event = "budget_exceeded",
+                    save_name = Find.CurrentMap?.Parent?.Label ?? "",
+                    session_id = GameComponent_McpServer.CurrentSessionId ?? "",
+                    model = TokenUsageTracker.CurrentModel,
+                    current_tokens = TokenUsageTracker.TotalAllTokens,
+                    budget_limit = settings.TokenBudgetLimit,
+                    usage_percent = TokenUsageTracker.GetBudgetUsagePercent(settings.TokenBudgetLimit),
+                    timestamp = DateTime.UtcNow.ToString("o")
+                };
+                var json = JsonSerializer.Serialize(payload);
+                using (var wc = new WebClient())
+                {
+                    wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+                    wc.UploadStringAsync(new Uri(url), "POST", json);
+                }
+            }
+            catch (Exception ex)
+            {
+                McpLog.Warn($"[cc] Webhook 发送失败: {ex.Message}");
+            }
         }
 
         /// <summary>每日早报</summary>

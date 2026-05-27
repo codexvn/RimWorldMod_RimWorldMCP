@@ -1,12 +1,17 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using Verse;
 
 namespace RimWorldMCP
 {
-    /// <summary>Token 消耗追踪器 — 从 CC Companion 接收每次 API 调用的用量，累积并持久化到存档</summary>
+    public enum BudgetStatus { Ok, Warning, Critical, Exceeded }
+
+    /// <summary>Token 消耗追踪器 — 按存档 + 按模型追踪，持久化到存档，同步写入全局汇总</summary>
     public static class TokenUsageTracker
     {
+        // 合计字段（兼容旧代码 + 存档持久化）
         public static long TotalInputTokens;
         public static long TotalOutputTokens;
         public static long TotalCacheReadTokens;
@@ -16,14 +21,55 @@ namespace RimWorldMCP
         public static int TotalToolFailure;
         public static long TotalDurationMs;
 
-        public static void Record(long inputTokens, long outputTokens, long cacheRead, long cacheCreate, long durationMs)
+        // 当前存档各模型用量（持久化到存档）
+        public static Dictionary<string, ModelUsageData> PerModelUsages = new Dictionary<string, ModelUsageData>();
+
+        // 当前会话模型名（从 SDK init 消息获取）
+        public static string CurrentModel = "";
+
+        public static long TotalAllTokens =>
+            TotalInputTokens + TotalOutputTokens + TotalCacheReadTokens + TotalCacheCreateTokens;
+
+        public static void Record(string model, long inputTokens, long outputTokens,
+            long cacheRead, long cacheCreate, long durationMs)
         {
+            // 更新合计
             Interlocked.Add(ref TotalInputTokens, inputTokens);
             Interlocked.Add(ref TotalOutputTokens, outputTokens);
             Interlocked.Add(ref TotalCacheReadTokens, cacheRead);
             Interlocked.Add(ref TotalCacheCreateTokens, cacheCreate);
             Interlocked.Increment(ref TotalRequests);
             Interlocked.Add(ref TotalDurationMs, durationMs);
+
+            // 更新当前模型名
+            if (!string.IsNullOrEmpty(model))
+                CurrentModel = model;
+
+            // 更新按模型统计
+            var key = string.IsNullOrEmpty(model) ? "unknown" : model;
+            lock (PerModelUsages)
+            {
+                if (!PerModelUsages.TryGetValue(key, out var data))
+                {
+                    data = new ModelUsageData();
+                    PerModelUsages[key] = data;
+                }
+                data.InputTokens += inputTokens;
+                data.OutputTokens += outputTokens;
+                data.CacheReadTokens += cacheRead;
+                data.CacheCreateTokens += cacheCreate;
+                data.RequestCount++;
+            }
+
+            // 同步写入全局汇总
+            GlobalModelUsageStore.Contribute(key, inputTokens, outputTokens, cacheRead, cacheCreate);
+        }
+
+        /// <summary>兼容旧的无模型名调用</summary>
+        public static void Record(long inputTokens, long outputTokens,
+            long cacheRead, long cacheCreate, long durationMs)
+        {
+            Record(CurrentModel, inputTokens, outputTokens, cacheRead, cacheCreate, durationMs);
         }
 
         public static void RecordToolResult(bool isError)
@@ -33,6 +79,30 @@ namespace RimWorldMCP
             else
                 Interlocked.Increment(ref TotalToolSuccess);
         }
+
+        // ===== 预算检查 =====
+
+        private const double WarningThreshold = 0.80;
+        private const double CriticalThreshold = 0.95;
+
+        public static BudgetStatus CheckBudget(long limit)
+        {
+            if (limit <= 0) return BudgetStatus.Ok;
+            long total = TotalAllTokens;
+            if (total >= limit) return BudgetStatus.Exceeded;
+            double pct = (double)total / limit;
+            if (pct >= CriticalThreshold) return BudgetStatus.Critical;
+            if (pct >= WarningThreshold) return BudgetStatus.Warning;
+            return BudgetStatus.Ok;
+        }
+
+        public static double GetBudgetUsagePercent(long limit)
+        {
+            if (limit <= 0) return 0;
+            return (double)TotalAllTokens / limit * 100.0;
+        }
+
+        // ===== 持久化 =====
 
         public static void ExposeData()
         {
@@ -44,7 +114,57 @@ namespace RimWorldMCP
             Scribe_Values.Look(ref TotalToolSuccess, "usageToolSuccess", 0);
             Scribe_Values.Look(ref TotalToolFailure, "usageToolFailure", 0);
             Scribe_Values.Look(ref TotalDurationMs, "usageDurationMs", 0L);
+
+            // 序列化 PerModelUsages：key1|v1,v2,v3,v4,v5;key2|...
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                var parts = new List<string>();
+                lock (PerModelUsages)
+                {
+                    foreach (var kv in PerModelUsages)
+                    {
+                        var d = kv.Value;
+                        parts.Add($"{kv.Key}|{d.InputTokens},{d.OutputTokens},{d.CacheReadTokens},{d.CacheCreateTokens},{d.RequestCount}");
+                    }
+                }
+                var str = string.Join(";", parts);
+                Scribe_Values.Look(ref str, "usagePerModel", "");
+            }
+            else if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                var str = "";
+                Scribe_Values.Look(ref str, "usagePerModel", "");
+                PerModelUsages = new Dictionary<string, ModelUsageData>();
+                if (!string.IsNullOrEmpty(str))
+                {
+                    foreach (var part in str.Split(';'))
+                    {
+                        var sep = part.IndexOf('|');
+                        if (sep < 0) continue;
+                        var model = part.Substring(0, sep);
+                        var vals = part.Substring(sep + 1).Split(',');
+                        if (vals.Length >= 5
+                            && long.TryParse(vals[0], out var inp)
+                            && long.TryParse(vals[1], out var outp)
+                            && long.TryParse(vals[2], out var cr)
+                            && long.TryParse(vals[3], out var cc)
+                            && int.TryParse(vals[4], out var rc))
+                        {
+                            PerModelUsages[model] = new ModelUsageData
+                            {
+                                InputTokens = inp,
+                                OutputTokens = outp,
+                                CacheReadTokens = cr,
+                                CacheCreateTokens = cc,
+                                RequestCount = rc
+                            };
+                        }
+                    }
+                }
+            }
         }
+
+        // ===== 格式化输出 =====
 
         public static string GetSummary()
         {
@@ -59,34 +179,65 @@ namespace RimWorldMCP
                 ? (double)TotalCacheReadTokens / totalInputWithCache * 100.0
                 : 0.0;
 
-            sb.AppendLine($"## Token 消耗统计");
+            sb.AppendLine("## Token 消耗统计");
             sb.AppendLine($"- 累计请求: {TotalRequests} 次 | 总耗时: {TotalDurationMs / 1000.0:F0} 秒 (均 {avgDurationSec:F1}s/次)");
             sb.AppendLine($"- 输入 Token: {TotalInputTokens:N0} | 缓存命中: {TotalCacheReadTokens:N0} ({cacheHitRate:F1}%) | 缓存新建: {TotalCacheCreateTokens:N0}");
             sb.AppendLine($"- 输出 Token: {TotalOutputTokens:N0}");
             sb.AppendLine($"- 合计 Token: {totalTokens:N0}");
             sb.AppendLine($"- 工具调用: {TotalToolSuccess + TotalToolFailure} 次 (成功 {TotalToolSuccess}, 失败 {TotalToolFailure})");
 
+            // 按模型细分
+            lock (PerModelUsages)
+            {
+                if (PerModelUsages.Count > 0)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("### 按模型");
+                    foreach (var kv in PerModelUsages.OrderByDescending(kv => kv.Value.TotalTokens))
+                    {
+                        var d = kv.Value;
+                        sb.AppendLine($"- **{kv.Key}**: 合计 {d.TotalTokens:N0} | 入 {d.InputTokens:N0} | 出 {d.OutputTokens:N0} | 缓存 {d.CacheReadTokens:N0} | {d.RequestCount} 次");
+                    }
+                }
+            }
+
             return sb.ToString();
         }
 
-        /// <summary>紧凑格式供游戏内 UI 底栏使用</summary>
-        public static string GetCompactDisplay()
+        /// <summary>紧凑格式供游戏内 UI 底栏，含预算进度条</summary>
+        public static string GetCompactDisplay(long budgetLimit = 0)
         {
             if (TotalRequests == 0) return "Token: --";
+
+            string fmt(long v) => v >= 1_000_000 ? $"{v / 1_000_000f:F1}M" :
+                                  v >= 1_000 ? $"{v / 1_000f:F0}K" : v.ToString();
+
             long totalTokens = TotalInputTokens + TotalOutputTokens;
             long totalInputWithCache = TotalInputTokens + TotalCacheCreateTokens + TotalCacheReadTokens;
             double cacheHitRate = totalInputWithCache > 0
                 ? (double)TotalCacheReadTokens / totalInputWithCache * 100.0
                 : 0.0;
 
-            string fmt(long v) => v >= 1_000_000 ? $"{v / 1_000_000f:F1}M" :
-                                  v >= 1_000 ? $"{v / 1_000f:F0}K" : v.ToString();
-
             int totalCalls = TotalToolSuccess + TotalToolFailure;
             string toolStr = totalCalls > 0
                 ? $"工具 {TotalToolSuccess}✓{(TotalToolFailure > 0 ? $" {TotalToolFailure}✗" : "")} | "
                 : "";
-            return $"Token: {fmt(totalTokens)} | 缓存 {fmt(TotalCacheReadTokens)}({cacheHitRate:F0}%) | {toolStr}{TotalRequests}轮";
+
+            string tokenPart;
+            if (budgetLimit > 0)
+            {
+                double pct = (double)TotalAllTokens / budgetLimit * 100.0;
+                int blocks = (int)(pct / 10.0);
+                if (blocks > 10) blocks = 10;
+                string bar = new string('█', blocks) + new string('░', 10 - blocks);
+                tokenPart = $"Token: {fmt(TotalAllTokens)}/{fmt(budgetLimit)} ({pct:F0}%) {bar}";
+            }
+            else
+            {
+                tokenPart = $"Token: {fmt(totalTokens)}";
+            }
+
+            return $"{tokenPart} | 缓存 {fmt(TotalCacheReadTokens)}({cacheHitRate:F0}%) | {toolStr}{TotalRequests}轮";
         }
     }
 }

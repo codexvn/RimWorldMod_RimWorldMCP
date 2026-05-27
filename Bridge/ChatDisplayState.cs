@@ -43,6 +43,11 @@ namespace RimWorldMCP
         private static readonly List<ToolCallInfo> _toolCalls = new();
         private static readonly object _lock = new();
 
+        // 预算状态（由 BridgeLifecycle 更新，UI 持久渲染）
+        public static BudgetStatus CurrentBudgetStatus = BudgetStatus.Ok;
+        public static double CurrentBudgetPercent;
+        public static string CurrentBudgetText = "";
+
         /// <summary>是否有活跃对话（流式输出或工具执行中），用于抑制空闲推送</summary>
         public static bool IsBusy
         {
