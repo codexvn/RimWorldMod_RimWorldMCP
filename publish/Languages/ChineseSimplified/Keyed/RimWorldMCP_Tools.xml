@@ -165,4 +165,10 @@
   <RimWorldMCP_Tool_list_quests>任务列表（分页）</RimWorldMCP_Tool_list_quests>
   <RimWorldMCP_Tool_accept_quest>接受任务</RimWorldMCP_Tool_accept_quest>
 
+  <!-- 记忆系统 -->
+  <RimWorldMCP_Tool_add_memory>添加记忆</RimWorldMCP_Tool_add_memory>
+  <RimWorldMCP_Tool_list_memories>记忆列表</RimWorldMCP_Tool_list_memories>
+  <RimWorldMCP_Tool_delete_memory>删除记忆</RimWorldMCP_Tool_delete_memory>
+  <RimWorldMCP_Tool_update_memory>更新记忆</RimWorldMCP_Tool_update_memory>
+
 </LanguageData>

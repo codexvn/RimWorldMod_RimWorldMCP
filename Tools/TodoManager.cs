@@ -69,6 +69,10 @@ namespace RimWorldMCP.Tools
 
         public static bool UpdateStatus(string id, string newStatus)
         {
+            // done/cancelled 直接删除，避免堆积
+            if (newStatus == "done" || newStatus == "cancelled")
+                return Delete(id);
+
             bool found;
             lock (_lock)
             {

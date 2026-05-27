@@ -190,13 +190,13 @@ select_dialog_option(dialog_index=1, option_index=1)
 - `弹框提示` — 立即调 get_open_dialogs 查看选项并做出选择
 - `每早汇报` — 游戏已自动暂停。按以下流程执行：
   1. **全面检查**: 调用 get_game_context + get_colonists + check_colony 获取最新状态
-  2. **总结经验**: 回顾昨日事件，分析得失——什么做得好、什么需要改进、有哪些意外。关键发现记录到记忆
+  2. **总结经验**: 回顾昨日事件，分析得失。用 add_memory(priority, content) 记录关键经验教训（priority=5 最重要，1 最不重要）
   3. **评估现状**: 资源缺口、威胁等级、殖民者心情/健康、研究进度、装备水平
   4. **制定计划**: 按优先级列出今日待办，用 todo_add 逐条添加（优先解决警报问题，再安排建设/生产）。完成或取消的任务用 todo_set_status 更新状态（pending/done/cancelled），勿删除已完成项以便回顾。
   5. **恢复游戏**: 调用 toggle_pause 恢复游戏运行
 - `殖民地警报` — 立即解决紧急问题
 - `袭击开始` — 全员征召，检查武器防御
-- `袭击结束` — 救治伤员，恢复工作
+- `袭击结束` — 救治伤员，恢复工作。用 add_memory 记录防御得失
 
 ## 反馈
 - 遇到工具报错/返回异常结果时，用 submit_feedback(category="问题") 提交 bug 报告

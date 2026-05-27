@@ -6,7 +6,7 @@ namespace RimWorldMCP.Tools
     public class Tool_TodoSetStatus : ITool
     {
         public string Name => "todo_set_status";
-        public string Description => "修改指定 ID 待办事项的状态。支持 pending（待办）、done（完成）、cancelled（取消）。";
+        public string Description => "修改指定 ID 待办事项的状态。done/cancelled 会自动删除，仅 pending 保留。";
 
         public JsonElement InputSchema => JsonSerializer.SerializeToElement(new
         {
@@ -44,9 +44,12 @@ namespace RimWorldMCP.Tools
                 return Task.FromResult(ToolResult.Error($"无效状态 \"{status}\"，支持: pending, done, cancelled。"));
 
             var updated = TodoManager.UpdateStatus(id, status);
-            return Task.FromResult(updated
-                ? ToolResult.Success($"已更新待办 #{id} 状态为 {status}。")
-                : ToolResult.Error($"未找到待办 #{id}。请用 todo_query 查看当前的 ID 列表。"));
+            if (!updated)
+                return Task.FromResult(ToolResult.Error($"未找到待办 #{id}。请用 todo_query 查看当前的 ID 列表。"));
+
+            if (status == "done" || status == "cancelled")
+                return Task.FromResult(ToolResult.Success($"待办 #{id} 已完成并删除。"));
+            return Task.FromResult(ToolResult.Success($"已更新待办 #{id} 状态为 {status}。"));
         }
 
         public (int minX, int minZ, int maxX, int maxZ)? GetTargetRange(JsonElement? args) => null;
