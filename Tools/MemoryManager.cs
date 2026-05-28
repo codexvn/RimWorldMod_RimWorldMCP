@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace RimWorldMCP.Tools
@@ -73,7 +74,11 @@ namespace RimWorldMCP.Tools
         private static void Save(List<MemoryEntry> entries)
         {
             var path = GetFilePath();
-            var json = JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(entries, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
             File.WriteAllText(path, json);
         }
 
