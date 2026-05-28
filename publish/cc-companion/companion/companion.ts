@@ -176,11 +176,11 @@ async function main(): Promise<void> {
       // C# Token 预算更新 → 刷新 companion 侧缓存并广播
       if (wsMessage.event === 'budget-update') {
         RuntimeState.tokenBudgetUsed = (payload.used as number) || 0;
-        bus.publishBudgetStatus({
-          limit: RuntimeState.tokenBudgetLimit,
-          used: RuntimeState.tokenBudgetUsed,
-          action: RuntimeState.tokenBudgetAction,
-        });
+        bus.publishBudgetStatus(
+          RuntimeState.tokenBudgetLimit,
+          RuntimeState.tokenBudgetUsed,
+          RuntimeState.tokenBudgetAction,
+        );
         return;
       }
 
