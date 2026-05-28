@@ -1082,7 +1082,7 @@ export function getChatPageHtml(config: ChatPageConfig): string {
     // 历史加载期间缓冲 WS 消息，防止乱序
     if (loadingHistory) { pendingWs.push(msg); return; }
     // 中断后丢弃中间消息直到 result
-    if (discarding && msg.type !== 'result') return;
+    if (discarding && msg.type !== 'result' && msg.type !== 'aborted') return;
     // assistant 消息按 uuid 去重
     if (msg.type === 'assistant' && msg.uuid) {
       if (seenUuids[msg.uuid]) return;
@@ -1219,6 +1219,14 @@ export function getChatPageHtml(config: ChatPageConfig): string {
         // message_delta — usage info only, ignore
         break;
       }
+
+      case 'aborted':
+        discarding = false;
+        abortBtn.disabled = false;
+        abortBtn.textContent = '中断';
+        setAbort(false);
+        hideReading();
+        break;
 
       case 'result': {
         discarding = false;
