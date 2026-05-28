@@ -389,7 +389,7 @@ namespace RimWorldMCP
             // 检查 pong 超时
             if (_lastPong != DateTime.MinValue && (now - _lastPong).TotalMilliseconds > PongTimeoutMs)
             {
-                McpLog.Error("[cc] pong 超时，断开连接（将自动重连）");
+                McpLog.Warn("[cc] pong 超时，断开连接（将自动重连）");
                 _state = CCClientState.Disconnected;
                 try { _ws?.CloseAsync(WebSocketCloseStatus.ProtocolError, "pong timeout", CancellationToken.None); } catch { }
             }
