@@ -282,7 +282,12 @@ namespace RimWorldMCP
                 }
             }
             catch (OperationCanceledException) { }
-            catch (Exception ex) { McpLog.Error($"[cc] 接收异常: {ex.Message}"); }
+            catch (System.Net.WebSockets.WebSocketException ex)
+            {
+                // 远端关闭连接（companion 退出/重启），自动重连即可，不报 Error
+                McpLog.Info($"[cc] WS 断开: {ex.Message}");
+            }
+            catch (Exception ex) { McpLog.Warn($"[cc] 接收异常: {ex.Message}"); }
 
             _state = CCClientState.Disconnected;
 
