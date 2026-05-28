@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
+using UnityEngine;
 using Verse;
 using RimWorld;
 using RimWorldMCP.Harmony;
@@ -70,8 +71,8 @@ namespace RimWorldMCP
                 if (!IsCompanionInstalled() && FindNodeExe() != null)
                 {
                     McpLog.Info("[bridge] Companion 依赖未安装，弹框询问用户");
-                    Find.WindowStack.Add(new Dialog_Confirm(
-                        "CC Companion 的 Node.js 依赖尚未安装。\n\n需要运行 npm install 安装后才能启动 AI 助手。是否现在安装？",
+                    Find.WindowStack.Add(new Dialog_ConfirmWide(
+                        "CC Companion 的 Node.js 依赖尚未安装。\n\n需运行 npm install 安装后方可启动 AI 助手。\n是否现在安装？",
                         "安装",
                         async () =>
                         {
@@ -81,7 +82,8 @@ namespace RimWorldMCP
                                 await StartCompanionAndConnect(settings, sessionId);
                             else
                                 McpLog.Error("[bridge] Companion 依赖安装失败，跳过启动");
-                        }
+                        },
+                        new Vector2(480f, 200f)
                     ));
                     return;
                 }
@@ -1407,6 +1409,18 @@ namespace RimWorldMCP
             }
 
             McpLog.Info("[cc] Companion 已绑定到 JobObject，RimWorld 退出时自动终止");
+        }
+
+        /// <summary>宽版确认弹框，适配长文本</summary>
+        private class Dialog_ConfirmWide : Dialog_Confirm
+        {
+            private readonly Vector2 _size;
+            public Dialog_ConfirmWide(string title, string confirm, Action onConfirm, Vector2 size)
+                : base(title, confirm, onConfirm)
+            {
+                _size = size;
+            }
+            public override Vector2 InitialSize => _size;
         }
     }
 }
