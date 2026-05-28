@@ -11,7 +11,7 @@ RimWorld 1.6 模组——将游戏状态和操作暴露为 MCP (Model Context Pr
 
 ## 功能
 
-- **100+ 个 MCP Tool**：覆盖通用查询、网格查询、制造管理、建造规划、标记、存储/种植、研究控制、殖民者管理、医疗、战斗、右键操作、搜索、任务管理、区域管理等类别
+- **100+ 个 MCP Tool**：覆盖通用查询、网格查询、制造管理、建造规划、标记、存储/种植、研究控制、殖民者管理、医疗、战斗、右键操作、搜索、任务管理、区域管理、记忆系统等类别
 - **真实游戏状态查询**：通过 `Find.*`、`DefDatabase<>` 等 RimWorld API 直接读取殖民地数据
 - **反射自动注册**：新增 Tool 只需放在 Tools/ 目录，无需手动注册
 - **分页查询**：列表类工具支持 `page`/`page_size` 参数，避免大段返回导致缓存失效
@@ -125,6 +125,10 @@ RimWorld 1.6 模组——将游戏状态和操作暴露为 MCP (Model Context Pr
 | 反馈 | `submit_feedback` | 提交反馈 |
 | 腐坏追踪 | `get_deteriorating_items` | 腐坏物品清单 |
 | 地图 | `regenerate_map` | 重新生成地图 |
+| 记忆 | `add_memory` | 添加记忆（JSON 持久化） |
+| | `list_memories` | 列出所有记忆 |
+| | `delete_memory` | 删除记忆 |
+| | `update_memory` | 更新记忆优先级/内容 |
 
 ## Claude Desktop 配置
 
@@ -177,7 +181,7 @@ RimWorldMCP/
 ├── McpCommandQueue.cs                 # 线程安全命令队列
 ├── Transport/                         # 传输层 (SSE, Streamable HTTP)
 ├── Mcp/                               # MCP 协议层 (JSON-RPC 调度)
-├── Tools/                             # 100+ 个 Tool 实现 + 注册表
+├── Tools/                             # 100+ 个 Tool 实现 + 注册表 + MemoryManager
 ├── Bridge/                            # CC 桥接（生命周期/WS/事件/Token 追踪）
 ├── Skills/                            # 11 个领域知识 .md + 加载器
 ├── UI/                                # 游戏内聊天窗（双栏布局、流式显示）

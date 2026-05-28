@@ -64,63 +64,40 @@ namespace RimWorldMCP
             var settings = RimWorldMCPMod.Instance?.Settings;
             if (settings == null) return;
 
-            bool companionStarted = false;
             if (settings.CCBAutoStart)
             {
+                // 首次启动：检查依赖是否安装
+                if (!IsCompanionInstalled() && FindNodeExe() != null)
+                {
+                    McpLog.Info("[bridge] Companion 依赖未安装，弹框询问用户");
+                    Find.WindowStack.Add(new Dialog_Confirm(
+                        "CC Companion 的 Node.js 依赖尚未安装。\n\n需要运行 npm install 安装后才能启动 AI 助手。是否现在安装？",
+                        "安装",
+                        async () =>
+                        {
+                            McpLog.Info("[bridge] 用户确认安装 Companion 依赖");
+                            var ok = await InstallCompanionAsync();
+                            if (ok)
+                                await StartCompanionAndConnect(settings, sessionId);
+                            else
+                                McpLog.Error("[bridge] Companion 依赖安装失败，跳过启动");
+                        }
+                    ));
+                    return;
+                }
+
                 McpLog.Info("[bridge] CCBAutoStart=开启");
-                McpLog.Info("[bridge] 步骤1: 停止当前进程...");
-                StopCompanionProcess();
-                McpLog.Info("[bridge] 步骤2: 清理残留 PID 文件...");
-                KillStaleByPidFile();
-                McpLog.Info("[bridge] 步骤3: 启动 Companion 进程...");
-                companionStarted = StartCompanionProcess(settings.CCBHost, settings.CCBPort, settings.CCBAuthToken, sessionId);
-                if (companionStarted)
-                {
-                    // 轮询等待 Companion 就绪（最多 15 秒），期间检测进程是否崩溃
-                    var deadline = DateTime.UtcNow.AddSeconds(15);
-                    var ready = false;
-                    while (DateTime.UtcNow < deadline)
-                    {
-                        if (_companionProcess != null && _companionProcess.HasExited)
-                        {
-                            McpLog.Error($"[cc] Companion 进程启动后立即退出 (退出码: {_companionProcess.ExitCode})，跳过连接");
-                            companionStarted = false;
-                            break;
-                        }
-                        await Task.Delay(500);
-                        // Companion 就绪的标志：_companionReady 由 output 中的就绪日志设置
-                        if (_companionReady)
-                        {
-                            ready = true;
-                            break;
-                        }
-                    }
-                    if (!ready && companionStarted)
-                        McpLog.Warn("[cc] Companion 启动超时(15s)，尝试连接...");
-                }
-                else
-                {
-                    McpLog.Error("[bridge] Companion 进程启动失败，跳过 WebSocket 连接");
-                }
+                await StartCompanionAndConnect(settings, sessionId);
             }
             else
             {
                 McpLog.Info("[bridge] CCBAutoStart=关闭，仅连接远程 Companion");
-            }
-
-            // 仅当 auto-start 关闭（手动模式）或 companion 成功启动时才尝试连接
-            if (!settings.CCBAutoStart || companionStarted)
-            {
                 var ccbUrl = $"ws://{settings.CCBRemoteHost}:{settings.CCBRemotePort}";
                 await CCClient.Connect(ccbUrl, settings.CCBAuthToken);
                 if (CCClient.IsReady)
-                {
                     McpLog.Info($"[bridge] 已连接到 Claude Code: {ccbUrl}");
-                }
                 else
-                {
                     McpLog.Error($"[bridge] Claude Code 连接失败: {ccbUrl}");
-                }
             }
         }
 
@@ -138,11 +115,7 @@ namespace RimWorldMCP
                 KillStaleByPidFile();
                 var settings = RimWorldMCPMod.Instance?.Settings;
                 if (settings?.CCBAutoStart == true)
-                {
-                    StartCompanionProcess(settings.CCBHost, settings.CCBPort, settings.CCBAuthToken, _currentSessionId);
-                    var ccbUrl = $"ws://{settings.CCBRemoteHost}:{settings.CCBRemotePort}";
-                    _ = CCClient.Connect(ccbUrl, settings.CCBAuthToken);
-                }
+                    _ = StartCompanionAndConnect(settings, _currentSessionId);
             }
 
             CCClient.Tick();
@@ -835,16 +808,22 @@ namespace RimWorldMCP
         public static bool IsInstalling { get; private set; }
         public static string InstallStatus { get; private set; } = "";
 
-        public static void InstallCompanion()
+        public static async void InstallCompanion()
+        {
+            await InstallCompanionAsync();
+        }
+
+        public static async Task<bool> InstallCompanionAsync()
         {
             var dir = FindCompanionDir();
-            if (dir == null) { InstallStatus = "找不到 cc-companion 目录"; return; }
-            if (IsInstalling) return;
+            if (dir == null) { InstallStatus = "找不到 cc-companion 目录"; return false; }
+            if (IsInstalling) return false;
 
             IsInstalling = true;
             InstallStatus = "正在安装...";
             McpLog.Info($"[cc] 开始安装 Companion 依赖...");
-            _ = Task.Run(() =>
+
+            var success = await Task.Run(() =>
             {
                 var log = new System.Text.StringBuilder();
                 try
@@ -854,12 +833,9 @@ namespace RimWorldMCP
                     {
                         InstallStatus = "找不到 npm，请确保已安装 Node.js (https://nodejs.org)";
                         IsInstalling = false;
-                        return;
+                        return false;
                     }
                     McpLog.Info($"[cc] 使用 npm: {npmPath}");
-                    // ⚠ Process.Start(UseShellExecute=false) 通过 CreateProcess 直接启动，
-                    // 只支持 .exe，不能运行 .cmd 或无扩展名的脚本文件。
-                    // 检测到非 .exe 时用 cmd /c 包装（兼容 Scoop 等无扩展名路径）。
                     ProcessStartInfo psi;
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                         && !npmPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
@@ -885,7 +861,7 @@ namespace RimWorldMCP
                         };
                     }
                     using var proc = Process.Start(psi);
-                    if (proc == null) { InstallStatus = "无法启动 npm install"; IsInstalling = false; return; }
+                    if (proc == null) { InstallStatus = "无法启动 npm install"; IsInstalling = false; return false; }
                     proc.OutputDataReceived += (_, e) =>
                     {
                         if (!string.IsNullOrEmpty(e.Data))
@@ -900,14 +876,16 @@ namespace RimWorldMCP
                     proc.BeginErrorReadLine();
                     proc.WaitForExit(120000);
                     if (proc.ExitCode == 0)
-                    { InstallStatus = "安装完成"; McpLog.Info("[cc] Companion 依赖安装完成"); }
+                    { InstallStatus = "安装完成"; McpLog.Info("[cc] Companion 依赖安装完成"); return true; }
                     else
-                    { InstallStatus = $"npm install 失败，退出码: {proc.ExitCode}"; McpLog.Error($"[cc] {InstallStatus}"); }
+                    { InstallStatus = $"npm install 失败，退出码: {proc.ExitCode}"; McpLog.Error($"[cc] {InstallStatus}"); return false; }
                 }
                 catch (Exception ex)
-                { InstallStatus = $"安装失败: {ex.Message}"; McpLog.Error($"[cc] {InstallStatus}"); }
+                { InstallStatus = $"安装失败: {ex.Message}"; McpLog.Error($"[cc] {InstallStatus}"); return false; }
                 finally { IsInstalling = false; }
             });
+
+            return success;
         }
 
         public static void UninstallCompanion()
@@ -1267,6 +1245,41 @@ namespace RimWorldMCP
                 return true;
             }
             catch (Exception ex) { McpLog.Error($"[cc] 启动 Companion 进程失败: {ex.Message}"); return false; }
+        }
+
+        /// <summary>启动 Companion 进程并连接到 WebSocket（自动模式）</summary>
+        private static async Task StartCompanionAndConnect(McpModSettings settings, string sessionId)
+        {
+            StopCompanionProcess();
+            KillStaleByPidFile();
+
+            if (!StartCompanionProcess(settings.CCBHost, settings.CCBPort, settings.CCBAuthToken, sessionId))
+            {
+                McpLog.Error("[bridge] Companion 进程启动失败，跳过 WebSocket 连接");
+                return;
+            }
+
+            // 轮询等待 Companion 就绪（最多 15 秒），期间检测进程是否崩溃
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (_companionProcess != null && _companionProcess.HasExited)
+                {
+                    McpLog.Error($"[cc] Companion 进程启动后立即退出 (退出码: {_companionProcess.ExitCode})，跳过连接");
+                    return;
+                }
+                await Task.Delay(500);
+                if (_companionReady) break;
+            }
+            if (!_companionReady)
+                McpLog.Warn("[cc] Companion 启动超时(15s)，尝试连接...");
+
+            var ccbUrl = $"ws://{settings.CCBRemoteHost}:{settings.CCBRemotePort}";
+            await CCClient.Connect(ccbUrl, settings.CCBAuthToken);
+            if (CCClient.IsReady)
+                McpLog.Info($"[bridge] 已连接到 Claude Code: {ccbUrl}");
+            else
+                McpLog.Error($"[bridge] Claude Code 连接失败: {ccbUrl}");
         }
 
         internal static string BuildMcpJson(int mcpPort)
